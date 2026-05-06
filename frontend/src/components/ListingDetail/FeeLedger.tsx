@@ -147,7 +147,7 @@ export default function FeeLedger({ metadata, category }: FeeLedgerProps) {
               Move-In Cost Ledger
             </h3>
             <p className="text-xs text-light-gray">
-              {category.charAt(0).toUpperCase() + category.slice(1)} ·{" "}
+              {(category ?? "").charAt(0).toUpperCase() + (category ?? "").slice(1)} ·{" "}
               {metadata.total
                 ? `${currency} ${metadata.total.toLocaleString()}`
                 : "Total not declared"}

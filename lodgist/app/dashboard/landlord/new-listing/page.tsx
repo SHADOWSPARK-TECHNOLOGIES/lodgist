@@ -93,7 +93,7 @@ function ImagePreview({
         <X className="h-3 w-3" />
       </button>
       <span className="absolute bottom-0 left-0 right-0 truncate bg-black/60 px-1 text-[10px] text-white">
-        {file.name.length > 12 ? file.name.slice(0, 10) + "…" : file.name}
+        {(file.name ?? "").length > 12 ? (file.name ?? "").slice(0, 10) + "…" : file.name}
       </span>
     </div>
   );
@@ -291,7 +291,7 @@ export default function NewListingPage() {
                             <SelectGroup>
                               {PROPERTY_TYPES.map((t) => (
                                 <SelectItem key={t} value={t}>
-                                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                                  {t.charAt(0).toUpperCase() + (t ?? "").slice(1)}
                                 </SelectItem>
                               ))}
                             </SelectGroup>
