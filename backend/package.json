@@ -11,10 +11,18 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^1.52.0",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "openai": "^6.35.0",
-    "pg": "^8.20.0"
+    "pg": "^8.20.0",
+    "axios": "^1.7.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@google/genai",
+      "protobufjs"
+    ]
   }
 }

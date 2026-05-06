@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "shadowspark-production-489115",
+  "private_key_id": "6dba07f42a1d8cf586fafcb22b12b32e2cfd46a8",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDa4m3Zc5kUBDyz\n7v3RH1/+Ip50yF0PZk5f+YcwoQOCOrm7tyf+/ABSLYpCaT9i/X1cZHe5kHRNrbDA\namH21hpFZLXJ+D1FaAQRw4vG8xJWLeHFU7E0tlOjec83QU1yXLPw9mE4pHK5PoX2\nepZVY/Ft/FLKslWwjXidyLlVek4Bg8Ht+TPvxM4z3M/xayMSxWmIYAZW7M+whQOm\nSlArQviVb1x9flDgf4llUj0Tz8W/cGB1trDD3/9CjkDVvxgvAQGlWULleWJdsOyM\nWs6usKJjUnUCZlzzEr56NCH8vuIW/u3Xlb+cM+1mL86REF7ChfBRc99tNESMIgl+\nUEqPWJN9AgMBAAECggEAF8oN8VkrKoNEC7RZDr5PuGG6ghZ4EsvmOcUiKIAKJGsj\nM5/g73QjyXVcoQIqWvpnrRUtnqlGErPi0XmJIy2QQQ7Z49UgklIPRdT7H0jc1dP6\nb/ARgu6hYX5ELg0MEKFlseCSns2KEHsXTpDH6l5IklEfDcZbIitbZXQNke452y0W\nKIZvvtpJR2ujYj890g6vrfzaJblhRvFdHKdN/y9iu9niBuLr6EUcVwVBRq0eRDZ+\nUxYvY/a1JJkGB3/s98wt/p2oj5XX/cbweusYfnv5oVBu1qX+hpFxs7mosWdNN8io\nJKpm/Nsc93Ju8ahuDM027sDYGsXi7VgTT1XNQLK12wKBgQDxBP9Zg4FPxhpNdzA6\nFqhGfwxH1r3AaTfGha2WbLcXs2pOuCE6lItdLuN49wLL1wp00rXMhFmWAB0Jmlnt\nNdvNyuhXqkUaHW0x1bjHCH012AdFu2EzVDPGCOqy2Wqxw5r75EaGsLKLi7H595l8\n1APH8gOI3S709KAnobocEQr6SwKBgQDofTpqwzcVZX2L4U2/Ig+e4EOAA9V1lxpk\ngwhwynui2kUzUDj65BciFB+ynilHtSe92fBGm01ejmKTymShQhmJBzrQ0WqCEcJ9\nN8iGjBKzqp0hTjbeTfOSol5zT5WH2zula8TtxUE7/+1rHz8Tuap/r5/qtMbHXjrM\nQ7VpNWYMVwKBgHYg5eqAmst3pAKdzURbQIS01lcLeBsrNswVTtwwUpjKNet5Mcgd\ncCTuy0zJfFReBGD3uWUQ5TuwuIqxXSv3PtEhhzkYWiAPlipbvuHGVmAijoXt7hkT\nRwDj8+xOxY10+qxE2RBA4HGmuUdzxIW7AFNqWbMl/VLP5wMlsCr7a277AoGBAIhr\nszOiiVgMzbae5jgZjID1p6Yemcr+d4YzPWix6AqPebu6fzT5Unm0xUTSefaR3lgQ\n4mUMDEJH2qBOSu41EzbM/z45I/5e3XkMmqYY24CBxOIeOyQHKb4JeNLBCEVH56AR\ntOSwsq66Zl5NX337nIiATZ4zpdCnAmmJ8ZFivBbRAoGBAIY1dTKv0zgfHJkcMo46\nzjejxJ35OKZ7vre4zM98nFner2WfGYUvwP2P0Wf3GAHvFEgksWLpI3ChajBVLUmG\nl1zVGHKZ4aP/T2wMLr1U7yDSsm9s/bpmFjcxYbO818qzG2Lh4goCga66N2HOrYi9\nPJhiuq3k3dvDzNk4oIr7nX4y\n-----END PRIVATE KEY-----\n",
+  "client_email": "truth-sentinel-core@shadowspark-production-489115.iam.gserviceaccount.com",
+  "client_id": "105301946927768384679",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/truth-sentinel-core%40shadowspark-production-489115.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

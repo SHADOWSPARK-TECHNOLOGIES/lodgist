@@ -1,0 +1,39 @@
+diff --git a/node_modules/openid-client/lib/client.js b/node_modules/openid-client/lib/client.js
+index 12b72e9..993d59a 100644
+--- a/node_modules/openid-client/lib/client.js
++++ b/node_modules/openid-client/lib/client.js
+@@ -1648,7 +1648,7 @@ class BaseClient {
+   }
+ 
+   /* istanbul ignore next */
+-  [inspect.custom]() {
++  [typeof inspect !== 'undefined' && inspect.custom ? inspect.custom : Symbol.for('nodejs.util.inspect.custom')]() {
+     return `${this.constructor.name} ${inspect(this.metadata, {
+       depth: Infinity,
+       colors: process.stdout.isTTY,
+diff --git a/node_modules/openid-client/lib/device_flow_handle.js b/node_modules/openid-client/lib/device_flow_handle.js
+index ed61c7c..95c5543 100644
+--- a/node_modules/openid-client/lib/device_flow_handle.js
++++ b/node_modules/openid-client/lib/device_flow_handle.js
+@@ -112,7 +112,7 @@ class DeviceFlowHandle {
+   }
+ 
+   /* istanbul ignore next */
+-  [inspect.custom]() {
++  [typeof inspect !== 'undefined' && inspect.custom ? inspect.custom : Symbol.for('nodejs.util.inspect.custom')]() {
+     return `${this.constructor.name} ${inspect(this.#response, {
+       depth: Infinity,
+       colors: process.stdout.isTTY,
+diff --git a/node_modules/openid-client/lib/issuer.js b/node_modules/openid-client/lib/issuer.js
+index 906e6a5..907f1e1 100644
+--- a/node_modules/openid-client/lib/issuer.js
++++ b/node_modules/openid-client/lib/issuer.js
+@@ -164,7 +164,7 @@ class Issuer {
+   }
+ 
+   /* istanbul ignore next */
+-  [inspect.custom]() {
++  [typeof inspect !== 'undefined' && inspect.custom ? inspect.custom : Symbol.for('nodejs.util.inspect.custom')]() {
+     return `${this.constructor.name} ${inspect(this.metadata, {
+       depth: Infinity,
+       colors: process.stdout.isTTY,

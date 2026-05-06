@@ -1,0 +1,271 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Lodgist Truth Sentinel — Neural Bridge API",
+    "description": "High-security bridge between Google Cloud Vertex AI Agent and the Lodgist AWS RDS Spine. Handles land verification and truth index updates for the Lagos e-C of O Matrix.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Lodgist Sentinel Operations",
+      "url": "https://lodgist.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://{ngrok-subdomain}.ngrok-free.app",
+      "description": "Ngrok tunnel (production). Replace {ngrok-subdomain} with your actual ngrok URL.",
+      "variables": {
+        "ngrok-subdomain": {
+          "default": "your-ngrok-id",
+          "description": "The ngrok subdomain assigned when you run `npx ngrok http 4001`"
+        }
+      }
+    },
+    {
+      "url": "http://localhost:4001",
+      "description": "Local development server"
+    }
+  ],
+  "paths": {
+    "/verify-land": {
+      "post": {
+        "summary": "Verify a land plot against the AWS RDS Spine",
+        "description": "Accepts a plot_number and owner_name, queries the Lodgist database via Prisma 7, and returns whether the plot is registered under that owner. Used by the Vertex AI Agent to validate Lagos State Certificates of Occupancy.",
+        "operationId": "verifyLand",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["plot_number", "owner_name"],
+                "properties": {
+                  "plot_number": {
+                    "type": "string",
+                    "description": "The land plot number to verify (e.g., 'PLT-2024-001')",
+                    "example": "PLT-2024-001"
+                  },
+                  "owner_name": {
+                    "type": "string",
+                    "description": "The claimed owner name to match against",
+                    "example": "Chief Adewale Ogunlade"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "description": "API call success indicator" },
+                    "verified": { "type": "boolean", "description": "Whether the plot is verified under the given owner" },
+                    "plot_number": { "type": "string", "description": "The normalized plot number queried" },
+                    "owner_name": { "type": "string", "description": "The owner name queried" },
+                    "match_count": { "type": "integer", "description": "Number of matching listings found" },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "listing_id": { "type": "integer" },
+                          "title": { "type": "string" },
+                          "price": { "type": "number" },
+                          "status": { "type": "string", "enum": ["PENDING", "VERIFIED", "REJECTED"] },
+                          "owner": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "integer" },
+                              "name": { "type": "string" },
+                              "email": { "type": "string" }
+                            }
+                          },
+                          "fraud_signals": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "score": { "type": "number" },
+                                "reasoning": { "type": "string" },
+                                "created_at": { "type": "string", "format": "date-time" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "summary": { "type": "string", "description": "Human-readable summary of the verification result" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input — missing or malformed plot_number or owner_name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "enum": [false] },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "enum": [false] },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/update-truth-index": {
+      "post": {
+        "summary": "Update a user's Truth Index score",
+        "description": "Updates the truthIndex of a user in the AWS RDS Spine. Accepts either an absolute_score or individual component scores (activity, verification, rating). Creates an audit trail via AIFraudSignal. Used by the Vertex AI Agent to adjust trust scores based on document analysis.",
+        "operationId": "updateTruthIndex",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["user_id"],
+                "properties": {
+                  "user_id": {
+                    "type": "integer",
+                    "description": "The ID of the user to update",
+                    "example": 42
+                  },
+                  "activity_score": {
+                    "type": "number",
+                    "description": "Activity component score (0-100). Used if absolute_score is not provided.",
+                    "example": 85
+                  },
+                  "verification_score": {
+                    "type": "number",
+                    "description": "Verification component score (0-100). Used if absolute_score is not provided.",
+                    "example": 72
+                  },
+                  "rating_score": {
+                    "type": "number",
+                    "description": "Rating component score (0-100). Used if absolute_score is not provided.",
+                    "example": 90
+                  },
+                  "absolute_score": {
+                    "type": "number",
+                    "description": "Direct truth index value (0-100). Overrides component scores if provided.",
+                    "example": 78
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Truth index updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "user_id": { "type": "integer" },
+                    "user_name": { "type": "string" },
+                    "previous_truth_index": { "type": "number" },
+                    "new_truth_index": { "type": "number" },
+                    "delta": { "type": "number" },
+                    "audited": { "type": "integer", "description": "ID of the audit trail record" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid input — missing or invalid user_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "enum": [false] },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "User not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "enum": [false] },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "enum": [false] },
+                    "error": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Liveness check",
+        "description": "Returns the current status of the Truth Sentinel service.",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "enum": ["ok"] },
+                    "service": { "type": "string" },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
