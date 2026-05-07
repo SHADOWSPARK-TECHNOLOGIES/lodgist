@@ -1,0 +1,10 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npx prisma generate --config prisma.config.ts && next build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "env": {
+    "NEXTAUTH_URL": "https://lodgist.ng",
+    "NEXTAUTH_SECRET": "@nextauth_secret"
+  }
+}

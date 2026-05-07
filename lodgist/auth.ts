@@ -6,12 +6,39 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// ─── Extend built-in types to carry role ─────────────────────────────────────
+
+declare module "next-auth" {
+  interface User {
+    role: string
+  }
+  interface Session {
+    user: {
+      id?: string | null
+      name?: string | null
+      email?: string | null
+      image?: string | null
+      role?: string | null
+    }
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    role: string
+    id: string
+  }
+}
+
+// ─── NextAuth configuration ──────────────────────────────────────────────────
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adapter: PrismaAdapter(prisma) as any,
   providers: [
-    GitHub as any,
+    GitHub({
+      clientId: process.env.GITHUB_CLIENT_ID ?? "",
+      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
+    }),
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
@@ -28,7 +55,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
-          include: { role: true }, // Include the role to attach it to the session
+          include: { role: true },
         })
 
         if (!user || !user.password) {
@@ -44,30 +71,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null
         }
 
-        // Return user object, NextAuth will automatically create a session
-        return { id: user.id, name: user.name, email: user.email, role: user.role.name }
+        return {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role.name,
+        }
       },
     }),
   ],
   session: {
-    strategy: "jwt", // Use JWT strategy for session management
+    strategy: "jwt",
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        token.role = (user as any).role // Add user role to the JWT token
+        token.role = user.role
+        token.id = user.id
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.role = token.role as string // Add user role to the session object
+        session.user.role = token.role
+        session.user.id = token.id
       }
       return session
     },
   },
   pages: {
-    signIn: "/auth/signin", // Custom sign-in page (optional)
-  }
+    signIn: "/login",
+  },
 })

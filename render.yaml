@@ -1,0 +1,35 @@
+# ─── Render Blueprint — Lodgist Backend ──────────────────────────────────────
+# Deploy the Express API server on Render.
+# WhatsApp webhook URL: https://lodgist-backend.onrender.com/api/whatsapp/webhook
+
+services:
+  - type: web
+    name: lodgist-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    repo: https://github.com/shadow7user/lodgist
+    branch: main
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATABASE_URL
+        sync: false  # Set manually in Render dashboard
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: WHATSAPP_API_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        value: lodgist_verify_2026
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false

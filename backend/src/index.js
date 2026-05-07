@@ -12,6 +12,8 @@ const transactionsRouter = require("./routes/transactions");
 const rentRouter = require("./routes/rent");
 const createEscrowRouter = require("./routes/escrow");
 const escrowRouter = createEscrowRouter(prisma);
+const createWhatsAppRouter = require("./routes/whatsapp");
+const whatsappRouter = createWhatsAppRouter(prisma);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -34,6 +36,7 @@ app.use("/api/agreements", agreementsRouter);
 app.use("/api/transactions", transactionsRouter);
 app.use("/api/rent", rentRouter);
 app.use("/api/escrow", escrowRouter);
+app.use("/api/whatsapp", whatsappRouter);
 
 // 404 handler
 app.use((_req, res) => {
@@ -58,6 +61,7 @@ app.listen(PORT, () => {
   console.log(`  /api/transactions`);
   console.log(`  /api/rent`);
   console.log(`  /api/escrow`);
+  console.log(`  /api/whatsapp`);
 });
 
 module.exports = app;

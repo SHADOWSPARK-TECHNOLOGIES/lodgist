@@ -99,6 +99,7 @@ model User {
   landlordEscrows   EscrowTransaction[]    @relation("LandlordEscrowTransactions")
   ownedProperties   Property[]
   profile           Profile?
+  referrals         Referral[]
 
   @@index([email])
   @@index([whatsappId])
@@ -160,6 +161,8 @@ model Listing {
   status          ListingStatus    @default(PENDING)
   isFeatured      Boolean          @default(false)
   views           Int              @default(0)
+  isFlaggedForFraud Boolean         @default(false)
+  fraudReason       String?
 
   // Nigerian real estate metadata
   totalMoveInCost Json?            // { base_rent, agency_fee, legal_fee, caution_fee, inspection_fee?, currency, total }
@@ -358,6 +361,18 @@ model WhatsAppMessage {
 
   @@index([sessionId])
   @@index([senderId])
+}
+
+model Referral {
+  id            Int      @id @default(autoincrement())
+  referrerId    Int      @unique
+  referrer      User     @relation(fields: [referrerId], references: [id], onDelete: Cascade)
+  count         Int      @default(0)
+  rewardClaimed Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([referrerId])
 }
 
 model Notification {
