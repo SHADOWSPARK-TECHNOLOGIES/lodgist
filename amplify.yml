@@ -1,0 +1,24 @@
+version: 1
+applications:
+  - appRoot: apps/lodgist # This tells Amplify where your frontend lives
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - corepack enable
+            - corepack prepare pnpm@latest --activate
+            - pnpm install --frozen-lockfile
+        build:
+          commands:
+            # Generate your Prisma database client first
+            - pnpm --filter db exec prisma generate
+            # Build your Next.js frontend
+            - pnpm --filter frontend build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - .next/cache/**/*
+          - node_modules/**/*

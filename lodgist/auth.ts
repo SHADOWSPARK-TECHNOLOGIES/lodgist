@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import GitHub from "next-auth/providers/github"
 import Credentials from "next-auth/providers/credentials"
 import Google from "next-auth/providers/google"
+import type { Adapter } from "next-auth/adapters"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
@@ -33,7 +34,7 @@ declare module "next-auth/jwt" {
 // ─── NextAuth configuration ──────────────────────────────────────────────────
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma) as any,
+  adapter: PrismaAdapter(prisma) as unknown as Adapter,
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID ?? "",

@@ -40,6 +40,7 @@ model User {
   bookings      Booking[]
   accounts      Account[]
   sessions      Session[]
+  reviews       Review[]
 }
 
 model Property {
@@ -70,6 +71,17 @@ model Listing {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   bookings    Booking[]
+  images      ListingImage[]
+  reviews     Review[]
+}
+
+model ListingImage {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  url       String
+  alt       String?
+  createdAt DateTime @default(now())
 }
 
 model Booking {
@@ -83,6 +95,20 @@ model Booking {
   status      String    @default("pending")
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([listingId, userId])
 }
 
 model Account {

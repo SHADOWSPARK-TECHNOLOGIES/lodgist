@@ -9,25 +9,41 @@
  * @module geminiService
  */
 
-let GoogleGenAI;
+let GoogleVertexAI;
+let GoogleAuth;
 try {
-  GoogleGenAI = require("@google/genai").GoogleGenAI;
-} catch {
-  // Package not installed — will use fallbacks
+  GoogleVertexAI = require("@google-cloud/vertexai").VertexAI;
+  GoogleAuth = require("google-auth-library").GoogleAuth;
+} catch (error) {
+  console.warn(`Failed to load @google-cloud/vertexai or google-auth-library: ${error.message}. AI services will use fallbacks.`);
 }
 
-const GEMINI_MODEL = "gemini-1.5-flash";
+const GEMINI_MODEL = "gemini-2.5-flash";
+const PROJECT_ID = process.env.GCP_PROJECT_ID || "shadowspark-production-489115";
+const LOCATION = process.env.GCP_PROJECT_LOCATION || "us-central1"; // Assuming a default location, can be configured via env
 
 /**
- * Get a configured Gemini client, or null if the API key is missing.
- * @returns {GoogleGenAI|null}
+ * Get a configured Vertex AI Gemini client, or null if not configured.
+ * @returns {VertexAI|null}
  */
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || !GoogleGenAI) return null;
+  if (!GoogleVertexAI || !GoogleAuth) {
+    return null;
+  }
+
   try {
-    return new GoogleGenAI({ apiKey });
-  } catch {
+    const auth = new GoogleAuth({
+      keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS || "lodgist-deploy-key.json",
+      scopes: "https://www.googleapis.com/auth/cloud-platform",
+    });
+
+    return new GoogleVertexAI({
+      project: PROJECT_ID,
+      location: LOCATION,
+      googleAuth: auth,
+    });
+  } catch (error) {
+    console.error("Failed to initialize Vertex AI client:", error.message);
     return null;
   }
 }
@@ -154,18 +170,22 @@ Listing:\n\n${fullText}`,
  * @returns {Promise<{ success: boolean, extracted: object, raw_text: string }>}
  */
 async function extractLandDocument(imageBase64) {
-  const client = getGeminiClient();
-  if (!client) {
+  const vertex_ai = getGeminiClient();
+  if (!vertex_ai) {
     return {
       success: false,
       extracted: {},
       raw_text: "",
+      summary: "Land document extraction is unavailable. Vertex AI client could not be initialized.",
     };
   }
 
+  const generativeModel = vertex_ai.get  GenerativeModel({
+    model: GEMINI_MODEL,
+  });
+
   try {
-    const response = await client.models.generateContent({
-      model: GEMINI_MODEL,
+    const request = {
       contents: [
         {
           role: "user",
@@ -182,27 +202,27 @@ async function extractLandDocument(imageBase64) {
           ],
         },
       ],
-      config: {
-        responseMimeType: "application/json",
-        temperature: 0.1,
-        maxOutputTokens: 1024,
-      },
-    });
+    };
 
-    const text = response.text;
+    const result = await generativeModel.generateContent(request);
+    const response = result.response;
+    const text = response.candidates[0].content.parts[0].text;
+
     if (!text) throw new Error("Empty Gemini response");
     const parsed = JSON.parse(text);
     return {
       success: true,
       extracted: parsed,
       raw_text: text,
+      summary: "Land document extracted successfully.",
     };
   } catch (err) {
-    console.error("Gemini document extraction failed:", err.message);
+    console.error("Vertex AI document extraction failed:", err.message);
     return {
       success: false,
       extracted: {},
       raw_text: "",
+      summary: `Vertex AI document extraction encountered an error: ${err.message}`,
     };
   }
 }

@@ -94,16 +94,12 @@ export async function POST(req: NextRequest) {
           name: name.trim(),
           email: email.trim().toLowerCase(),
           password: hashedPassword,
-          phone: phone || null,
-          stateOfOrigin,
           roleId: roleRecord.id,
         },
         select: {
           id: true,
           name: true,
           email: true,
-          phone: true,
-          stateOfOrigin: true,
           role: { select: { name: true } },
         },
       });
