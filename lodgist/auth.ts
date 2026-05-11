@@ -34,7 +34,7 @@ declare module "next-auth/jwt" {
 // ─── NextAuth configuration ──────────────────────────────────────────────────
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  adapter: PrismaAdapter(prisma) as unknown as Adapter,
+  adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID ?? "",

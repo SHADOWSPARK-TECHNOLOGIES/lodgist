@@ -17,14 +17,23 @@ const whatsappRouter = createWhatsAppRouter(prisma);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const HOST = process.env.HOST || "0.0.0.0";
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || "*",
+  credentials: true,
+}));
 app.use(express.json({ limit: "10mb" }));
 
 // Health check
 app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", service: "Lodgist API" });
+  res.json({
+    status: "ok",
+    service: "Lodgist API",
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+  });
 });
 
 // API Routes
@@ -49,8 +58,8 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(PORT, () => {
-  console.log(`Lodgist API server running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`Lodgist API server running on http://${HOST}:${PORT}`);
   console.log(`Routes:`);
   console.log(`  GET  /api/health`);
   console.log(`  /api/users`);

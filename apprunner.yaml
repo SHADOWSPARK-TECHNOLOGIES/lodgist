@@ -1,0 +1,52 @@
+# ─── AWS App Runner Configuration ─────────────────────────────────────────────
+# Deploys the Lodgist Express API backend as a managed container service.
+# Companion to the Amplify-hosted frontend.
+#
+# Usage:
+#   1. Push this file to the repo root
+#   2. In AWS App Runner Console → Create Service → Source code repository
+#   3. Select the lodgist repo, branch, and this config file
+#   4. Set environment variables via App Runner Console or AWS Secrets Manager
+# ──────────────────────────────────────────────────────────────────────────────
+
+version: 1.0
+runtime: nodejs20
+
+build:
+  commands:
+    build:
+      # Enable pnpm for monorepo support
+      - corepack enable
+      - corepack prepare pnpm@latest --activate
+      # Install all workspace dependencies (frozen lockfile for reproducibility)
+      - pnpm install --frozen-lockfile
+      # Generate Prisma client for the db package
+      - cd packages/db && npx prisma generate --config prisma.config.ts
+
+run:
+  # App Runner injects PORT=8080 automatically; Express picks it up via process.env.PORT
+  command: node backend/src/index.js
+  network:
+    port: 8080
+
+# ─── Environment variables ────────────────────────────────────────────────────
+# Set these in the AWS App Runner Console under "Environment variables".
+# For secrets (API keys, tokens), use AWS Secrets Manager and reference them
+# as secret ARNs in the App Runner console.
+#
+# Required:
+#   DATABASE_URL          PostgreSQL connection string
+#   NODE_ENV              production
+#
+# Optional / per-environment:
+#   PAYSTACK_SECRET_KEY
+#   PAYSTACK_PUBLIC_KEY
+#   OPENAI_API_KEY
+#   GEMINI_API_KEY
+#   WHATSAPP_API_TOKEN
+#   WHATSAPP_PHONE_NUMBER_ID
+#   WHATSAPP_VERIFY_TOKEN
+#   WHATSAPP_APP_SECRET
+#
+# CORS: The frontend Amplify URL must be set as CORS_ORIGIN in App Runner env
+#   CORS_ORIGIN           https://main.d123.amplifyapp.com
