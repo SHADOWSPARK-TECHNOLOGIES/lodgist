@@ -294,6 +294,38 @@ export const escrowApi = {
     request<ApiResponse<EscrowTransaction>>("GET", `/api/escrow/${id}`),
 };
 
+// ─── Legacy apiFetch (raw Response wrapper for compatibility) ──────────────
+
+/**
+ * Raw fetch wrapper that returns the Response object (not pre-parsed JSON).
+ * Used by older components. Throws ApiError on non-2xx status.
+ */
+export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(apiUrl(path), {
+    ...options,
+    headers,
+  });
+
+  if (!res.ok) {
+    let body: unknown;
+    try { body = await res.json(); } catch { body = null; }
+    const message =
+      (body as Record<string, string>)?.error ||
+      (body as Record<string, string>)?.message ||
+      `Request failed with status ${res.status}`;
+    throw new ApiError(message, res.status, body);
+  }
+
+  return res;
+}
+
 // ─── Utility: Raw fetch (for custom endpoints) ─────────────────────────────
 
 export { request as apiRequest, apiUrl };

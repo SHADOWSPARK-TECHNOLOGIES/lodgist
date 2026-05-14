@@ -1,60 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import PropertyCard from "../../../../lodgist/components/PropertyCard";
+import { listingsApi } from "@/lib/api";
+import { TruthScore } from "@/components/ui/TruthScore";
+import type { Listing } from "@/lib/types";
 
-interface Property {
-  id: string;
-  plotNumber: string;
-  ownerName: string;
-  location: string;
-  status: string;
-  imageUrl: string;
-  price: number;
-  currency: string;
-  beds: number;
-  baths: number;
-  sqft: number;
-}
-
-export default function SearchPage() {
+function SearchContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [listings, setListings] = useState<Property[]>([]);
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
+  const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
   useEffect(() => {
-    if (!API_URL) {
-      setError("API_URL is not defined. Please set NEXT_PUBLIC_API_URL environment variable.");
-      return;
-    }
-
-    const fetchListings = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const query = searchTerm ? `?q=${encodeURIComponent(searchTerm)}` : "";
-        const response = await fetch(`${API_URL}/api/listings${query}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data = await response.json();
-        setListings(data);
-      } catch (e: any) {
-        setError(`Failed to fetch listings: ${e.message}`);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchListings();
-  }, [searchTerm, API_URL]);
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
+      .then(res => { if (!cancelled) setListings(res.data); })
+      .catch(e => { if (!cancelled) setError(e.message ?? "Failed to fetch listings"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [searchTerm]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,123 +37,92 @@ export default function SearchPage() {
     router.push(`/search?${newSearchParams.toString()}`);
   };
 
-  const dummyProperty: Property = {
-    id: "dummy-1",
-    plotNumber: "PLT-001",
-    ownerName: "John Doe",
-    location: "GRA Phase 2, Port Harcourt",
-    status: "available",
-    imageUrl: "https://via.placeholder.com/400x300?text=Property+Image",
-    price: 1_500_000,
-    currency: "NGN",
-    beds: 3,
-    baths: 2,
-    sqft: 1800,
-  };
-
-
   return (
-    <div className="flex min-h-screen flex-col items-center bg-deep-navy font-sans text-off-white">
-      <header className="w-full bg-deep-navy/90 py-4 shadow-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6">
-          <Link href="/" className="font-heading text-2xl font-bold text-teal">
-            Lodgist
-          </Link>
-          <nav>
-            <Link href="/dashboard" className="text-light-gray hover:text-teal">
-              Dashboard
-            </Link>
-          </nav>
-        </div>
-      </header>
+    <div className="min-h-screen" style={{ background: 'var(--color-navy)' }}>
+      <div className="container py-8">
+        <h1 className="font-poppins font-bold text-2xl text-white mb-2">Find Your Next Home</h1>
 
-      <main className="w-full max-w-7xl flex-1 px-6 py-12">
-        <h1 className="mb-8 text-center font-heading text-4xl font-bold">
-          Find Your Next Home
-        </h1>
-
-        <form onSubmit={handleSearch} className="mx-auto mb-12 max-w-2xl">
-          <div className="flex rounded-full bg-deep-navy-light shadow-lg">
-            <input
-              type="text"
-              placeholder="Search by location, keywords, etc."
-              className="flex-1 rounded-l-full border-none bg-transparent px-6 py-3 text-lg text-off-white placeholder-light-gray focus:outline-none focus:ring-2 focus:ring-teal"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <button
-              type="submit"
-              className="rounded-r-full bg-vibrant-orange px-6 py-3 text-lg font-semibold text-white transition-colors duration-200 hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-vibrant-orange focus:ring-offset-2 focus:ring-offset-deep-navy"
-            >
-              Search
-            </button>
-          </div>
+        <form onSubmit={handleSearch} className="mb-8 flex gap-2 max-w-xl">
+          <input
+            type="text"
+            className="input flex-1"
+            placeholder="Search by location, keywords..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <button type="submit" className="btn btn-primary">Search</button>
         </form>
 
         {error && (
-          <div className="mx-auto mb-8 max-w-2xl rounded-md bg-red-800/20 p-4 text-red-400">
-            <p className="font-semibold">Error:</p>
-            <p>{error}</p>
-          </div>
+          <div className="banner-error mb-6">{error}</div>
         )}
 
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-          {loading ? (
-            // Loading state skeleton
-            Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className="animate-pulse rounded-lg bg-deep-navy-light p-4 shadow-lg"
-              >
-                <div className="mb-4 h-48 w-full rounded bg-gray-700"></div>
-                <div className="mb-2 h-4 w-3/4 rounded bg-gray-700"></div>
-                <div className="h-4 w-1/2 rounded bg-gray-700"></div>
+        {loading ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="card">
+                <div className="skeleton h-48 w-full mb-4" />
+                <div className="skeleton h-4 w-3/4 mb-2" />
+                <div className="skeleton h-4 w-1/2" />
               </div>
-            ))
-          ) : listings.length > 0 ? (
-            // Display actual listings
-            listings.map((listing) => (
-              <PropertyCard
-                key={listing.id}
-                property={{
-                  id: listing.id,
-                  plotNumber: listing.plotNumber,
-                  ownerName: listing.ownerName,
-                  location: listing.location,
-                  status: listing.status,
-                  imageUrl: listing.imageUrl,
-                  price: listing.price,
-                  currency: listing.currency,
-                  beds: listing.beds,
-                  baths: listing.baths,
-                  sqft: listing.sqft,
-                }}
-              />
-            ))
-          ) : (
-            // No results found
-            <div className="col-span-full text-center text-light-gray">
-              {searchTerm ? (
-                <p>No listings found for "{searchTerm}". Try a different search.</p>
-              ) : (
-                <p>Start your search to find amazing properties!</p>
-              )}
-               <p className="mt-4 text-sm">
-                In a real application, you would see actual listings here.
-                For now, here's a dummy property card:
-              </p>
-              <div className="mt-8 flex justify-center">
-                <PropertyCard property={dummyProperty} />
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-
-      <footer className="mt-12 w-full bg-deep-navy/90 py-8 text-center text-light-gray">
-        <p>&copy; 2026 Lodgist. All rights reserved.</p>
-      </footer>
+            ))}
+          </div>
+        ) : listings.length > 0 ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {listings.map(listing => (
+              <Link key={listing.id} href={`/listings/${listing.id}`}
+                className="card card-elevated block hover:border-orange/30 transition-all no-underline">
+                <div className="h-48 rounded-xl mb-4 flex items-center justify-center"
+                     style={{ background: 'var(--color-surface-2)' }}>
+                  {listing.images?.[0]?.url ? (
+                    <img src={listing.images[0].url} alt={listing.title}
+                      className="w-full h-full object-cover rounded-xl" />
+                  ) : (
+                    <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>🏠</span>
+                  )}
+                </div>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-poppins font-semibold text-white text-sm">{listing.title}</h3>
+                    <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                      {listing.property?.city ?? listing.property?.state ?? ''}
+                    </p>
+                    <p className="font-poppins font-bold text-sm mt-2" style={{ color: 'var(--color-orange)' }}>
+                      ₦{listing.price?.toLocaleString()}
+                    </p>
+                  </div>
+                  {listing.owner && <TruthScore score={listing.owner.truthIndex ?? 75} size="sm" />}
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-16">
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔍</div>
+            <h2 className="font-poppins font-semibold text-white text-lg mb-2">
+              {searchTerm ? `No results for "${searchTerm}"` : 'Start your search'}
+            </h2>
+            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+              {searchTerm
+                ? 'Try a different search term or browse all listings.'
+                : 'Enter a search term above to find properties.'}
+            </p>
+            <Link href="/listings" className="btn btn-primary mt-6">Browse all listings</Link>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
+export default function SearchPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-navy)' }}>
+        <div className="spinner" />
+      </div>
+    }>
+      <SearchContent />
+    </Suspense>
+  );
+}
