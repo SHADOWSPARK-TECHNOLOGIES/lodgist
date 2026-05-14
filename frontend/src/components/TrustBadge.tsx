@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api";
 import { ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -19,7 +20,7 @@ export default function TrustBadge({ userId }: TrustBadgeProps) {
 
   useEffect(() => {
     const ctrl = new AbortController();
-    fetch(`http://localhost:4000/api/verification/${userId}`, {
+    apiFetch(`/api/verification/${userId}`, {
       signal: ctrl.signal,
     })
       .then((r) => (r.ok ? r.json() : null))

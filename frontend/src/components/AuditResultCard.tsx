@@ -1,5 +1,6 @@
 "use client";
 
+import { apiUrl } from "@/lib/api";
 import { ShieldCheck, AlertTriangle, Info, Loader2 } from "lucide-react";
 import { useState } from "react";
 
@@ -24,21 +25,18 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `http://localhost:4000/api/ai-analysis/assess-risk`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            inputs: {
-              ai_analysis: { score: 0, flags: [] },
-              land_registry: { document_found: false, plot_valid: false },
-              geospatial: { lat: 6.45, lng: 7.51 },
-              owner_verification: { verified: false, history_length: 0 },
-            },
-          }),
-        }
-      );
+      const res = await fetch(apiUrl("/api/ai-analysis/assess-risk"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          inputs: {
+            ai_analysis: { score: 0, flags: [] },
+            land_registry: { document_found: false, plot_valid: false },
+            geospatial: { lat: 6.45, lng: 7.51 },
+            owner_verification: { verified: false, history_length: 0 },
+          },
+        }),
+      });
       if (!res.ok) throw new Error("Audit request failed");
       const data = await res.json();
       setResult(data.assessment ?? data);

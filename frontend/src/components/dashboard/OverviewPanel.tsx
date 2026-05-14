@@ -1,0 +1,167 @@
+"use client";
+
+// ─── OverviewPanel ─────────────────────────────────────────────────────────
+// Dashboard overview tab showing key stats, TruthIndex, HNW status, and
+// recent activity.
+
+import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { truthIndexApi } from "@/lib/api";
+import { isWebAuthnSupported, isPlatformAuthenticatorAvailable } from "@/lib/auth";
+import type { TruthIndexResponse } from "@/lib/types";
+
+export default function OverviewPanel() {
+  const { user, registerPasskey } = useAuth();
+  const [truthIndex, setTruthIndex] = useState<TruthIndexResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  // Lazy initialisation — synchronous, no effect needed
+  const [passkeySupported] = useState(() => isWebAuthnSupported());
+  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
+  const [registering, setRegistering] = useState(false);
+
+  useEffect(() => {
+    // Async platform check — must run asynchronously in an effect
+    isPlatformAuthenticatorAvailable().then(setPasskeyAvailable);
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    truthIndexApi
+      .get(user.id)
+      .then((res) => {
+        if (res.success && res.data) setTruthIndex(res.data);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user]);
+
+  const handleRegisterPasskey = async () => {
+    setRegistering(true);
+    try {
+      await registerPasskey();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Registration failed";
+      alert(message);
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  if (!user) return null;
+
+  const truthScore = truthIndex?.score;
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* TruthIndex Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500">TruthIndex</p>
+            <span className="text-2xl">🛡️</span>
+          </div>
+          <p className="mt-2 text-3xl font-bold text-gray-900">
+            {loading ? (
+              <span className="animate-pulse text-gray-300">--</span>
+            ) : (
+              truthScore != null ? `${Math.round(truthScore)}/100` : "N/A"
+            )}
+          </p>
+          <div className="mt-3 w-full bg-gray-200 rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all ${
+                (truthScore ?? 0) >= 70
+                  ? "bg-green-500"
+                  : (truthScore ?? 0) >= 40
+                  ? "bg-yellow-500"
+                  : "bg-red-500"
+              }`}
+              style={{ width: `${truthScore ?? 0}%` }}
+            />
+          </div>
+        </div>
+
+        {/* HNW Status Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500">HNW Status</p>
+            <span className="text-2xl">{user.isHNW ? "💎" : "🏦"}</span>
+          </div>
+          <p className="mt-2 text-3xl font-bold text-gray-900">
+            {user.isHNW ? "Verified" : "Standard"}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            {user.isHNW
+              ? "Access to executive-tier features"
+              : "Standard tier — no liveness gates required"}
+          </p>
+        </div>
+
+        {/* Role Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500">Account Type</p>
+            <span className="text-2xl">👤</span>
+          </div>
+          <p className="mt-2 text-3xl font-bold text-gray-900 capitalize">
+            {user.role.toLowerCase()}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">{user.email}</p>
+        </div>
+
+        {/* Passkey Card */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-gray-500">Passkey</p>
+            <span className="text-2xl">🔑</span>
+          </div>
+          {passkeySupported && passkeyAvailable ? (
+            <button
+              onClick={handleRegisterPasskey}
+              disabled={registering}
+              className="mt-2 w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+            >
+              {registering ? "Registering..." : "Register Passkey"}
+            </button>
+          ) : (
+            <p className="mt-2 text-sm text-gray-500">
+              Passkeys not available on this device
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <a
+            href="/listings"
+            className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
+          >
+            <span className="text-xl">🔍</span>
+            <span className="text-sm font-medium text-gray-700">Browse Listings</span>
+          </a>
+          {user.role === "LANDLORD" && (
+            <a
+              href="/listings/new"
+              className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
+            >
+              <span className="text-xl">➕</span>
+              <span className="text-sm font-medium text-gray-700">New Listing</span>
+            </a>
+          )}
+          <button
+            onClick={() => truthIndexApi.recalculate()}
+            className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition text-left"
+          >
+            <span className="text-xl">🔄</span>
+            <span className="text-sm font-medium text-gray-700">Recalculate Score</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

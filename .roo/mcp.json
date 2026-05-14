@@ -1,16 +1,8 @@
 {
-  "mcpServers": {
-    "firebase": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "firebase-tools@14.15.2",
-        "experimental:mcp"
-      ]
-    },
-    "git-mcp": {
-      "type": "streamable-http",
-      "url": "https://gitmcp.io/Shadow7user/ Shadow7user/lodgist"
-    }
-  }
+	"mcpServers": {
+		"git-mcp": {
+			"type": "streamable-http",
+			"url": "https://gitmcp.io/Shadow7user/ Shadow7user/lodgist"
+		}
+	}
 }

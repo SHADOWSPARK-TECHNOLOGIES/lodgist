@@ -1,8 +1,18 @@
 node_modules
+**/node_modules
 .git
-.gitignore
-*.md
-__tests__
 .vscode
-.env
-.env.*
+.roo
+VSCode-Perplexity-MCP
+frontend
+lodgist
+infra
+packages/ai-core
+packages/ai-core/node_modules
+plans
+*.md
+*.mhtml
+# Allow package.json and package-lock.json for dependency installation
+!backend/package.json
+!backend/package-lock.json
+!packages/db/package.json

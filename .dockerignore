@@ -1,0 +1,58 @@
+# Dependencies
+node_modules
+**/node_modules
+**/.pnpm
+.pnpm-store
+
+# Git
+.git
+.gitignore
+
+# Editor / IDE
+.vscode
+.idea
+.roo
+
+# Other projects / unrelated dirs
+VSCode-Perplexity-MCP
+frontend
+lodgist
+infra
+packages/ai-core
+packages/ai-core/node_modules
+plans
+
+# Docs / media
+*.md
+*.mhtml
+*.webp
+
+# Environment
+.env
+.env.local
+.env*.local
+*.csv
+
+# Build artifacts
+.next
+out
+build
+dist
+coverage
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Allow specific files needed for the build
+!backend/package.json
+!backend/package-lock.json
+!packages/db/package.json
+!backend/src/**
+!packages/db/src/**
+!packages/db/prisma/**
+!packages/db/prisma.config.ts

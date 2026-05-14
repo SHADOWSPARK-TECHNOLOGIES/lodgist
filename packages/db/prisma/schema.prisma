@@ -79,11 +79,14 @@ model User {
   role            Role                 @default(USER)
   truthIndex      Float                @default(0.0)
   isVerified      Boolean              @default(false)
+  isHNW           Boolean              @default(false)
+  hnwVerifiedAt   DateTime?
   avatarUrl       String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
   // Relations
+  passkeys          PasskeyCredential[]
   listings          Listing[]
   bookings          Booking[]              @relation("TenantBookings")
   viewingRequests   ViewingRequest[]
@@ -373,6 +376,28 @@ model Referral {
   updatedAt     DateTime @updatedAt
 
   @@index([referrerId])
+}
+
+model PasskeyCredential {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // FIDO2 WebAuthn fields
+  credentialId  String  @unique // Base64URL-encoded raw ID
+  publicKey     Bytes            // COSE-encoded public key
+  counter       Int     @default(0) // Signature counter for replay detection
+  transports    String?          // JSON array: ["usb","nfc","ble","internal"]
+  backedUp      Boolean @default(false)
+  deviceType    String  @default("platform") // "platform" (TouchID/Windows Hello) or "cross-platform" (security key)
+
+  // Metadata
+  name        String   @default("Passkey")
+  createdAt   DateTime @default(now())
+  lastUsedAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([credentialId])
 }
 
 model Notification {

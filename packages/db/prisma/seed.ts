@@ -1,7 +1,14 @@
 import { PrismaClient, Role, ListingCategory, ListingStatus, BookingStatus, Currency } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import pg from 'pg'
 import { hash } from 'bcryptjs'
 
-const prisma = new PrismaClient()
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+})
+const adapter = new PrismaPg(pool)
+const prisma = new PrismaClient({ adapter })
 
 async function main() {
   console.log('Seeding Lodgist database...')
@@ -11,7 +18,7 @@ async function main() {
   await prisma.whatsAppSession.deleteMany()
   await prisma.notification.deleteMany()
   await prisma.fraudReport.deleteMany()
-  await prisma.aiFraudSignal.deleteMany()
+  await prisma.aIFraudSignal.deleteMany()
   await prisma.truthIndexScore.deleteMany()
   await prisma.escrowTransaction.deleteMany()
   await prisma.viewingRequest.deleteMany()

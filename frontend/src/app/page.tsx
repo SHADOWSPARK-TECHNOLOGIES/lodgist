@@ -1,5 +1,6 @@
 "use client";
 
+import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import TrustBadge from "@/components/TrustBadge";
@@ -25,7 +26,7 @@ function TrustMeter({ userId }: { userId: number }) {
   useEffect(() => {
     const controller = new AbortController();
 
-    fetch(`http://localhost:4000/api/verification/${userId}`, {
+    apiFetch(`/api/verification/${userId}`, {
       signal: controller.signal,
     })
       .then((res) => {

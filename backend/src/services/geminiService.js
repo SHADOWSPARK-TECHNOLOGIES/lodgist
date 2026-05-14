@@ -180,7 +180,7 @@ async function extractLandDocument(imageBase64) {
     };
   }
 
-  const generativeModel = vertex_ai.get  GenerativeModel({
+  const generativeModel = vertex_ai.getGenerativeModel({
     model: GEMINI_MODEL,
   });
 

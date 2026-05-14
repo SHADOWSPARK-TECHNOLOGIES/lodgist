@@ -41,3 +41,6 @@ file.txt
 # Security
 lodgist-deploy-key.json
 lodgist-deploy-key.json
+node_modules/
+.cache/
+lodgist-deploy-key.json

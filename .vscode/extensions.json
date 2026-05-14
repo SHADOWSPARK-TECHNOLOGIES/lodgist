@@ -1,5 +1,6 @@
 {
     "recommendations": [
-        "thekrishnarajput.perplexity-copilot"
+        "thekrishnarajput.perplexity-copilot",
+        "ms-kubernetes-tools.vscode-kubernetes-tools"
     ]
 }
