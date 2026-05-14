@@ -37,3 +37,7 @@ npm-debug.log*
 coverage/
 .vercel
 file.txt
+
+# Security
+lodgist-deploy-key.json
+lodgist-deploy-key.json
