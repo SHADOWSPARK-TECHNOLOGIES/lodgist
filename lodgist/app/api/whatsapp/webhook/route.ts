@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { flagListingForFraud } from '@/lib/services/fraudDetectionService';
 
 // ─── In-memory session store keyed by phone number ───────────────────────────
+// Every command branch resets step to 'idle' — the awaiting_* states are
+// scaffolded but never set, so this Map has no functional impact today.
+// When real multi-step flows are wired, replace with a DB table keyed on phoneNumber.
 interface SessionState {
   step: 'idle' | 'awaiting_search_location' | 'awaiting_view_listing_id' | 'awaiting_booking_status_id';
   lastCommand?: string;
@@ -96,7 +99,7 @@ async function handleSearch(location: string, sender: string): Promise<string> {
     where: where as any,
     include: {
       listings: {
-        where: { status: 'available' },
+        where: { status: 'VERIFIED' },
         select: { id: true, price: true },
         take: 1,
       },
@@ -120,8 +123,13 @@ async function handleSearch(location: string, sender: string): Promise<string> {
 }
 
 async function handleView(listingId: string, sender: string): Promise<string> {
+  const listingIdNum = parseInt(listingId);
+  if (isNaN(listingIdNum)) {
+    return `Sorry, "${listingId}" is not a valid listing ID. Please use a numeric ID.`;
+  }
+
   const listing = await prisma.listing.findUnique({
-    where: { id: listingId },
+    where: { id: listingIdNum },
     include: {
       property: {
         select: { address: true, city: true, state: true },
@@ -135,10 +143,13 @@ async function handleView(listingId: string, sender: string): Promise<string> {
 
   // In a real app this would create a viewing request in the DB.
   // For now we return a confirmation message.
+  const addr = listing.property?.address ?? "Unknown";
+  const city = listing.property?.city ?? "Unknown";
+  const state = listing.property?.state ?? "Unknown";
   return (
     `\u2705 *Viewing request submitted!*\n\n` +
     `You've requested to view:\n` +
-    `*${listing.property.address}*, ${listing.property.city}, ${listing.property.state}\n` +
+    `*${addr}*, ${city}, ${state}\n` +
     `Price: \u20A6${Number(listing.price).toLocaleString()}\n\n` +
     `A Lodgist agent will contact you shortly at ${sender} to confirm the appointment.`
   );
@@ -167,19 +178,26 @@ async function handleStatus(bookingId: string): Promise<string> {
     );
   }
 
+  const bAddr = booking.listing.property?.address ?? "Unknown";
+  const bCity = booking.listing.property?.city ?? "Unknown";
   return (
     `\U0001F4CB *Booking Status*\n\n` +
     `Booking ID: ${booking.id}\n` +
-    `Property: ${booking.listing.property.address}, ${booking.listing.property.city}\n` +
+    `Property: ${bAddr}, ${bCity}\n` +
     `Status: *${booking.status.toUpperCase()}*\n` +
     `Dates: ${booking.startDate.toLocaleDateString()} \u2014 ${booking.endDate.toLocaleDateString()}`
   );
 }
 
 async function handleReport(listingId: string, reason: string, sender: string): Promise<string> {
+  const listingIdNum = parseInt(listingId);
+  if (isNaN(listingIdNum)) {
+    return `Sorry, "${listingId}" is not a valid listing ID. Please use a numeric ID.`;
+  }
+
   try {
     const flagged = await flagListingForFraud({
-      listingId,
+      listingId: String(listingIdNum),
       reporterPhoneNumber: sender,
       reason,
     });
@@ -296,11 +314,11 @@ export async function POST(req: NextRequest) {
           `\U0001F50D *search [location]* \u2014 Find top 5 listings in a state or LGA\n` +
           `   Example: *search Lagos*\n\n` +
           `\U0001F441\uFE0F *view [listing-id]* \u2014 Schedule a viewing for a listing\n` +
-          `   Example: *view clabc123def456*\n\n` +
+          `   Example: *view 42*\n\n` +
           `\U0001F4CB *status [booking-id]* \u2014 Check your booking status\n` +
           `   Example: *status clxyz789*\n\n` +
           `\U0001F6A8 *report [listing-id] [reason]* \u2014 Report a suspicious listing\n` +
-          `   Example: *report clabc123def456 suspicious price*\n\n` +
+          `   Example: *report 42 suspicious price*\n\n` +
           `\U0001F4AC *help* \u2014 Show this menu`;
 
         sessions.set(sender, { step: 'idle' });
@@ -317,7 +335,7 @@ export async function POST(req: NextRequest) {
           `\u2022 *search [location]* \u2014 Find listings\n` +
           `\u2022 *view [listing-id]* \u2014 Schedule a viewing\n` +
           `\u2022 *status [booking-id]* \u2014 Check booking status\n` +
-          `\u2022 *report [listing-id] [reason]* \u2014 Report fraud\n` +
+          `\u2022 *report [listing-id] [reason]* \u2014 Report fraud (use numeric listing ID)\n` +
           `\u2022 *help* \u2014 Show all commands`;
 
         return new NextResponse(twimlMessage(unknownText), {

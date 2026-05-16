@@ -32,6 +32,21 @@ const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || "0.0.0.0";
 const NODE_ENV = process.env.NODE_ENV || "development";
 
+// ── Production startup guards ────────────────────────────────────────────────
+// Crash at boot rather than silently mis-serving auth or payments in production.
+if (NODE_ENV === "production") {
+  const missing = [];
+  if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
+  if (!process.env.CORS_ORIGIN) missing.push("CORS_ORIGIN");
+  const rpId = process.env.WEBAUTHN_RP_ID;
+  const waOrigin = process.env.WEBAUTHN_ORIGIN;
+  if (!rpId || rpId === "localhost") missing.push("WEBAUTHN_RP_ID (must be production domain, not 'localhost')");
+  if (!waOrigin || waOrigin.includes("localhost")) missing.push("WEBAUTHN_ORIGIN (must be production URL, not localhost)");
+  if (missing.length > 0) {
+    throw new Error(`[FATAL] Missing or misconfigured production env vars:\n  ${missing.join("\n  ")}`);
+  }
+}
+
 // ── Security Middleware ─────────────────────────────────────────────────────
 
 // Helmet — sets secure HTTP headers

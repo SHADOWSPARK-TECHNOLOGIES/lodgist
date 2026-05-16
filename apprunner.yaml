@@ -1,12 +1,12 @@
-# ─── AWS App Runner Configuration ─────────────────────────────────────────────
-# Deploys the Lodgist Express API backend as a managed container service.
-# Companion to the Amplify-hosted frontend.
+# ─── AWS App Runner Configuration (SOURCE-BASED — REFERENCE ONLY) ─────────────
 #
-# Usage:
-#   1. Push this file to the repo root
-#   2. In AWS App Runner Console → Create Service → Source code repository
-#   3. Select the lodgist repo, branch, and this config file
-#   4. Set environment variables via App Runner Console or AWS Secrets Manager
+# !! ACTIVE DEPLOY PATH: .github/workflows/deploy-backend.yml !!
+# Production deploys via Docker → ECR → App Runner image update (CI workflow).
+# This file is kept as a fallback for creating a NEW source-based service only.
+# Do NOT wire both paths to the same App Runner service — they will fight each other.
+#
+# To use this file: App Runner Console → Create Service → Source code repository
+# Set environment variables via App Runner Console or AWS Secrets Manager.
 # ──────────────────────────────────────────────────────────────────────────────
 
 version: 1.0
