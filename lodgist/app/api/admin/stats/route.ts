@@ -10,13 +10,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ message: "Authentication required." }, { status: 401 });
   }
 
-  // Only ADMIN can access this endpoint
+  // Only STUDIO_ADMIN can access this endpoint
   const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    include: { role: { select: { name: true } } },
+    where: { id: parseInt(session.user.id) },
   });
 
-  if (!user || user.role.name !== "ADMIN") {
+  if (!user || user.role !== "STUDIO_ADMIN") {
     return NextResponse.json({ message: "Forbidden. Admin access required." }, { status: 403 });
   }
 
@@ -39,10 +38,10 @@ export async function GET(req: NextRequest) {
         where: { isFlaggedForFraud: true },
       }),
 
-      // Pending verifications (listings with no truth index score)
-      prisma.property.count({
+      // Pending verifications (listings with no verified status)
+      prisma.listing.count({
         where: {
-          truthIndex: null,
+          status: "PENDING",
         },
       }),
 

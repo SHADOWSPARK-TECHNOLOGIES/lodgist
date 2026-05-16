@@ -1,5 +1,4 @@
 require("dotenv").config();
-require("./config/paystack.config");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -37,6 +36,7 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 if (NODE_ENV === "production") {
   const missing = [];
   if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
+  if (!process.env.PAYSTACK_SECRET_KEY) missing.push("PAYSTACK_SECRET_KEY");
   if (!process.env.CORS_ORIGIN) missing.push("CORS_ORIGIN");
   const rpId = process.env.WEBAUTHN_RP_ID;
   const waOrigin = process.env.WEBAUTHN_ORIGIN;
@@ -89,10 +89,10 @@ app.use(
   })
 );
 
-// Raw body capture for Paystack webhook HMAC — must precede express.json()
-// express.raw sets req._body = true, which prevents express.json from re-parsing the body
-// for this path, so req.body remains a Buffer in the webhook route handler.
+// Raw body capture for webhook HMAC — must precede express.json()
+// express.raw keeps req.body as a Buffer so HMAC can be computed over exact wire bytes.
 app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+app.use('/api/whatsapp/webhook', express.raw({ type: 'application/json' }));
 
 // Body parsing with size limit
 app.use(express.json({ limit: "10mb" }));

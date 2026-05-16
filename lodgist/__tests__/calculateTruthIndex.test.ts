@@ -23,35 +23,36 @@ const { calculateTruthIndex } = await import(
 
 function makeProperty(overrides: Record<string, unknown> = {}) {
   return {
-    id: "prop-1",
+    id: 1,
     address: "123 Test Street",
     city: "Lagos",
     state: "Lagos",
-    zip: "100001",
-    truthIndex: null,
-    ownerId: "user-1",
+    lga: "Ikeja",
+    ownerId: 1,
+    title: "Test Property",
     createdAt: new Date("2025-01-01"),
     updatedAt: new Date("2025-01-01"),
     owner: {
-      id: "user-1",
+      id: 1,
       name: "Test Landlord",
       email: "landlord@test.com",
       emailVerified: null,
-      image: null,
-      password: null,
+      avatarUrl: null,
+      passwordHash: null,
+      truthIndex: null,
+      role: "LANDLORD",
       createdAt: new Date("2025-01-01"),
       updatedAt: new Date("2025-01-01"),
-      roleId: "role-1",
-      role: { id: "role-1", name: "LANDLORD" },
     },
     listings: [
       {
-        id: "listing-1",
-        propertyId: "prop-1",
-        agentId: "user-1",
+        id: 1,
+        propertyId: 1,
+        ownerId: 1,
         price: 1_500_000,
+        title: "Test Listing",
         description: "A beautiful 3-bedroom apartment in the heart of Lagos with modern finishes.",
-        status: "available",
+        status: "VERIFIED",
         isFlaggedForFraud: false,
         fraudReason: null,
         createdAt: new Date("2025-01-01"),
@@ -75,7 +76,7 @@ describe("calculateTruthIndex", () => {
   it("should return score 0 and an error when property is not found", async () => {
     prisma.property.findUnique.mockResolvedValue(null);
 
-    const result = await calculateTruthIndex("nonexistent-id");
+    const result = await calculateTruthIndex(999);
 
     expect(result.score).toBe(0);
     expect(result.breakdown).toEqual({
@@ -90,7 +91,7 @@ describe("calculateTruthIndex", () => {
 
   // ── Maximum score (100) ─────────────────────────────────────────────────
 
-  it("should return score 100 when all categories are maxed", async () => {
+  it("should return score 60 when all categories are maxed (no Image/Review models)", async () => {
     // For max score we need:
     // - images: 3+ → 20pts (but Image model doesn't exist, so 0)
     // - description: 200+ chars → 15pts
@@ -103,12 +104,13 @@ describe("calculateTruthIndex", () => {
     const property = makeProperty({
       listings: [
         {
-          id: "listing-1",
-          propertyId: "prop-1",
-          agentId: "user-1",
+          id: 1,
+          propertyId: 1,
+          ownerId: 1,
           price: 1_500_000,
+          title: "Test Listing",
           description: longDesc,
-          status: "available",
+          status: "VERIFIED",
           isFlaggedForFraud: false,
           fraudReason: null,
           createdAt: new Date("2025-01-01"),
@@ -126,7 +128,7 @@ describe("calculateTruthIndex", () => {
       { price: 1_600_000 },
     ]);
 
-    const result = await calculateTruthIndex("prop-1");
+    const result = await calculateTruthIndex(1);
 
     // Without Image/Review models: 0 + 15 + 25 + 20 + 0 = 60
     expect(result.score).toBe(60);
@@ -141,28 +143,29 @@ describe("calculateTruthIndex", () => {
 
   // ── Minimum score (0) ───────────────────────────────────────────────────
 
-  it("should return score 0 when all categories are at minimum", async () => {
+  it("should return score 5 when all categories are at minimum", async () => {
     const property = makeProperty({
       owner: {
-        id: "user-2",
+        id: 2,
         name: "Test Tenant",
         email: "tenant@test.com",
         emailVerified: null,
-        image: null,
-        password: null,
+        avatarUrl: null,
+        passwordHash: null,
+        truthIndex: null,
+        role: "TENANT",
         createdAt: new Date("2025-01-01"),
         updatedAt: new Date("2025-01-01"),
-        roleId: "role-2",
-        role: { id: "role-2", name: "TENANT" },
       },
       listings: [
         {
-          id: "listing-2",
-          propertyId: "prop-1",
-          agentId: "user-2",
+          id: 2,
+          propertyId: 1,
+          ownerId: 2,
           price: 5_000_000,
+          title: "Test Listing",
           description: "",
-          status: "available",
+          status: "VERIFIED",
           isFlaggedForFraud: false,
           fraudReason: null,
           createdAt: new Date("2025-01-01"),
@@ -180,7 +183,7 @@ describe("calculateTruthIndex", () => {
       { price: 2_000_000 },
     ]);
 
-    const result = await calculateTruthIndex("prop-1");
+    const result = await calculateTruthIndex(1);
 
     // images: 0, description: 0, landlord: 0, price: 5, reviews: 0 = 5
     expect(result.score).toBe(5);
@@ -203,7 +206,7 @@ describe("calculateTruthIndex", () => {
     prisma.property.findUnique.mockResolvedValue(property);
     prisma.listing.findMany.mockResolvedValue([]);
 
-    const result = await calculateTruthIndex("prop-1");
+    const result = await calculateTruthIndex(1);
 
     expect(result.breakdown.images).toBe(0);
   });
@@ -226,12 +229,13 @@ describe("calculateTruthIndex", () => {
       const property = makeProperty({
         listings: [
           {
-            id: "listing-1",
-            propertyId: "prop-1",
-            agentId: "user-1",
+            id: 1,
+            propertyId: 1,
+            ownerId: 1,
             price: 1_500_000,
+            title: "Test Listing",
             description: desc,
-            status: "available",
+            status: "VERIFIED",
             isFlaggedForFraud: false,
             fraudReason: null,
             createdAt: new Date("2025-01-01"),
@@ -243,7 +247,7 @@ describe("calculateTruthIndex", () => {
       prisma.property.findUnique.mockResolvedValue(property);
       prisma.listing.findMany.mockResolvedValue([]);
 
-      const result = await calculateTruthIndex("prop-1");
+      const result = await calculateTruthIndex(1);
       expect(result.breakdown.description).toBe(expected);
     }
   });
@@ -254,30 +258,30 @@ describe("calculateTruthIndex", () => {
     const roles = [
       { name: "LANDLORD", expected: 25 },
       { name: "TENANT", expected: 0 },
-      { name: "AGENT", expected: 0 },
-      { name: "ADMIN", expected: 0 },
+      { name: "USER", expected: 0 },
+      { name: "STUDIO_ADMIN", expected: 0 },
     ];
 
     for (const { name, expected } of roles) {
       vi.clearAllMocks();
       const property = makeProperty({
         owner: {
-          id: "user-1",
+          id: 1,
           name: "Test User",
           email: "user@test.com",
           emailVerified: null,
-          image: null,
-          password: null,
+          avatarUrl: null,
+          passwordHash: null,
+          truthIndex: null,
+          role: name,
           createdAt: new Date("2025-01-01"),
           updatedAt: new Date("2025-01-01"),
-          roleId: "role-1",
-          role: { id: "role-1", name },
         },
       });
       prisma.property.findUnique.mockResolvedValue(property);
       prisma.listing.findMany.mockResolvedValue([]);
 
-      const result = await calculateTruthIndex("prop-1");
+      const result = await calculateTruthIndex(1);
       expect(result.breakdown.landlordVerified).toBe(expected);
     }
   });
@@ -289,12 +293,13 @@ describe("calculateTruthIndex", () => {
     const propertyNoPrice = makeProperty({
       listings: [
         {
-          id: "listing-1",
-          propertyId: "prop-1",
-          agentId: "user-1",
+          id: 1,
+          propertyId: 1,
+          ownerId: 1,
           price: null,
+          title: "Test Listing",
           description: "Test",
-          status: "available",
+          status: "VERIFIED",
           isFlaggedForFraud: false,
           fraudReason: null,
           createdAt: new Date("2025-01-01"),
@@ -305,7 +310,7 @@ describe("calculateTruthIndex", () => {
     });
     prisma.property.findUnique.mockResolvedValue(propertyNoPrice);
     prisma.listing.findMany.mockResolvedValue([]);
-    const resultNoPrice = await calculateTruthIndex("prop-1");
+    const resultNoPrice = await calculateTruthIndex(1);
     expect(resultNoPrice.breakdown.priceCompetitiveness).toBe(10);
 
     // No comparable listings → neutral (10)
@@ -313,7 +318,7 @@ describe("calculateTruthIndex", () => {
     const propertyNoComp = makeProperty();
     prisma.property.findUnique.mockResolvedValue(propertyNoComp);
     prisma.listing.findMany.mockResolvedValue([]);
-    const resultNoComp = await calculateTruthIndex("prop-1");
+    const resultNoComp = await calculateTruthIndex(1);
     expect(resultNoComp.breakdown.priceCompetitiveness).toBe(10);
 
     // Within 20% of median → 20
@@ -324,7 +329,7 @@ describe("calculateTruthIndex", () => {
       { price: 1_500_000 },
       { price: 1_600_000 },
     ]);
-    const resultWithin = await calculateTruthIndex("prop-1");
+    const resultWithin = await calculateTruthIndex(1);
     expect(resultWithin.breakdown.priceCompetitiveness).toBe(20);
 
     // More than 50% above median → 5
@@ -332,12 +337,13 @@ describe("calculateTruthIndex", () => {
     const propertyHigh = makeProperty({
       listings: [
         {
-          id: "listing-1",
-          propertyId: "prop-1",
-          agentId: "user-1",
+          id: 1,
+          propertyId: 1,
+          ownerId: 1,
           price: 3_000_000,
+          title: "Test Listing",
           description: "Test",
-          status: "available",
+          status: "VERIFIED",
           isFlaggedForFraud: false,
           fraudReason: null,
           createdAt: new Date("2025-01-01"),
@@ -352,7 +358,7 @@ describe("calculateTruthIndex", () => {
       { price: 1_500_000 },
       { price: 2_000_000 },
     ]);
-    const resultHigh = await calculateTruthIndex("prop-1");
+    const resultHigh = await calculateTruthIndex(1);
     expect(resultHigh.breakdown.priceCompetitiveness).toBe(5);
   });
 
@@ -364,7 +370,7 @@ describe("calculateTruthIndex", () => {
     prisma.property.findUnique.mockResolvedValue(property);
     prisma.listing.findMany.mockResolvedValue([]);
 
-    const result = await calculateTruthIndex("prop-1");
+    const result = await calculateTruthIndex(1);
 
     expect(result.breakdown.reviews).toBe(0);
   });
@@ -374,7 +380,7 @@ describe("calculateTruthIndex", () => {
   it("should handle Prisma errors gracefully", async () => {
     prisma.property.findUnique.mockRejectedValue(new Error("Database connection failed"));
 
-    const result = await calculateTruthIndex("prop-1");
+    const result = await calculateTruthIndex(1);
 
     expect(result.score).toBe(0);
     expect(result.error).toBe("Database connection failed");
@@ -385,18 +391,18 @@ describe("calculateTruthIndex", () => {
     prisma.property.findUnique.mockResolvedValue(property);
     prisma.listing.findMany.mockResolvedValue([]);
     prisma.truthIndexScore.create.mockResolvedValue({
-      id: "score-1",
-      propertyId: "prop-1",
+      id: 1,
+      userId: 1,
       score: 35,
       breakdown: {},
       createdAt: new Date(),
     });
 
-    await calculateTruthIndex("prop-1");
+    await calculateTruthIndex(1);
 
     expect(prisma.truthIndexScore.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        propertyId: "prop-1",
+        userId: 1,
         score: expect.any(Number),
         breakdown: expect.any(Object),
       }),

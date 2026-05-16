@@ -6,7 +6,7 @@ import * as z from "zod";
 // ─── Validation ──────────────────────────────────────────────────────────────
 
 const createBookingSchema = z.object({
-  listingId: z.string({ message: "Listing ID is required." }).min(1),
+  listingId: z.number({ message: "Listing ID is required." }).int().positive(),
   startDate: z.string({ message: "Start date is required." }).min(1),
   endDate: z.string({ message: "End date is required." }).min(1),
 });
@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       bookings = await prisma.booking.findMany({
         where: {
           listing: {
-            agentId: session.user.id,
+            ownerId: parseInt(session.user.id),
           },
         },
         include: {
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     } else {
       // TENANT sees their own bookings
       bookings = await prisma.booking.findMany({
-        where: { tenantId: session.user.id },
+        where: { tenantId: parseInt(session.user.id) },
         include: {
           listing: {
             select: {
@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Listing not found." }, { status: 404 });
     }
 
-    if (listing.status !== "available") {
+    if (listing.status !== "VERIFIED") {
       return NextResponse.json(
         { message: "This listing is no longer available for booking." },
         { status: 409 }
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Prevent a landlord from booking their own listing
-    if (listing.property.ownerId === session.user.id) {
+    if (listing.property?.ownerId === parseInt(session.user.id)) {
       return NextResponse.json(
         { message: "You cannot book your own listing." },
         { status: 403 }
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
     const overlapping = await prisma.booking.findFirst({
       where: {
         listingId: validated.listingId,
-        status: { not: "cancelled" },
+        status: { not: "CANCELLED" },
         AND: [
           { startDate: { lt: endDate } },
           { endDate: { gt: startDate } },
@@ -159,10 +159,11 @@ export async function POST(req: NextRequest) {
     const booking = await prisma.booking.create({
       data: {
         listingId: validated.listingId,
-        tenantId: session.user.id,
+        tenantId: parseInt(session.user.id),
         startDate,
         endDate,
-        status: "pending",
+        totalAmount: listing.price,
+        status: "PENDING",
       },
       include: {
         listing: {

@@ -6,8 +6,14 @@
  *   GET  /transaction/verify/:ref  — Verify a completed payment
  *   POST /transfer                 — Transfer funds to a recipient (landlord)
  *   POST /transferrecipient        — Create a transfer recipient (landlord's bank account)
+ *   GET  /balance                  — Check available balance
  *
  * All amounts are in **kobo** (NGN × 100) as required by Paystack.
+ *
+ * Features:
+ *   - Idempotency key support (Idempotency-Key header) to prevent duplicate charges
+ *   - Reference prefix "LODG-ESC-" for easy transaction identification
+ *   - Balance check before transfers
  */
 
 const axios = require("axios");
@@ -15,12 +21,103 @@ const axios = require("axios");
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_API = "https://api.paystack.co";
 
+// ─── Reference Prefix ─────────────────────────────────────────────────────────
+
+/**
+ * Prefix for all Paystack transaction references.
+ * Makes transactions easily identifiable in the Paystack dashboard.
+ */
+const REFERENCE_PREFIX = "LODG-ESC-";
+
+/**
+ * Apply the reference prefix to a given reference string.
+ * If the prefix is already present, returns the reference unchanged.
+ *
+ * @param {string} ref - The base reference string
+ * @returns {string} - Prefixed reference
+ */
+function applyReferencePrefix(ref) {
+  if (!ref) return `${REFERENCE_PREFIX}${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+  if (ref.startsWith(REFERENCE_PREFIX)) return ref;
+  return `${REFERENCE_PREFIX}${ref}`;
+}
+
+/**
+ * Check if a reference string has the expected prefix.
+ *
+ * @param {string} ref - The reference to check
+ * @returns {boolean}
+ */
+function hasValidPrefix(ref) {
+  return ref && ref.startsWith(REFERENCE_PREFIX);
+}
+
+// ─── Idempotency Store ────────────────────────────────────────────────────────
+
+/**
+ * In-memory store for idempotency keys.
+ * In production, this should be backed by Redis or the database.
+ *
+ * @type {Map<string, { reference: string, result: object, timestamp: number }>}
+ */
+const idempotencyStore = new Map();
+
+/** TTL for idempotency entries: 24 hours in milliseconds */
+const IDEMPOTENCY_TTL = 24 * 60 * 60 * 1000;
+
+/**
+ * Check if an idempotency key was already used and return the cached result.
+ * Cleans up expired entries periodically.
+ *
+ * @param {string} key - The idempotency key
+ * @returns {{ reference: string, result: object } | null}
+ */
+function getIdempotencyResult(key) {
+  if (!key) return null;
+  const entry = idempotencyStore.get(key);
+  if (!entry) return null;
+
+  // Check TTL
+  if (Date.now() - entry.timestamp > IDEMPOTENCY_TTL) {
+    idempotencyStore.delete(key);
+    return null;
+  }
+
+  return { reference: entry.reference, result: entry.result };
+}
+
+/**
+ * Store the result of an idempotent operation.
+ *
+ * @param {string} key - The idempotency key
+ * @param {string} reference - The generated transaction reference
+ * @param {object} result - The Paystack response result
+ */
+function setIdempotencyResult(key, reference, result) {
+  if (!key) return;
+  idempotencyStore.set(key, { reference, result, timestamp: Date.now() });
+
+  // Clean up old entries if store grows too large
+  if (idempotencyStore.size > 50000) {
+    const now = Date.now();
+    for (const [k, v] of idempotencyStore) {
+      if (now - v.timestamp > IDEMPOTENCY_TTL) {
+        idempotencyStore.delete(k);
+      }
+    }
+  }
+}
+
+// ─── Warnings ─────────────────────────────────────────────────────────────────
+
 if (!PAYSTACK_SECRET_KEY) {
   console.warn(
     "[PaystackService] WARNING: PAYSTACK_SECRET_KEY is not set. " +
       "All Paystack calls will fail until it is configured."
   );
 }
+
+// ─── Shared Axios Instance ────────────────────────────────────────────────────
 
 /** Shared Axios instance pre-configured with auth header. */
 const api = axios.create({
@@ -48,12 +145,18 @@ function toKobo(amountNGN) {
 /**
  * Initialize a Paystack transaction (creates a payment link).
  *
+ * Supports idempotency: if `idempotencyKey` is provided and a previous
+ * result exists, the cached result is returned without calling Paystack again.
+ *
+ * Automatically prefixes the reference with "LODG-ESC-" for identification.
+ *
  * @param {object} params
  * @param {string} params.email       – Customer email (tenant)
  * @param {number} params.amount      – Amount in NGN (will be converted to kobo)
  * @param {string} params.reference   – Unique transaction reference
  * @param {object} [params.metadata]  – Extra data (escrowTransactionId, etc.)
  * @param {string} [params.callbackUrl] – Where to redirect after payment
+ * @param {string} [params.idempotencyKey] – Idempotency key to prevent duplicate charges
  * @returns {Promise<{ authorization_url: string, reference: string, access_code: string }>}
  */
 async function initializePayment({
@@ -62,15 +165,31 @@ async function initializePayment({
   reference,
   metadata = {},
   callbackUrl,
+  idempotencyKey,
 }) {
   if (!email) throw new Error("email is required");
   if (amount == null || amount <= 0) throw new Error("amount must be a positive number");
   if (!reference) throw new Error("reference is required");
 
+  // ── Idempotency check ──────────────────────────────────────────────────────
+  if (idempotencyKey) {
+    const cached = getIdempotencyResult(idempotencyKey);
+    if (cached) {
+      console.log(
+        `[PaystackService] Idempotency hit for key ${idempotencyKey}, ` +
+        `returning cached reference ${cached.reference}`
+      );
+      return cached.result;
+    }
+  }
+
+  // ── Apply reference prefix ─────────────────────────────────────────────────
+  const prefixedReference = applyReferencePrefix(reference);
+
   const payload = {
     email,
     amount: toKobo(amount),
-    reference,
+    reference: prefixedReference,
     metadata,
   };
 
@@ -78,21 +197,36 @@ async function initializePayment({
     payload.callback_url = callbackUrl;
   }
 
-  const { data } = await api.post("/transaction/initialize", payload);
+  // ── Build headers (include Idempotency-Key if provided) ────────────────────
+  const headers = {};
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+
+  const { data } = await api.post("/transaction/initialize", payload, { headers });
 
   if (!data.status || !data.data) {
     throw new Error(`Paystack initialize failed: ${data.message}`);
   }
 
-  return {
+  const result = {
     authorization_url: data.data.authorization_url,
     reference: data.data.reference,
     access_code: data.data.access_code,
   };
+
+  // ── Cache idempotency result ───────────────────────────────────────────────
+  if (idempotencyKey) {
+    setIdempotencyResult(idempotencyKey, prefixedReference, result);
+  }
+
+  return result;
 }
 
 /**
  * Verify a Paystack transaction by reference.
+ *
+ * Accepts references with or without the "LODG-ESC-" prefix.
  *
  * @param {string} reference – The transaction reference returned by initializePayment
  * @returns {Promise<{
@@ -109,7 +243,10 @@ async function initializePayment({
 async function verifyPayment(reference) {
   if (!reference) throw new Error("reference is required");
 
-  const { data } = await api.get(`/transaction/verify/${reference}`);
+  // Normalize reference — ensure it has the prefix for the API call
+  const normalizedRef = applyReferencePrefix(reference);
+
+  const { data } = await api.get(`/transaction/verify/${normalizedRef}`);
 
   if (!data.status || !data.data) {
     throw new Error(`Paystack verification failed: ${data.message}`);
@@ -224,4 +361,11 @@ module.exports = {
   createTransferRecipient,
   transferToLandlord,
   getBalance,
+  // Exported for testing and utility
+  applyReferencePrefix,
+  hasValidPrefix,
+  REFERENCE_PREFIX,
+  // Exported for DI/testability
+  getIdempotencyResult,
+  setIdempotencyResult,
 };

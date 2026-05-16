@@ -11,7 +11,7 @@ export async function GET(
   try {
     const { id } = await params;
     const property = await prisma.property.findUnique({
-      where: { id },
+      where: { id: parseInt(id) },
     });
 
     if (!property) {
@@ -39,7 +39,7 @@ export async function PUT(
     const validatedData = propertyUpdateSchema.parse(body);
 
     // Optional: Check if the authenticated user is the owner of the property or an ADMIN
-    const existingProperty = await prisma.property.findUnique({ where: { id } });
+    const existingProperty = await prisma.property.findUnique({ where: { id: parseInt(id) } });
     if (!existingProperty) {
       return NextResponse.json({ message: 'Property not found.' }, { status: 404 });
     }
@@ -47,9 +47,12 @@ export async function PUT(
     //   return NextResponse.json({ message: 'Unauthorized to update this property.' }, { status: 403 });
     // }
 
+    // Remove ownerId from update data — ownership cannot be transferred via update
+    const { ownerId: _, ...updateData } = validatedData;
+
     const updatedProperty = await prisma.property.update({
-      where: { id },
-      data: validatedData,
+      where: { id: parseInt(id) },
+      data: updateData,
     });
     return NextResponse.json(updatedProperty);
   } catch (error) {
@@ -74,7 +77,7 @@ export async function DELETE(
     const { id } = await params;
 
     // Optional: Check if the authenticated user is the owner of the property or an ADMIN
-    const existingProperty = await prisma.property.findUnique({ where: { id } });
+    const existingProperty = await prisma.property.findUnique({ where: { id: parseInt(id) } });
     if (!existingProperty) {
       return NextResponse.json({ message: 'Property not found.' }, { status: 404 });
     }
@@ -83,7 +86,7 @@ export async function DELETE(
     // }
 
     await prisma.property.delete({
-      where: { id },
+      where: { id: parseInt(id) },
     });
     return NextResponse.json({ message: 'Property deleted successfully.' });
   } catch (error) {

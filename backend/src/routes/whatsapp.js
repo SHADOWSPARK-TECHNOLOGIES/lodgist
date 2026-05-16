@@ -10,6 +10,7 @@ const crypto = require("crypto");
  */
 module.exports = function (prisma) {
   const router = express.Router();
+  const baseUrl = process.env.WHATSAPP_PUBLIC_URL || "https://lodgist.ng";
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -21,11 +22,14 @@ module.exports = function (prisma) {
    */
   function verifyWebhookSignature(signature, body) {
     if (!signature || !process.env.WHATSAPP_APP_SECRET) return false;
+    const rawBody = Buffer.isBuffer(body) ? body.toString("utf8") : JSON.stringify(body);
     const expected = crypto
       .createHmac("sha256", process.env.WHATSAPP_APP_SECRET)
-      .update(typeof body === "string" ? body : JSON.stringify(body))
+      .update(rawBody)
       .digest("hex");
-    return signature === `sha256=${expected}`;
+    const expectedSig = `sha256=${expected}`;
+    if (expectedSig.length !== signature.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(signature));
   }
 
   /**
@@ -285,7 +289,7 @@ module.exports = function (prisma) {
             "• Abuja: 45 Aminu Kano Crescent, Wuse 2\n" +
             "• Port Harcourt: 8 Woji Road, GRA Phase 2\n" +
             "• Owerri: 30 Ikenegbu Layout\n\n" +
-            "Visit https://lodgist.ng/listings to browse all.\n\n" +
+            `Visit ${baseUrl}/listings to browse all.\n\n` +
             "Reply with a city name (e.g., 'Lagos', 'Abuja', 'Owerri') for recommendations.";
         } else if (
           msgText === "2" ||
@@ -293,7 +297,7 @@ module.exports = function (prisma) {
         ) {
           replyText =
             "📋 *Your Bookings*\n\n" +
-            "Visit https://lodgist.ng/dashboard to view and manage your bookings.\n\n" +
+            `Visit ${baseUrl}/dashboard to view and manage your bookings.\n\n` +
             "Need help? Reply with your booking reference.";
         } else if (
           msgText === "3" ||
@@ -303,7 +307,7 @@ module.exports = function (prisma) {
             "👨‍💼 *Connect with an Agent*\n\n" +
             "An agent will be with you shortly. Your reference ID is: `" +
             (session?.id || "N/A") + "`\n\n" +
-            "In the meantime, check out our verified listings at https://lodgist.ng";
+            `In the meantime, check out our verified listings at ${baseUrl}`;
         } else if (
           msgText.toLowerCase() === "4" ||
           msgText.toLowerCase().includes("refer")
@@ -313,7 +317,7 @@ module.exports = function (prisma) {
             "Share Lodgist with 3 landlord friends and earn ₦1,000 escrow credit!\n\n" +
             "How it works:\n" +
             "1. Forward this message to 3 landlords\n" +
-            "2. They sign up at https://lodgist.ng/register\n" +
+            `2. They sign up at ${baseUrl}/register\n` +
             "3. You get ₦1,000 credit when they list their first property\n\n" +
             "Reply CLAIM when you've referred 3 people!";
         } else if (
@@ -351,7 +355,7 @@ module.exports = function (prisma) {
           const city = msgText.trim();
           replyText =
             `📍 *Properties in ${city}*\n\n` +
-            `We have verified listings in ${city}. Visit https://lodgist.ng/listings?city=${encodeURIComponent(city.toLowerCase())} to see available properties.\n\n` +
+            `We have verified listings in ${city}. Visit ${baseUrl}/listings?city=${encodeURIComponent(city.toLowerCase())} to see available properties.\n\n` +
             `All listings include Truth Index scores and escrow-protected payments.`;
         }
 

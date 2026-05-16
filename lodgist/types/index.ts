@@ -15,7 +15,6 @@ export type {
   Session,
   VerificationToken,
   TruthIndexScore,
-  RoleName,
 } from "@prisma/client";
 
 // ─── Custom Domain Types ─────────────────────────────────────────────────────
@@ -26,14 +25,14 @@ export type NgnPrice = number & { readonly __brand: "NgnPrice" };
 /** Truth Index score (0-100) */
 export type TruthIndexScoreValue = number & { readonly __brand: "TruthIndexScore" };
 
-/** Property listing status */
+/** Property listing status (deprecated — use ListingStatus enum from @prisma/client) */
 export type ListingStatus = "available" | "rented" | "sold" | "withdrawn";
 
-/** Booking status */
+/** Booking status (deprecated — use BookingStatus enum from @prisma/client) */
 export type BookingStatus = "pending" | "confirmed" | "cancelled" | "completed";
 
-/** User role names matching Prisma RoleName enum */
-export type UserRoleName = "ADMIN" | "AGENT" | "LANDLORD" | "TENANT";
+/** User role names matching Prisma Role enum values */
+export type UserRoleName = "USER" | "ARTISAN" | "LANDLORD" | "STUDIO_ADMIN" | "TENANT" | "AGENT";
 
 /** Property types */
 export type PropertyType = "apartment" | "house" | "land" | "commercial";
@@ -75,23 +74,21 @@ export interface ApiSuccessResponse<T = unknown> {
 // ─── Property with relations (for frontend consumption) ──────────────────────
 
 export interface PropertyWithListings {
-  id: string;
+  id: number;
   address: string;
   city: string;
   state: string;
-  zip: string;
-  truthIndex: number | null;
-  ownerId: string;
+  ownerId: number;
   createdAt: Date;
   updatedAt: Date;
   owner: {
-    id: string;
+    id: number;
     name: string | null;
     email: string;
-    role: { name: UserRoleName };
+    role: UserRoleName;
   };
   listings: Array<{
-    id: string;
+    id: number;
     price: number;
     description: string | null;
     status: string;
@@ -103,16 +100,18 @@ export interface PropertyWithListings {
 // ─── Booking with relations ──────────────────────────────────────────────────
 
 export interface BookingWithListing {
-  id: string;
-  listingId: string;
-  tenantId: string;
+  id: string; // Booking.id is cuid
+  listingId: number;
+  tenantId: number;
   startDate: Date;
   endDate: Date;
   status: string;
+  totalAmount: number;
   createdAt: Date;
   updatedAt: Date;
   listing: {
-    id: string;
+    id: number;
+    title: string;
     price: number;
     property: {
       address: string;
@@ -121,7 +120,7 @@ export interface BookingWithListing {
     };
   };
   tenant?: {
-    id: string;
+    id: number;
     name: string | null;
     email: string;
   };

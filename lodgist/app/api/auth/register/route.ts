@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import type { Role } from "@prisma/client";
+
+// ─── Role mapping: frontend-friendly names → DB Role enum values ────────────
+// Packages/db uses: USER, ARTISAN, LANDLORD, STUDIO_ADMIN
+// The frontend sends: TENANT, LANDLORD, AGENT
+const ROLE_MAP: Record<string, Role> = {
+  TENANT: "USER",
+  LANDLORD: "LANDLORD",
+  AGENT: "ARTISAN",
+};
 
 // ─── POST /api/auth/register — Create a new user account ────────────────────
 
@@ -61,6 +71,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // ── Map frontend role to DB enum value ────────────────────────────────
+    const dbRole = ROLE_MAP[role as keyof typeof ROLE_MAP];
+
     // ── Check for existing user ───────────────────────────────────────────
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -73,19 +86,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // ── Find role ─────────────────────────────────────────────────────────
-    const roleRecord = await prisma.role.findUnique({
-      where: { name: role as "TENANT" | "LANDLORD" | "AGENT" },
-    });
-
-    if (!roleRecord) {
-      return NextResponse.json(
-        { message: "Invalid role specified." },
-        { status: 400 },
-      );
-    }
-
-    // ── Hash password & create user in transaction ────────────────────────
+    // ── Hash password & create user ───────────────────────────────────────
     const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await prisma.$transaction(async (tx) => {
@@ -93,14 +94,15 @@ export async function POST(req: NextRequest) {
         data: {
           name: name.trim(),
           email: email.trim().toLowerCase(),
-          password: hashedPassword,
-          roleId: roleRecord.id,
+          passwordHash: hashedPassword,
+          role: dbRole,
+          phone: phone || null,
         },
         select: {
           id: true,
           name: true,
           email: true,
-          role: { select: { name: true } },
+          role: true,
         },
       });
     });
@@ -111,7 +113,7 @@ export async function POST(req: NextRequest) {
         user: {
           id: user.id,
           email: user.email,
-          role: user.role.name,
+          role: user.role,
         },
       },
       { status: 201 },

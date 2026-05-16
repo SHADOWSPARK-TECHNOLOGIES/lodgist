@@ -1,44 +1,63 @@
-# Lodgist Seed Test Accounts
+# Lodgist Seed Test Accounts — v5.0
+
+## New in v5.0
+
+- **Expanded from 6 → 12 listings** across 12 Nigerian cities/states
+- **5 users** (admin, 2 landlords, 2 tenants) with `.ng` email domains
+- **3 bookings** (pending, confirmed, cancelled) across different tenants
+- **24 reviews** (2 per listing, one from each tenant)
+- **12 Truth Index scores** with detailed breakdown JSON
+- **24–36 listing images** (2–3 per listing) from Unsplash
 
 ## Credentials
 
-| Role     | Email                  | Password      |
-|----------|------------------------|---------------|
-| Admin    | admin@lodgist.com      | password123   |
-| Landlord | landlord@lodgist.com   | password123   |
-| Tenant   | tenant@lodgist.com     | password123   |
+| Role     | Email                  | Password        |
+|----------|------------------------|-----------------|
+| Admin    | admin@lodgist.ng       | Admin2026!      |
+| Landlord | emeka@lodgist.ng       | Landlord2026!   |
+| Landlord | fatima@lodgist.ng      | Landlord2026!   |
+| Tenant   | chioma@lodgist.ng      | Tenant2026!     |
+| Tenant   | amina@lodgist.ng       | Tenant2026!     |
 
 ## Users
 
-| Name           | Role     | Email                  |
-|----------------|----------|------------------------|
-| Chidi Okafor   | ADMIN    | admin@lodgist.com      |
-| Fatima Bello   | LANDLORD | landlord@lodgist.com   |
-| Emeka Nwosu    | TENANT   | tenant@lodgist.com     |
+| Name           | Role         | Email                  |
+|----------------|--------------|------------------------|
+| Lodgist Admin  | STUDIO_ADMIN | admin@lodgist.ng       |
+| Emeka Okafor   | LANDLORD | emeka@lodgist.ng       |
+| Fatima Bello   | LANDLORD | fatima@lodgist.ng      |
+| Chioma Eze     | TENANT   | chioma@lodgist.ng      |
+| Amina Yusuf    | TENANT   | amina@lodgist.ng       |
 
 ## Seed Data Summary
 
-| Table            | Count | Details                                      |
-|------------------|-------|----------------------------------------------|
-| Roles            | 3     | ADMIN, LANDLORD, TENANT                      |
-| Users            | 3     | 1 per role                                   |
-| Properties       | 6     | Lagos (3), FCT (1), Rivers (1), Imo (1)      |
-| Listings         | 6     | ₦1.2M–₦25M, various property types           |
-| ListingImages    | 18    | 3 images per listing                         |
-| Reviews          | 12    | 2 reviews per listing, 3–5 stars             |
-| Bookings         | 2     | 1 pending (Lekki), 1 confirmed (Wuse 2)      |
-| TruthIndexScores | 6     | Scores 71–95 with breakdown JSON             |
+| Table            | Count | Details                                              |
+|------------------|-------|------------------------------------------------------|
+| Roles            | 3     | STUDIO_ADMIN, LANDLORD, TENANT                       |
+| Users            | 5     | 1 admin, 2 landlords, 2 tenants                      |
+| Properties       | 12    | Across Lagos, FCT, Rivers, Imo, Enugu, Edo           |
+| Listings         | 12    | ₦350K–₦1.8M monthly, all available                   |
+| ListingImages    | 24–36 | 2–3 images per listing                               |
+| Reviews          | 24    | 2 per listing (Chioma + Amina), 4–5 stars            |
+| Bookings         | 3     | 1 pending (Lekki), 1 confirmed (Wuse), 1 cancelled (VI) |
+| TruthIndexScores | 12    | Scores 80–95 with breakdown JSON                     |
 
-## Properties
+## Properties & Listings
 
-| # | Address                                      | City             | State  | Price (₦)    | Truth Index |
-|---|----------------------------------------------|------------------|--------|--------------|-------------|
-| 1 | 12 Admiralty Way, Lekki Phase 1              | Lekki            | Lagos  | 4,500,000    | 92          |
-| 2 | 45 Aminu Kano Crescent, Wuse 2               | Wuse             | FCT    | 8,500,000    | 88          |
-| 3 | Plot 7, Bishop Oluwole Street, Victoria Island| Victoria Island  | Lagos  | 25,000,000   | 76          |
-| 4 | 8 Woji Road, GRA Phase 2                     | Port Harcourt    | Rivers | 3,200,000    | 85          |
-| 5 | 22 Bourdillon Road, Ikoyi                    | Ikoyi            | Lagos  | 18,000,000   | 95          |
-| 6 | 30 Ikenegbu Layout, Owerri Municipal         | Owerri           | Imo    | 1,200,000    | 71          |
+| # | Address                                                | City             | State   | Owner         | Monthly Price (₦) | Truth Index |
+|---|--------------------------------------------------------|------------------|---------|---------------|-------------------|-------------|
+| 1 | 15B Admiralty Way, Lekki Phase 1                       | Lekki            | Lagos   | Emeka Okafor  | 1,200,000         | 92          |
+| 2 | 24 Durban Street, Wuse 2                               | Wuse             | FCT     | Emeka Okafor  | 900,000           | 88          |
+| 3 | 8A Adeola Odeku, Victoria Island                       | Victoria Island  | Lagos   | Emeka Okafor  | 1,500,000         | 90          |
+| 4 | 12 Forces Avenue, GRA Phase 2                          | Port Harcourt    | Rivers  | Fatima Bello  | 600,000           | 85          |
+| 5 | 33B Bourdillon Road, Ikoyi                             | Ikoyi            | Lagos   | Emeka Okafor  | 1,800,000         | 95          |
+| 6 | 5 Wetheral Road, Owerri Municipal                      | Owerri           | Imo     | Fatima Bello  | 350,000           | 82          |
+| 7 | 77 Adeniran Ogunsanya Street, Surulere                 | Surulere         | Lagos   | Emeka Okafor  | 500,000           | 80          |
+| 8 | 2 Aguiyi Ironsi Street, Maitama                        | Maitama          | FCT     | Fatima Bello  | 1,000,000         | 93          |
+| 9 | 18 Ogui Road, Independence Layout                      | Enugu            | Enugu   | Fatima Bello  | 400,000           | 84          |
+| 10| 45 Allen Avenue, Ikeja                                 | Ikeja            | Lagos   | Emeka Okafor  | 550,000           | 87          |
+| 11| 9 Kano Street, Area 11, Garki                          | Garki            | FCT     | Fatima Bello  | 700,000           | 81          |
+| 12| 30 Ihama Road, GRA                                     | Benin City       | Edo     | Fatima Bello  | 450,000           | 86          |
 
 ## Database
 

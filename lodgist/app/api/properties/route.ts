@@ -60,11 +60,11 @@ export async function GET(req: NextRequest) {
               id: true,
               name: true,
               email: true,
-              role: { select: { name: true } },
+              role: true,
             },
           },
           listings: {
-            where: { status: "available" },
+            where: { status: "VERIFIED" },
             select: {
               id: true,
               price: true,
@@ -149,8 +149,7 @@ export async function POST(req: NextRequest) {
         address: prismaData.address as string,
         city: prismaData.city as string,
         state: prismaData.state as string,
-        zip: (prismaData.zip as string) ?? '',
-        ownerId: session.user.id,
+        ownerId: parseInt(session.user.id),
         // Store extra metadata as a JSON string in a field if needed,
         // or extend the Property model. For now, we store minimal fields.
       },

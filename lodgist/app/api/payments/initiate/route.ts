@@ -125,7 +125,7 @@ export async function POST(req: NextRequest) {
         listingId: booking.listingId,
         amount: validated.amount,
         currency: "NGN",
-        status: "PENDING",
+        status: "HELD",
         description: `Payment for booking ${validated.bookingId}`,
         paystackReference: result.data.reference,
         paystackAuthorizationUrl: result.data.authorization_url,

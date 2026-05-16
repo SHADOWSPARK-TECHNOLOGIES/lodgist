@@ -3,7 +3,7 @@
 // and potentially perform complex checks.
 
 interface ListingFraudReport {
-  listingId: string;
+  listingId: string; // Keep as string for serialization; parse to Int before DB query
   reporterPhoneNumber: string;
   reason: string;
   // Add more relevant data points for AI analysis
@@ -18,9 +18,10 @@ export const flagListingForFraud = async (report: ListingFraudReport): Promise<b
 
   if (isSuspicious) {
     console.log(`Listing ${report.listingId} flagged as suspicious for fraud.`);
-    // In a real scenario, you would update the database here:
+    // In a real scenario, update the database here (listingId needs parseInt for DB):
+    // const listingIdNum = parseInt(report.listingId);
     // await prisma.listing.update({
-    //   where: { id: report.listingId },
+    //   where: { id: listingIdNum },
     //   data: { isFlaggedForFraud: true, fraudReason: report.reason },
     // });
     return true;

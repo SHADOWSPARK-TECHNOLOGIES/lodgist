@@ -7,30 +7,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "@/lib/prisma"
 import bcrypt from "bcryptjs"
 import { getServerSession, type SessionStrategy } from "next-auth"
-
-// ─── Extend built-in types to carry role ─────────────────────────────────────
-
-declare module "next-auth" {
-  interface User {
-    role: string
-  }
-  interface Session {
-    user: {
-      id?: string | null
-      name?: string | null
-      email?: string | null
-      image?: string | null
-      role?: string | null
-    }
-  }
-}
-
-declare module "next-auth/jwt" {
-  interface JWT {
-    role: string
-    id: string
-  }
-}
+import type { NextAuthOptions, Session } from "next-auth"
 
 // ─── OAuth provider availability ─────────────────────────────────────────────
 // Only include a provider when both ID and secret are present.
@@ -46,7 +23,7 @@ if (process.env.NODE_ENV === "production") {
 
 // ─── NextAuth Configuration Options ──────────────────────────────────────────
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
   providers: [
     ...(githubConfigured
@@ -119,7 +96,6 @@ export const authOptions = {
 // This allows callers (import { auth } from "@/auth") to use await auth()
 // instead of the more verbose getServerSession(authOptions).
 
-export async function auth() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return getServerSession(authOptions as any)
+export async function auth(): Promise<Session | null> {
+  return getServerSession(authOptions)
 }

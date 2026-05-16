@@ -1,34 +1,10 @@
 // Next.js App Router route handlers for NextAuth.js
-// Using lazy dynamic import to avoid issues during build-time module evaluation
-// where NextAuth may not have initialized its handlers yet.
+// Uses NextAuth v4 pattern: NextAuth(authOptions) returns a handler function
+// that handles both GET and POST requests.
 
-type NextAuthHandler = (
-  req: Request,
-  ctx: { params: Promise<Record<string, string | string[]>> }
-) => Promise<Response>;
+import NextAuth from "next-auth"
+import { authOptions } from "@/auth"
 
-let cachedHandlers: { GET: NextAuthHandler; POST: NextAuthHandler } | null = null;
+const handler = NextAuth(authOptions)
 
-async function getHandlers(): Promise<{ GET: NextAuthHandler; POST: NextAuthHandler }> {
-  if (!cachedHandlers) {
-    const auth = await import("@/auth");
-    cachedHandlers = auth.handlers as { GET: NextAuthHandler; POST: NextAuthHandler };
-  }
-  return cachedHandlers;
-}
-
-export async function GET(
-  req: Request,
-  ctx: { params: Promise<Record<string, string | string[]>> }
-): Promise<Response> {
-  const h = await getHandlers();
-  return h.GET(req, ctx);
-}
-
-export async function POST(
-  req: Request,
-  ctx: { params: Promise<Record<string, string | string[]>> }
-): Promise<Response> {
-  const h = await getHandlers();
-  return h.POST(req, ctx);
-}
+export { handler as GET, handler as POST }

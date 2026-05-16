@@ -1,6 +1,6 @@
 version: 1
 applications:
-  - appRoot: apps/lodgist # This tells Amplify where your frontend lives
+  - appRoot: lodgist
     frontend:
       phases:
         preBuild:
@@ -10,10 +10,8 @@ applications:
             - pnpm install --frozen-lockfile
         build:
           commands:
-            # Generate your Prisma database client first
             - pnpm --filter db exec prisma generate
-            # Build your Next.js frontend
-            - pnpm --filter frontend build
+            - pnpm --filter lodgist build
       artifacts:
         baseDirectory: .next
         files:

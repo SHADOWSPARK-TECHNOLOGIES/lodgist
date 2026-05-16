@@ -1,9 +1,9 @@
-import { Property, User, RoleName } from '@prisma/client';
+import { Property, User, Role } from '@prisma/client';
 
 // This is a simplified version. In a real app, you'd fetch more data
 // like images, reviews, and average prices for the area.
 interface PropertyWithRelations extends Property {
-  owner: User & { role: { name: RoleName } };
+  owner: User;
   // images: Image[]; // Assuming an Image model with relation
   // reviews: Review[]; // Assuming a Review model with relation
 }
@@ -12,7 +12,7 @@ export const calculateTruthIndex = (property: PropertyWithRelations): number => 
   let score = 0;
 
   // 1. Verified Landlord (up to 30 points)
-  if (property.owner.role.name === RoleName.LANDLORD) {
+  if (property.owner.role === Role.LANDLORD) {
     score += 30;
   }
 
@@ -37,7 +37,7 @@ export const calculateTruthIndex = (property: PropertyWithRelations): number => 
 };
 
 // Function to update the truth index for a property
-export const updatePropertyTruthIndex = async (propertyId: string): Promise<Property | null> => {
+export const updatePropertyTruthIndex = async (propertyId: number): Promise<Property | null> => {
   // This part requires a working Prisma client and fetching related data
   // For now, returning a mock or just updating the existing property
   // with a hardcoded score.
@@ -46,7 +46,7 @@ export const updatePropertyTruthIndex = async (propertyId: string): Promise<Prop
   // const property = await prisma.property.findUnique({
   //   where: { id: propertyId },
   //   include: {
-  //     owner: { include: { role: true } },
+  //     owner: true,
   //     // images: true,
   //     // reviews: true,
   //   },

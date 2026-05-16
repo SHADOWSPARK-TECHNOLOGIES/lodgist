@@ -70,9 +70,10 @@ interface PageProps {
 
 export default async function ListingDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const listingId = parseInt(id);
 
   const listing = await prisma.listing.findUnique({
-    where: { id },
+    where: { id: listingId },
     include: {
       property: {
         include: {
@@ -81,7 +82,8 @@ export default async function ListingDetailPage({ params }: PageProps) {
               id: true,
               name: true,
               email: true,
-              image: true,
+              avatarUrl: true,
+              truthIndex: true,
               createdAt: true,
             },
           },
@@ -93,13 +95,10 @@ export default async function ListingDetailPage({ params }: PageProps) {
       reviews: {
         include: {
           user: {
-            select: { id: true, name: true, image: true },
+            select: { id: true, name: true, avatarUrl: true },
           },
         },
         orderBy: { createdAt: "desc" },
-      },
-      agent: {
-        select: { id: true, name: true, email: true, image: true, createdAt: true },
       },
     },
   });
@@ -108,15 +107,15 @@ export default async function ListingDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const { property, images, reviews, agent } = listing;
-  const owner = property.owner;
+  const { property, images, reviews } = listing;
+  const owner = property?.owner;
 
   // ─── Related listings (same state, exclude current) ─────────────────────
   const relatedListings = await prisma.listing.findMany({
     where: {
-      id: { not: id },
-      property: { state: property.state },
-      status: "available",
+      id: { not: listingId },
+      property: property ? { state: property.state } : undefined,
+      status: "VERIFIED",
     },
     include: {
       property: {
@@ -124,15 +123,11 @@ export default async function ListingDetailPage({ params }: PageProps) {
           address: true,
           city: true,
           state: true,
-          truthIndex: true,
         },
       },
       images: {
         take: 1,
-        select: { url: true, alt: true },
-      },
-      agent: {
-        select: { name: true },
+        select: { url: true, altText: true },
       },
     },
     take: 3,
@@ -141,30 +136,26 @@ export default async function ListingDetailPage({ params }: PageProps) {
 
   // Map related listings to the PropertyCard Listing interface
   const relatedCards = relatedListings.map((rl) => ({
-    id: rl.id,
-    title: rl.property.address,
+    id: String(rl.id),
+    title: rl.property?.address ?? rl.title,
     price: rl.price,
     location: {
-      address: rl.property.address,
-      lga: rl.property.city,
-      state: rl.property.state,
+      address: rl.property?.address ?? "",
+      lga: rl.property?.city ?? "",
+      state: rl.property?.state ?? "",
     },
     propertyType: "apartment" as const,
     bedrooms: 0,
     bathrooms: 0,
-    images: rl.images.map((img) => ({ url: img.url, alt: img.alt ?? "" })),
-    truthIndex: rl.property.truthIndex ?? 0,
-    owner: { name: rl.agent.name ?? "Property Owner", verified: false },
+    images: rl.images.map((img) => ({ url: img.url, alt: img.altText ?? "" })),
+    truthIndex: 0,
+    owner: { name: "Property Owner", verified: false },
   }));
 
   // ─── Truth Index breakdown ──────────────────────────────────────────────
-  const truthScore = await prisma.truthIndexScore.findFirst({
-    where: { propertyId: property.id },
-    orderBy: { createdAt: "desc" },
-  });
-
-  const breakdown = truthScore?.breakdown as Record<string, number> | null;
-  const truthIndex = property.truthIndex ?? 0;
+  // TruthIndexScore is per-user (userId), not per-property.
+  // Use the owner's truthIndex from the User model.
+  const truthIndex = owner?.truthIndex ?? 0;
 
   const truthBars = [
     { label: "Images", key: "images", max: 20 },
@@ -189,15 +180,17 @@ export default async function ListingDetailPage({ params }: PageProps) {
         : "bg-red-500";
 
   // ─── Landlord stats ─────────────────────────────────────────────────────
-  const ownerListingsCount = await prisma.listing.count({
-    where: { agentId: owner.id },
-  });
+  const ownerListingsCount = owner
+    ? await prisma.listing.count({ where: { ownerId: owner.id } })
+    : 0;
 
-  const ownerBookingsCount = await prisma.booking.count({
-    where: { listing: { agentId: owner.id } },
-  });
+  const ownerBookingsCount = owner
+    ? await prisma.booking.count({
+        where: { listing: { ownerId: owner.id } },
+      })
+    : 0;
 
-  const memberSince = formatDate(owner.createdAt);
+  const memberSince = owner ? formatDate(owner.createdAt) : "N/A";
   const responseRate = ownerBookingsCount > 0 ? "95%" : "N/A";
 
   // ─── Average rating ─────────────────────────────────────────────────────
@@ -220,7 +213,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
           </Link>
           <span>/</span>
           <span className="text-[#0B1B2B] font-medium truncate max-w-[200px]">
-            {property.address}
+            {property?.address ?? listing.title}
           </span>
         </nav>
       </div>
@@ -233,7 +226,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
             <ImageGallery
               images={images.map((img) => ({
                 url: img.url,
-                alt: img.alt ?? "Property image",
+                alt: img.altText ?? "Property image",
               }))}
             />
 
@@ -243,17 +236,17 @@ export default async function ListingDetailPage({ params }: PageProps) {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="space-y-2">
                     <h1 className="text-2xl font-bold text-[#0B1B2B] sm:text-3xl">
-                      {listing.description?.split(".")[0] ?? property.address}
+                      {listing.description?.split(".")[0] ?? listing.title}
                     </h1>
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <MapPin className="h-4 w-4 text-[#1ABC9C]" />
                       <span>
-                        {property.address}, {property.city}, {property.state}
+                        {property?.address ?? ""}, {property?.city ?? ""}, {property?.state ?? ""}
                       </span>
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-sm">
                       <span className="rounded-full bg-[#1ABC9C]/10 px-3 py-1 text-xs font-medium text-[#1ABC9C]">
-                        {propertyTypeLabel(listing.property?.city ?? "") || "Property"}
+                        {propertyTypeLabel(listing.title) || "Property"}
                       </span>
                       <span className="flex items-center gap-1 text-muted-foreground">
                         <Calendar className="h-3.5 w-3.5" />
@@ -275,14 +268,14 @@ export default async function ListingDetailPage({ params }: PageProps) {
                     <Bed className="h-5 w-5 text-[#1ABC9C]" />
                     <div>
                       <p className="text-sm font-medium text-[#0B1B2B]">Bedrooms</p>
-                      <p className="text-sm text-muted-foreground">{listing.property?.city ? "3" : "N/A"}</p>
+                      <p className="text-sm text-muted-foreground">{property?.bedrooms ?? "N/A"}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <Bath className="h-5 w-5 text-[#1ABC9C]" />
                     <div>
                       <p className="text-sm font-medium text-[#0B1B2B]">Bathrooms</p>
-                      <p className="text-sm text-muted-foreground">{listing.property?.city ? "2" : "N/A"}</p>
+                      <p className="text-sm text-muted-foreground">{property?.bathrooms ?? "N/A"}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -290,7 +283,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
                     <div>
                       <p className="text-sm font-medium text-[#0B1B2B]">Status</p>
                       <p className="text-sm text-[#1ABC9C] font-medium capitalize">
-                        {listing.status}
+                        {listing.status.toLowerCase()}
                       </p>
                     </div>
                   </div>
@@ -311,7 +304,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
             {/* ── 3. Truth Index Score Card ─────────────────────────────── */}
             <TruthIndexCard
               score={truthIndex}
-              breakdown={breakdown}
+              breakdown={null}
               bars={truthBars}
               color={truthColor}
               bgColor={truthBgColor}
@@ -320,13 +313,13 @@ export default async function ListingDetailPage({ params }: PageProps) {
             {/* ── 6. Reviews Section ────────────────────────────────────── */}
             <ReviewsSection
               reviews={reviews.map((r) => ({
-                id: r.id,
+                id: String(r.id),
                 rating: r.rating,
                 comment: r.comment,
                 createdAt: r.createdAt,
                 user: {
                   name: r.user.name ?? "Anonymous",
-                  image: r.user.image,
+                  image: r.user.avatarUrl,
                 },
               }))}
               averageRating={avgRating}
@@ -337,53 +330,55 @@ export default async function ListingDetailPage({ params }: PageProps) {
           {/* ── RIGHT COLUMN (Sidebar) ────────────────────────────────────── */}
           <div className="space-y-6 lg:sticky lg:top-24 lg:self-start">
             {/* ── 4. Landlord Card ──────────────────────────────────────── */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1ABC9C]/10 text-[#1ABC9C]">
-                    <User className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-[#0B1B2B] truncate">
-                        {owner.name ?? "Property Owner"}
-                      </p>
-                      <BadgeCheck className="h-4 w-4 shrink-0 text-[#1ABC9C]" />
+            {owner && (
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1ABC9C]/10 text-[#1ABC9C]">
+                      <User className="h-6 w-6" />
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Verified Landlord
-                    </p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-[#0B1B2B] truncate">
+                          {owner.name ?? "Property Owner"}
+                        </p>
+                        <BadgeCheck className="h-4 w-4 shrink-0 text-[#1ABC9C]" />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Verified Landlord
+                      </p>
+                    </div>
                   </div>
-                </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-gray-50 p-4 text-center text-sm">
-                  <div>
-                    <p className="font-semibold text-[#0B1B2B]">{memberSince}</p>
-                    <p className="text-xs text-muted-foreground">Member Since</p>
+                  <div className="mt-4 grid grid-cols-2 gap-4 rounded-lg bg-gray-50 p-4 text-center text-sm">
+                    <div>
+                      <p className="font-semibold text-[#0B1B2B]">{memberSince}</p>
+                      <p className="text-xs text-muted-foreground">Member Since</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-[#0B1B2B]">{ownerListingsCount}</p>
+                      <p className="text-xs text-muted-foreground">Properties</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-[#0B1B2B]">{responseRate}</p>
+                      <p className="text-xs text-muted-foreground">Response Rate</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-[#0B1B2B]">{ownerBookingsCount}</p>
+                      <p className="text-xs text-muted-foreground">Bookings</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold text-[#0B1B2B]">{ownerListingsCount}</p>
-                    <p className="text-xs text-muted-foreground">Properties</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-[#0B1B2B]">{responseRate}</p>
-                    <p className="text-xs text-muted-foreground">Response Rate</p>
-                  </div>
-                  <div>
-                    <p className="font-semibold text-[#0B1B2B]">{ownerBookingsCount}</p>
-                    <p className="text-xs text-muted-foreground">Bookings</p>
-                  </div>
-                </div>
 
-                <Button className="mt-4 w-full bg-[#1ABC9C] text-white hover:bg-[#15a082]">
-                  <MessageSquare className="h-4 w-4" />
-                  Contact Landlord
-                </Button>
-              </CardContent>
-            </Card>
+                  <Button className="mt-4 w-full bg-[#1ABC9C] text-white hover:bg-[#15a082]">
+                    <MessageSquare className="h-4 w-4" />
+                    Contact Landlord
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* ── 5. Booking Form ────────────────────────────────────────── */}
-            <BookingForm listingId={listing.id} price={listing.price} />
+            <BookingForm listingId={String(listing.id)} price={listing.price} />
 
             {/* ── 7. Report Fraud Button ──────────────────────────────────── */}
             <Card>
@@ -413,7 +408,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
             <div className="mb-6 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-[#0B1B2B]">
-                  Similar Properties in {property.state}
+                  Similar Properties in {property?.state ?? "this area"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   More verified listings near this area

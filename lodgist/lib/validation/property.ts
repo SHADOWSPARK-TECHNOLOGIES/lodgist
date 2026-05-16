@@ -54,7 +54,6 @@ export const propertyCreateSchema = z.object({
   city: z.string({ message: "City is required." }).min(1, "City is required."),
   state: z.enum(NIGERIAN_STATES, { message: "Please select a valid Nigerian state." }),
   lga: z.string({ message: "LGA is required." }).min(1, "LGA is required."),
-  zip: z.string().optional(),
 
   // Property details
   title: z
@@ -91,7 +90,7 @@ export const propertyCreateSchema = z.object({
     .optional(),
 
   // Owner (set server-side from session — not required from client)
-  ownerId: z.string().optional(),
+  ownerId: z.number().int().positive().optional(),
 });
 
 export type PropertyCreateInput = z.infer<typeof propertyCreateSchema>;

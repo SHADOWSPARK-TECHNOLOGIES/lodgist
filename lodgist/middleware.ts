@@ -3,14 +3,13 @@ import { NextResponse } from "next/server";
 
 // ─── Role-based route protection ─────────────────────────────────────────────
 // Maps route prefixes to allowed roles.
-// The RoleName enum in prisma/schema.prisma defines: ADMIN, AGENT, LANDLORD, TENANT
-// STUDIO_ADMIN is mapped to ADMIN for middleware purposes.
+// Canonical RoleName enum: USER, ARTISAN, LANDLORD, STUDIO_ADMIN, TENANT, AGENT
 
 const ROLE_GUARDS: Record<string, string[]> = {
-  "/admin": ["ADMIN", "STUDIO_ADMIN"],
-  "/landlord": ["LANDLORD", "ADMIN", "STUDIO_ADMIN"],
-  "/agent": ["AGENT", "ADMIN", "STUDIO_ADMIN"],
-  "/dashboard": ["ADMIN", "STUDIO_ADMIN", "LANDLORD", "AGENT", "TENANT", "USER"],
+  "/admin": ["STUDIO_ADMIN"],
+  "/landlord": ["LANDLORD", "STUDIO_ADMIN"],
+  "/agent": ["AGENT", "STUDIO_ADMIN"],
+  "/dashboard": ["STUDIO_ADMIN", "LANDLORD", "AGENT", "TENANT", "USER"],
 };
 
 export default withAuth(

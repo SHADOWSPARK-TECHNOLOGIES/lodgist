@@ -18,9 +18,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const listingIdNum = parseInt(listingId);
+    if (isNaN(listingIdNum)) {
+      return NextResponse.json(
+        { message: "Invalid listing ID." },
+        { status: 400 },
+      );
+    }
+
     // Verify the listing exists
     const listing = await prisma.listing.findUnique({
-      where: { id: listingId },
+      where: { id: listingIdNum },
       select: { id: true, isFlaggedForFraud: true },
     });
 
@@ -33,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // Flag the listing for fraud review
     await prisma.listing.update({
-      where: { id: listingId },
+      where: { id: listingIdNum },
       data: {
         isFlaggedForFraud: true,
         fraudReason: session?.user?.id
