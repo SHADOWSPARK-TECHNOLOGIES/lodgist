@@ -13,6 +13,8 @@ enum Role {
   ARTISAN
   LANDLORD
   STUDIO_ADMIN
+  TENANT
+  AGENT
 }
 
 enum ListingCategory {
@@ -103,6 +105,8 @@ model User {
   ownedProperties   Property[]
   profile           Profile?
   referrals         Referral[]
+  accounts          Account[]
+  sessions          Session[]
 
   @@index([email])
   @@index([whatsappId])
@@ -412,5 +416,59 @@ model Notification {
   createdAt DateTime         @default(now())
 
   @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+// ── NextAuth Models ───────────────────────────────────────────────────────
+// Required by @auth/prisma-adapter for OAuth + Email provider flows.
+// userId references User.id (Int) to match packages/db's schema.
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ── Webhook Idempotency ───────────────────────────────────────────────────────
+// Stores processed Paystack webhook event IDs to prevent duplicate processing
+// across restarts and horizontal scaling. The primary key uniqueness constraint
+// is the idempotency lock — concurrent duplicates hit P2002 and short-circuit.
+
+model ProcessedWebhookEvent {
+  id        String   @id
+  createdAt DateTime @default(now())
+
   @@index([createdAt])
 }

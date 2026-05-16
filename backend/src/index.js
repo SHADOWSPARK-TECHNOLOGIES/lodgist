@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("./config/paystack.config");
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -23,23 +24,60 @@ const createWhatsAppRouter = require("./routes/whatsapp");
 const whatsappRouter = createWhatsAppRouter(prisma);
 const reviewsRouter = require("./routes/reviews")(prisma);
 const truthIndexRouter = require("./routes/truthIndex")(prisma);
+const createPaymentsRouter = require("./routes/payments");
+const paymentsRouter = createPaymentsRouter(prisma);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || "0.0.0.0";
+const NODE_ENV = process.env.NODE_ENV || "development";
 
 // ── Security Middleware ─────────────────────────────────────────────────────
 
 // Helmet — sets secure HTTP headers
 app.use(helmet());
 
-// CORS
+// CORS — explicit origin list, fail closed in production
+const corsOrigins = (() => {
+  const raw = process.env.CORS_ORIGIN;
+
+  // In development with no CORS_ORIGIN set, allow all origins (convenience)
+  if (!raw && NODE_ENV === "development") {
+    return "*";
+  }
+
+  // In production, CORS_ORIGIN must be explicitly set — fail closed
+  if (!raw && NODE_ENV !== "development") {
+    logger.warn(
+      "[CORS] CORS_ORIGIN not set in production. Failing closed — no external origins allowed."
+    );
+    return [];
+  }
+
+  // Parse comma-separated origins, trim whitespace
+  const origins = raw.split(",").map((o) => o.trim()).filter(Boolean);
+
+  if (origins.length === 0 && NODE_ENV !== "development") {
+    logger.warn(
+      "[CORS] CORS_ORIGIN resolved to empty list in production. Failing closed."
+    );
+    return [];
+  }
+
+  return origins;
+})();
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "*",
+    origin: corsOrigins,
     credentials: true,
   })
 );
+
+// Raw body capture for Paystack webhook HMAC — must precede express.json()
+// express.raw sets req._body = true, which prevents express.json from re-parsing the body
+// for this path, so req.body remains a Buffer in the webhook route handler.
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
 
 // Body parsing with size limit
 app.use(express.json({ limit: "10mb" }));
@@ -110,6 +148,7 @@ app.use("/api/agreements", agreementsRouter);
 app.use("/api/transactions", transactionsRouter);
 app.use("/api/rent", rentRouter);
 app.use("/api/escrow", escrowRouter);
+app.use("/api/payments", paymentsRouter);
 app.use("/api/whatsapp", whatsappRouter);
 
 // 404 handler
@@ -135,6 +174,7 @@ app.listen(PORT, HOST, () => {
   logger.info(`  /api/transactions`);
   logger.info(`  /api/rent`);
   logger.info(`  /api/escrow`);
+  logger.info(`  /api/payments (webhook)`);
   logger.info(`  /api/whatsapp`);
 });
 

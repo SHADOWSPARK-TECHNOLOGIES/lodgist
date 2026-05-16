@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
           select: {
             id: true,
             price: true,
-            agentId: true,
+            ownerId: true,
             property: {
               select: { ownerId: true },
             },
@@ -75,14 +75,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ message: "Booking not found." }, { status: 404 });
     }
 
-    if (booking.tenantId !== session.user.id) {
+    if (booking.tenantId !== parseInt(session.user.id)) {
       return NextResponse.json(
         { message: "You can only pay for your own bookings." },
         { status: 403 }
       );
     }
 
-    if (booking.status !== "pending") {
+    if (booking.status !== "PENDING") {
       return NextResponse.json(
         { message: `Booking is already ${booking.status}. Cannot initiate payment.` },
         { status: 409 }
@@ -96,9 +96,8 @@ export async function POST(req: NextRequest) {
       ...(validated.metadata ?? {}),
       bookingId: validated.bookingId,
       listingId: booking.listingId,
-      tenantId: session.user.id,
-      landlordId: booking.listing.property.ownerId,
-      agentId: booking.listing.agentId,
+      tenantId: parseInt(session.user.id),
+      landlordId: booking.listing.property?.ownerId ?? booking.listing.ownerId,
     };
 
     const result = await paystackPost("/transaction/initialize", {
@@ -115,10 +114,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Log the initialized transaction (EscrowTransaction model can be added later)
-    console.log(
-      `[Paystack] Transaction initialized: ${result.data.reference} for booking ${validated.bookingId}`
-    );
+    // Create EscrowTransaction so the backend webhook handler has a canonical record to update.
+    // paystackReference is the lookup key used by charge.success / transfer.success handlers.
+    const landlordId = metadata.landlordId as number;
+    await prisma.escrowTransaction.create({
+      data: {
+        reference: `LODG-PAY-${validated.bookingId}-${Date.now()}`,
+        tenantId: parseInt(session.user.id),
+        landlordId,
+        listingId: booking.listingId,
+        amount: validated.amount,
+        currency: "NGN",
+        status: "PENDING",
+        description: `Payment for booking ${validated.bookingId}`,
+        paystackReference: result.data.reference,
+        paystackAuthorizationUrl: result.data.authorization_url,
+      },
+    });
 
     return NextResponse.json({
       authorizationUrl: result.data.authorization_url,

@@ -38,7 +38,7 @@ function createEscrowRouter(prisma, paystackService) {
         });
       }
 
-      // 1. Create a pending EscrowTransaction in Prisma
+      // 1. Create a pending EscrowTransaction in Prisma with prefixed reference
       const escrowTransaction = await prisma.escrowTransaction.create({
         data: {
           tenantId,
@@ -47,16 +47,17 @@ function createEscrowRouter(prisma, paystackService) {
           amount,
           currency,
           description: description || "Rent escrow payment",
-          status: "HELD",
-          reference: `ESCROW-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
+          status: "PENDING",
+          reference: `LODG-ESC-${Date.now()}-${Math.random().toString(36).substring(2, 15)}`,
         },
       });
 
-      // 2. Initiate payment with Paystack
+      // 2. Initiate payment with Paystack (idempotency key = escrowTransaction.id)
       const paymentDetails = await PaystackService.initializePayment({
         email: tenantEmail,
         amount, // PaystackService.toKobo() is called internally
         reference: escrowTransaction.reference,
+        idempotencyKey: `escrow-init-${escrowTransaction.id}`,
         metadata: {
           escrowTransactionId: escrowTransaction.id,
           tenantId,
@@ -112,9 +113,14 @@ function createEscrowRouter(prisma, paystackService) {
         });
       }
 
-      // 2. Find the escrow transaction by reference
-      const escrowTransaction = await prisma.escrowTransaction.findUnique({
-        where: { reference },
+      // 2. Find the escrow transaction by reference (try both original and paystack reference)
+      const escrowTransaction = await prisma.escrowTransaction.findFirst({
+        where: {
+          OR: [
+            { reference },
+            { paystackReference: reference },
+          ],
+        },
       });
 
       if (!escrowTransaction) {
@@ -124,7 +130,7 @@ function createEscrowRouter(prisma, paystackService) {
         });
       }
 
-      if (escrowTransaction.status !== "HELD") {
+      if (escrowTransaction.status !== "PENDING" && escrowTransaction.status !== "HELD") {
         return res.status(409).json({
           success: false,
           error: `Escrow transaction is already ${escrowTransaction.status.toLowerCase()}`,
@@ -200,7 +206,43 @@ function createEscrowRouter(prisma, paystackService) {
         });
       }
 
-      // 4. Create a transfer recipient on Paystack (landlord's bank account)
+      // 4. Balance check — verify Paystack has sufficient funds before proceeding
+      try {
+        const balances = await PaystackService.getBalance();
+        const ngnBalance = balances.find((b) => b.currency === "NGN");
+
+        if (!ngnBalance) {
+          return res.status(402).json({
+            success: false,
+            error: "No NGN balance found in Paystack escrow account",
+            code: "INSUFFICIENT_BALANCE",
+          });
+        }
+
+        if (ngnBalance.balance < escrowTransaction.amount) {
+          return res.status(402).json({
+            success: false,
+            error: `Insufficient Paystack balance. Required: ₦${escrowTransaction.amount.toLocaleString()}, Available: ₦${ngnBalance.balance.toLocaleString()}`,
+            code: "INSUFFICIENT_BALANCE",
+            required: escrowTransaction.amount,
+            available: ngnBalance.balance,
+          });
+        }
+
+        console.log(
+          `[Escrow] Balance check passed: ₦${ngnBalance.balance.toLocaleString()} available, ` +
+          `₦${escrowTransaction.amount.toLocaleString()} required`
+        );
+      } catch (balanceError) {
+        console.error("[Escrow] Balance check failed:", balanceError.message);
+        return res.status(503).json({
+          success: false,
+          error: "Unable to verify Paystack balance before release. Retry when the payment provider is reachable.",
+          code: "BALANCE_CHECK_UNAVAILABLE",
+        });
+      }
+
+      // 5. Create a transfer recipient on Paystack (landlord's bank account)
       let recipientCode;
 
       if (landlordBankDetails) {
@@ -217,8 +259,8 @@ function createEscrowRouter(prisma, paystackService) {
         });
       }
 
-      // 5. Trigger the transfer to the landlord
-      const transferReference = `ESCROW-RELEASE-${escrowTransaction.reference}-${Date.now()}`;
+      // 6. Trigger the transfer to the landlord
+      const transferReference = `LODG-REL-${escrowTransaction.reference.replace("LODG-ESC-", "")}-${Date.now()}`;
 
       const transfer = await PaystackService.transferToLandlord({
         amount: escrowTransaction.amount,
@@ -227,7 +269,7 @@ function createEscrowRouter(prisma, paystackService) {
         reason: `Rent escrow release — ${escrowTransaction.description || "Lodgist"}`,
       });
 
-      // 6. Update the escrow transaction to RELEASED
+      // 7. Update the escrow transaction to RELEASED
       await prisma.escrowTransaction.update({
         where: { id: escrowTransaction.id },
         data: {
