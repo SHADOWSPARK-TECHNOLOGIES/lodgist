@@ -1,14 +1,18 @@
 version: 1
 applications:
-  - appRoot: frontend
+  - appRoot: lodgist
     frontend:
       phases:
         preBuild:
           commands:
-            - npm ci
+            - corepack enable
+            - corepack prepare pnpm@latest --activate
+            - pnpm install --no-frozen-lockfile
+            - cd ../packages/db && pnpm install --no-frozen-lockfile && npx prisma generate
         build:
           commands:
-            - NODE_OPTIONS=--max-old-space-size=4096 npm run build
+            - cd $CODEBUILD_SRC_DIR/lodgist
+            - NODE_OPTIONS=--max-old-space-size=4096 pnpm build
       artifacts:
         baseDirectory: .next
         files:
@@ -17,3 +21,4 @@ applications:
         paths:
           - .next/cache/**/*
           - node_modules/**/*
+          - ../packages/db/node_modules/**/*

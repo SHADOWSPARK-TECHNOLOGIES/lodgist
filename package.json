@@ -2,6 +2,9 @@
   "name": "lodgist-monorepo",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "next": "16.2.4"
   }
