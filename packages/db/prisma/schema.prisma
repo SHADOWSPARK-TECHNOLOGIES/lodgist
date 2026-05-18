@@ -221,6 +221,7 @@ model Booking {
   endDate     DateTime
   status           BookingStatus @default(PENDING)
   manualPaymentRef String?
+  paystackReference String?     @unique
   verifiedBy       Int?
   verifier         User?         @relation("VerifierBookings", fields: [verifiedBy], references: [id], onDelete: SetNull)
   verifiedAt       DateTime?

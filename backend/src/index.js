@@ -192,7 +192,7 @@ app.listen(PORT, HOST, () => {
   logger.info(`  /api/rent`);
   logger.info(`  /api/escrow`);
   logger.info(`  /api/payments (webhook)`);
-  logger.info(`  /api/bookings (manual-payment, verify-payment)`);
+  logger.info(`  /api/bookings (initiate-payment, manual-payment, verify-payment)`);
   logger.info(`  /api/whatsapp`);
 
   // Warm up the Neon connection pool on startup so the first real request doesn't

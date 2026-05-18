@@ -154,11 +154,21 @@ function createPaymentsRouter(prisma) {
   return router;
 }
 
+// ─── Routing helpers ──────────────────────────────────────────────────────────
+
+// References prefixed with LODG-ESC-BK- belong to direct Booking payments.
+// All other LODG-ESC- references belong to EscrowTransaction payments.
+const BOOKING_REF_PREFIX = "LODG-ESC-BK-";
+
+function isBookingReference(reference) {
+  return typeof reference === "string" && reference.startsWith(BOOKING_REF_PREFIX);
+}
+
 // ─── Event Handlers ───────────────────────────────────────────────────────────
 
 /**
  * Handle charge.success — payment was completed successfully.
- * Updates the escrow transaction to HELD status.
+ * Routes to Booking or EscrowTransaction handler based on reference prefix / metadata.
  */
 async function handleChargeSuccess(prisma, data, eventId) {
   const reference = data?.reference;
@@ -167,8 +177,14 @@ async function handleChargeSuccess(prisma, data, eventId) {
     return;
   }
 
+  // Route by reference prefix first, then fall back to metadata type
+  const bookingId = data?.metadata?.bookingId;
+  if (isBookingReference(reference) || (bookingId && data?.metadata?.type === "booking_payment")) {
+    await handleBookingChargeSuccess(prisma, data, reference, bookingId);
+    return;
+  }
+
   try {
-    // Find the escrow transaction by the Paystack reference
     const transaction = await prisma.escrowTransaction.findFirst({
       where: {
         OR: [
@@ -183,7 +199,6 @@ async function handleChargeSuccess(prisma, data, eventId) {
       return;
     }
 
-    // Only update if still in PENDING/HELD status
     if (transaction.status === "HELD" || transaction.status === "PENDING") {
       await prisma.escrowTransaction.update({
         where: { id: transaction.id },
@@ -196,18 +211,67 @@ async function handleChargeSuccess(prisma, data, eventId) {
       console.log(`[Paystack Webhook] Escrow ${transaction.id} → HELD`);
     }
   } catch (error) {
-    console.error("[Paystack Webhook] Error in charge.success handler:", error);
+    console.error("[Paystack Webhook] Error in charge.success (escrow) handler:", error);
+  }
+}
+
+/**
+ * Handle charge.success for a direct Booking payment.
+ * Auto-confirms the booking — no admin verification needed.
+ * verifiedBy is null (system-automated); verifiedAt is set to the event time.
+ */
+async function handleBookingChargeSuccess(prisma, data, reference, bookingId) {
+  try {
+    const booking = await prisma.booking.findFirst({
+      where: {
+        OR: [
+          ...(reference ? [{ paystackReference: reference }] : []),
+          ...(bookingId  ? [{ id: bookingId }]                : []),
+        ],
+      },
+    });
+
+    if (!booking) {
+      console.warn(`[Paystack Webhook] No booking found for reference: ${reference} / bookingId: ${bookingId}`);
+      return;
+    }
+
+    if (booking.status === "CONFIRMED") {
+      console.log(`[Paystack Webhook] Booking ${booking.id} already CONFIRMED — skipping`);
+      return;
+    }
+
+    if (booking.status === "PENDING_VERIFICATION" || booking.status === "PENDING") {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: "CONFIRMED",
+          paystackReference: reference || booking.paystackReference,
+          verifiedBy: null,   // system-automated — no human verifier
+          verifiedAt: new Date(),
+        },
+      });
+      console.log(`[Paystack Webhook] Booking ${booking.id} → CONFIRMED (auto)`);
+    }
+  } catch (error) {
+    console.error("[Paystack Webhook] Error in charge.success (booking) handler:", error);
   }
 }
 
 /**
  * Handle charge.failed — payment attempt failed.
- * Updates the escrow transaction to FAILED status.
+ * Routes to Booking or EscrowTransaction handler based on reference prefix / metadata.
  */
 async function handleChargeFailed(prisma, data, eventId) {
   const reference = data?.reference;
   if (!reference) {
     console.warn("[Paystack Webhook] charge.failed missing reference");
+    return;
+  }
+
+  const bookingId = data?.metadata?.bookingId;
+  if (isBookingReference(reference) || (bookingId && data?.metadata?.type === "booking_payment")) {
+    await handleBookingChargeFailed(prisma, data, reference, bookingId);
     return;
   }
 
@@ -229,14 +293,48 @@ async function handleChargeFailed(prisma, data, eventId) {
     if (transaction.status === "HELD" || transaction.status === "PENDING") {
       await prisma.escrowTransaction.update({
         where: { id: transaction.id },
-        data: {
-          status: "FAILED",
-        },
+        data: { status: "FAILED" },
       });
       console.log(`[Paystack Webhook] Escrow ${transaction.id} → FAILED`);
     }
   } catch (error) {
-    console.error("[Paystack Webhook] Error in charge.failed handler:", error);
+    console.error("[Paystack Webhook] Error in charge.failed (escrow) handler:", error);
+  }
+}
+
+/**
+ * Handle charge.failed for a direct Booking payment.
+ * Resets status to PENDING and clears the Paystack reference so the tenant can retry.
+ * The manual payment fallback (PATCH /manual-payment) remains available.
+ */
+async function handleBookingChargeFailed(prisma, data, reference, bookingId) {
+  try {
+    const booking = await prisma.booking.findFirst({
+      where: {
+        OR: [
+          ...(reference ? [{ paystackReference: reference }] : []),
+          ...(bookingId  ? [{ id: bookingId }]                : []),
+        ],
+      },
+    });
+
+    if (!booking) {
+      console.warn(`[Paystack Webhook] No booking found for reference: ${reference} / bookingId: ${bookingId}`);
+      return;
+    }
+
+    if (booking.status === "PENDING_VERIFICATION" || booking.status === "PENDING") {
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: {
+          status: "PENDING",
+          paystackReference: null, // cleared so tenant can retry via Paystack or manual payment
+        },
+      });
+      console.log(`[Paystack Webhook] Booking ${booking.id} → PENDING (charge failed, ref cleared)`);
+    }
+  } catch (error) {
+    console.error("[Paystack Webhook] Error in charge.failed (booking) handler:", error);
   }
 }
 
