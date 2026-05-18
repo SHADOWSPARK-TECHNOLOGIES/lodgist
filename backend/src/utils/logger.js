@@ -6,6 +6,11 @@ const winston = require("winston");
 
 const isProduction = process.env.NODE_ENV === "production";
 
+// In containerised environments (App Runner, ECS, Docker) stdout/stderr are
+// captured by the platform (CloudWatch). File transports require a writable
+// filesystem and cause EACCES crashes when running as a non-root user.
+// Use console-only transport everywhere; local devs can tail stdout.
+
 const logger = winston.createLogger({
   level: isProduction ? "info" : "debug",
   format: winston.format.combine(
@@ -25,23 +30,6 @@ const logger = winston.createLogger({
   ),
   transports: [
     new winston.transports.Console(),
-    // Always write errors to a file for debugging in production
-    new winston.transports.File({
-      filename: "logs/error.log",
-      level: "error",
-      maxsize: 5 * 1024 * 1024, // 5 MB
-      maxFiles: 5,
-    }),
-    // Combined log (info and above)
-    ...(isProduction
-      ? [
-          new winston.transports.File({
-            filename: "logs/combined.log",
-            maxsize: 10 * 1024 * 1024,
-            maxFiles: 3,
-          }),
-        ]
-      : []),
   ],
 });
 
