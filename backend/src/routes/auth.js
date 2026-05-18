@@ -19,6 +19,13 @@ module.exports = (prisma) => {
         });
       }
 
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid email address",
+        });
+      }
+
       if (password.length < 8) {
         return res.status(400).json({
           success: false,
