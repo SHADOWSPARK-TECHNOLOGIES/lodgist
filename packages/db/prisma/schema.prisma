@@ -32,6 +32,7 @@ enum ListingStatus {
 
 enum BookingStatus {
   PENDING
+  PENDING_VERIFICATION
   CONFIRMED
   CANCELLED
   COMPLETED
@@ -91,6 +92,7 @@ model User {
   passkeys          PasskeyCredential[]
   listings          Listing[]
   bookings          Booking[]              @relation("TenantBookings")
+  verifiedBookings  Booking[]              @relation("VerifierBookings")
   viewingRequests   ViewingRequest[]
   reviews           Review[]
   fraudReports      FraudReport[]          @relation("ReporterFraudReports")
@@ -216,10 +218,14 @@ model Booking {
   tenant      User         @relation("TenantBookings", fields: [tenantId], references: [id])
   startDate   DateTime
   endDate     DateTime
-  status      BookingStatus @default(PENDING)
-  totalAmount Float
-  currency    Currency     @default(NGN)
-  notes       String?
+  status           BookingStatus @default(PENDING)
+  manualPaymentRef String?
+  verifiedBy       Int?
+  verifier         User?         @relation("VerifierBookings", fields: [verifiedBy], references: [id], onDelete: SetNull)
+  verifiedAt       DateTime?
+  totalAmount      Float
+  currency         Currency      @default(NGN)
+  notes            String?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 

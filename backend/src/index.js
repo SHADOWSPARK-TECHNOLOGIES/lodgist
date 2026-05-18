@@ -129,12 +129,12 @@ app.get("/api/health", async (_req, res) => {
 
   try {
     const start = Date.now();
-    await prisma.$queryRaw`SELECT 1`;
+    await prisma.user.count();
     dbLatency = Date.now() - start;
     dbStatus = "connected";
   } catch (err) {
     dbStatus = "disconnected";
-    logger.error("Health check — DB unreachable", { error: err.message });
+    logger.error("Health check — DB unreachable", { code: err.code, error: err.message, cause: String(err.cause) });
   }
 
   res.json({

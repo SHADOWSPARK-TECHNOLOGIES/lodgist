@@ -89,6 +89,8 @@ function createBookingsRouter(prisma) {
         data: {
           status: statusMap[action],
           manualPaymentRef: action === "reject" ? null : booking.manualPaymentRef,
+          verifiedBy: req.user.id,
+          verifiedAt: new Date(),
         },
       });
 
