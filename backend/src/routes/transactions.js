@@ -11,6 +11,7 @@
 const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
+const { requireAuth } = require("../middleware/auth");
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ function generatePaycode() {
 
 // POST /api/transactions/escrow
 // Create a new escrow transaction
-router.post("/escrow", (req, res) => {
+router.post("/escrow", requireAuth, (req, res) => {
   try {
     const { tenantId, landlordId, listingId, amount, currency, description } = req.body;
 
@@ -93,7 +94,7 @@ router.post("/escrow", (req, res) => {
 
 // POST /api/transactions/escrow/:reference/release
 // Release funds from escrow
-router.post("/escrow/:reference/release", (req, res) => {
+router.post("/escrow/:reference/release", requireAuth, (req, res) => {
   try {
     const tx = transactions.get(req.params.reference);
 
@@ -126,7 +127,7 @@ router.post("/escrow/:reference/release", (req, res) => {
 
 // POST /api/transactions/escrow/:reference/refund
 // Refund escrow to tenant
-router.post("/escrow/:reference/refund", (req, res) => {
+router.post("/escrow/:reference/refund", requireAuth, (req, res) => {
   try {
     const tx = transactions.get(req.params.reference);
 
@@ -156,7 +157,7 @@ router.post("/escrow/:reference/refund", (req, res) => {
 
 // POST /api/transactions/milestone
 // Create a milestone payment plan
-router.post("/milestone", (req, res) => {
+router.post("/milestone", requireAuth, (req, res) => {
   try {
     const { transactionReference, milestones: milestoneList } = req.body;
 
@@ -198,7 +199,7 @@ router.post("/milestone", (req, res) => {
 
 // POST /api/transactions/milestone/:id/complete
 // Mark a milestone as completed
-router.post("/milestone/:id/complete", (req, res) => {
+router.post("/milestone/:id/complete", requireAuth, (req, res) => {
   try {
     const milestone = milestones.get(req.params.id);
 
@@ -222,7 +223,7 @@ router.post("/milestone/:id/complete", (req, res) => {
 
 // GET /api/transactions/:reference
 // Get transaction details
-router.get("/:reference", (req, res) => {
+router.get("/:reference", requireAuth, (req, res) => {
   const tx = transactions.get(req.params.reference);
 
   if (!tx) {
@@ -238,7 +239,7 @@ router.get("/:reference", (req, res) => {
 
 // GET /api/transactions
 // List all transactions
-router.get("/", (_req, res) => {
+router.get("/", requireAuth, (_req, res) => {
   const list = Array.from(transactions.values()).map((tx) => ({
     reference: tx.id,
     status: tx.status,

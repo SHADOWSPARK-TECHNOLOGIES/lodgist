@@ -11,6 +11,7 @@
 const express = require("express");
 const router = express.Router();
 const crypto = require("crypto");
+const { requireAuth } = require("../middleware/auth");
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ function generateAgreementId() {
 
 // POST /api/rent/rnpl
 // Create a new RNPL agreement
-router.post("/rnpl", (req, res) => {
+router.post("/rnpl", requireAuth, (req, res) => {
   try {
     const {
       tenantId,
@@ -111,7 +112,7 @@ router.post("/rnpl", (req, res) => {
 
 // POST /api/rent/rnpl/:id/activate
 // Activate an RNPL agreement (landlord receives 100% upfront)
-router.post("/rnpl/:id/activate", (req, res) => {
+router.post("/rnpl/:id/activate", requireAuth, (req, res) => {
   try {
     const agreement = rnplAgreements.get(req.params.id);
 
@@ -151,7 +152,7 @@ router.post("/rnpl/:id/activate", (req, res) => {
 
 // POST /api/rent/rnpl/:id/pay
 // Make a monthly payment
-router.post("/rnpl/:id/pay", (req, res) => {
+router.post("/rnpl/:id/pay", requireAuth, (req, res) => {
   try {
     const agreement = rnplAgreements.get(req.params.id);
 
@@ -205,7 +206,7 @@ router.post("/rnpl/:id/pay", (req, res) => {
 
 // GET /api/rent/rnpl/:id
 // Get RNPL agreement details
-router.get("/rnpl/:id", (req, res) => {
+router.get("/rnpl/:id", requireAuth, (req, res) => {
   const agreement = rnplAgreements.get(req.params.id);
 
   if (!agreement) {
@@ -217,7 +218,7 @@ router.get("/rnpl/:id", (req, res) => {
 
 // GET /api/rent/rnpl
 // List all RNPL agreements
-router.get("/rnpl", (_req, res) => {
+router.get("/rnpl", requireAuth, (_req, res) => {
   const list = Array.from(rnplAgreements.values()).map((a) => ({
     id: a.id,
     status: a.status,

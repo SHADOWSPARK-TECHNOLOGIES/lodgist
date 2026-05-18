@@ -9,6 +9,7 @@
 
 const express = require("express");
 const router = express.Router();
+const { requireAuth } = require("../middleware/auth");
 const {
   hashAgreement,
   createAuditLog,
@@ -22,7 +23,7 @@ let nextId = 1;
 
 // POST /api/agreements
 // Create a new tenancy agreement
-router.post("/", (req, res) => {
+router.post("/", requireAuth, (req, res) => {
   try {
     const {
       tenantName,
@@ -99,7 +100,7 @@ router.post("/", (req, res) => {
 
 // GET /api/agreements/:id
 // Get agreement details
-router.get("/:id", (req, res) => {
+router.get("/:id", requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
   const agreement = agreements.get(id);
 
@@ -112,7 +113,7 @@ router.get("/:id", (req, res) => {
 
 // POST /api/agreements/:id/sign
 // Sign an agreement (tenant or landlord)
-router.post("/:id/sign", (req, res) => {
+router.post("/:id/sign", requireAuth, (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const agreement = agreements.get(id);
@@ -143,7 +144,7 @@ router.post("/:id/sign", (req, res) => {
     const audit = createAuditLog({
       action: "SIGNED",
       agreementId: id,
-      userId: party === "tenant" ? 1 : 2, // Replace with actual user ID
+      userId: req.user.id,
       ipAddress: ipAddress || req.ip,
       userAgent,
       metadata: { party },
@@ -187,7 +188,7 @@ router.post("/:id/sign", (req, res) => {
 
 // GET /api/agreements/:id/certificate
 // Get the completion certificate for a signed agreement
-router.get("/:id/certificate", (req, res) => {
+router.get("/:id/certificate", requireAuth, (req, res) => {
   const id = parseInt(req.params.id, 10);
   const agreement = agreements.get(id);
 
@@ -206,7 +207,7 @@ router.get("/:id/certificate", (req, res) => {
 
 // GET /api/agreements
 // List all agreements
-router.get("/", (_req, res) => {
+router.get("/", requireAuth, (_req, res) => {
   const list = Array.from(agreements.values()).map((a) => ({
     id: a.id,
     status: a.status,
