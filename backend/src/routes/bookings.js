@@ -147,9 +147,9 @@ function createBookingsRouter(prisma) {
   });
 
   // ── PATCH /api/bookings/:id/manual-payment ────────────────────────────────
-  // Tenant submits a manual payment reference (bank transfer, cash, etc.).
+  // Tenant OR STUDIO_ADMIN submits a manual payment reference (bank transfer, cash, etc.).
+  // Admin can record the ref on behalf of a tenant in the concierge flow.
   // Sets status → PENDING_VERIFICATION and records the reference for admin review.
-  // The booking must belong to the authenticated tenant and be in PENDING status.
   router.patch("/:id/manual-payment", requireAuth, async (req, res) => {
     const { id } = req.params;
     const { manualPaymentRef } = req.body;
@@ -165,7 +165,8 @@ function createBookingsRouter(prisma) {
         return res.status(404).json({ success: false, error: "Booking not found" });
       }
 
-      if (booking.tenantId !== req.user.id) {
+      const isAdmin = req.user.role === "STUDIO_ADMIN";
+      if (!isAdmin && booking.tenantId !== req.user.id) {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
