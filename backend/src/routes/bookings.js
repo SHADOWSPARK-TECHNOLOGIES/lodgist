@@ -11,6 +11,54 @@ const BOOKING_REF_PREFIX = "LODG-ESC-BK-";
 function createBookingsRouter(prisma) {
   const router = express.Router();
 
+  // ── POST /api/bookings ────────────────────────────────────────────────────
+  // Admin or LANDLORD creates a booking on behalf of a tenant.
+  // Used in the manual concierge flow: lead arrives via social/chatbot,
+  // admin creates the booking, tenant then submits payment reference via
+  // PATCH /manual-payment, admin verifies via PATCH /verify-payment.
+  router.post("/", requireAuth, async (req, res) => {
+    if (!["STUDIO_ADMIN", "LANDLORD"].includes(req.user.role)) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { listingId, tenantId, startDate, endDate, totalAmount, currency, notes } = req.body;
+
+    if (!listingId || !tenantId || !startDate || !endDate || totalAmount == null) {
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: listingId, tenantId, startDate, endDate, totalAmount",
+      });
+    }
+
+    try {
+      const [listing, tenant] = await Promise.all([
+        prisma.listing.findUnique({ where: { id: parseInt(listingId, 10) } }),
+        prisma.user.findUnique({ where: { id: parseInt(tenantId, 10) } }),
+      ]);
+
+      if (!listing) return res.status(404).json({ success: false, error: "Listing not found" });
+      if (!tenant)  return res.status(404).json({ success: false, error: "Tenant not found" });
+
+      const booking = await prisma.booking.create({
+        data: {
+          listingId:   listing.id,
+          tenantId:    tenant.id,
+          startDate:   new Date(startDate),
+          endDate:     new Date(endDate),
+          totalAmount: parseFloat(totalAmount),
+          currency:    currency || "NGN",
+          notes:       notes   || null,
+          status:      "PENDING",
+        },
+      });
+
+      return res.status(201).json({ success: true, booking });
+    } catch (error) {
+      console.error("[Bookings] Error creating booking:", error);
+      return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
   // ── POST /api/bookings/:id/initiate-payment ──────────────────────────────
   // Tenant initiates a Paystack payment for a booking.
   // Creates a Paystack transaction, stores the reference on the booking, and
