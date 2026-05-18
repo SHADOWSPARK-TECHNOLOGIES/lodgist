@@ -1,5 +1,6 @@
 const express = require("express");
 const crypto = require("crypto");
+const { requireAuth } = require("../middleware/auth");
 
 /**
  * Create an Express router for WhatsApp webhook and messaging endpoints.
@@ -394,13 +395,18 @@ module.exports = function (prisma) {
 
   // ─── GET /api/whatsapp/sessions/:userId — Get active sessions for a user ──
 
-  router.get("/sessions/:userId", async (req, res) => {
+  router.get("/sessions/:userId", requireAuth, async (req, res) => {
     try {
       const userId = parseInt(req.params.userId, 10);
       if (isNaN(userId)) {
         return res
           .status(400)
           .json({ success: false, error: "Invalid userId" });
+      }
+
+      // Users may only fetch their own sessions; STUDIO_ADMIN can fetch any
+      if (req.user.id !== userId && req.user.role !== "STUDIO_ADMIN") {
+        return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
       const sessions = await prisma.whatsAppSession.findMany({
@@ -426,9 +432,9 @@ module.exports = function (prisma) {
 
   // ─── POST /api/whatsapp/send — Send a message via WhatsApp ────────────────
 
-  router.post("/send", async (req, res) => {
+  router.post("/send", requireAuth, async (req, res) => {
     try {
-      const { to, message, sessionId, senderId } = req.body;
+      const { to, message, sessionId } = req.body;
       if (!to || !message) {
         return res
           .status(400)
@@ -451,7 +457,7 @@ module.exports = function (prisma) {
         await prisma.whatsAppMessage.create({
           data: {
             sessionId,
-            senderId: senderId || 0, // 0 = system/agent
+            senderId: req.user.id,
             content: message,
             messageType: "TEXT",
             direction: "OUTBOUND",
