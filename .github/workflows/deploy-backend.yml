@@ -61,26 +61,13 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        run: echo "store=$(pnpm store path)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ${{ steps.pnpm-cache.outputs.store }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install backend dependencies
+        run: npm ci
         working-directory: ./backend
+
+      - name: Install packages/db dependencies
+        run: npm install --legacy-peer-deps
+        working-directory: ./packages/db
 
       - name: Generate Prisma client
         run: npx prisma generate --config prisma.config.ts
@@ -93,9 +80,10 @@ jobs:
         working-directory: ./packages/db
         env:
           DATABASE_URL: postgresql://lodgist:lodgist@localhost:5432/lodgist_test
+          DIRECT_URL: postgresql://lodgist:lodgist@localhost:5432/lodgist_test
 
       - name: Run tests
-        run: pnpm test
+        run: npm test
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql://lodgist:lodgist@localhost:5432/lodgist_test
