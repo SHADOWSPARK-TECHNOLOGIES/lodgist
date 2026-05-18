@@ -25,6 +25,8 @@ const reviewsRouter = require("./routes/reviews")(prisma);
 const truthIndexRouter = require("./routes/truthIndex")(prisma);
 const createPaymentsRouter = require("./routes/payments");
 const paymentsRouter = createPaymentsRouter(prisma);
+const createBookingsRouter = require("./routes/bookings");
+const bookingsRouter = createBookingsRouter(prisma);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -36,7 +38,6 @@ const NODE_ENV = process.env.NODE_ENV || "development";
 if (NODE_ENV === "production") {
   const missing = [];
   if (!process.env.JWT_SECRET) missing.push("JWT_SECRET");
-  if (!process.env.PAYSTACK_SECRET_KEY) missing.push("PAYSTACK_SECRET_KEY");
   if (!process.env.CORS_ORIGIN) missing.push("CORS_ORIGIN");
   const rpId = process.env.WEBAUTHN_RP_ID;
   const waOrigin = process.env.WEBAUTHN_ORIGIN;
@@ -164,6 +165,7 @@ app.use("/api/transactions", transactionsRouter);
 app.use("/api/rent", rentRouter);
 app.use("/api/escrow", escrowRouter);
 app.use("/api/payments", paymentsRouter);
+app.use("/api/bookings", bookingsRouter);
 app.use("/api/whatsapp", whatsappRouter);
 
 // 404 handler
@@ -190,6 +192,7 @@ app.listen(PORT, HOST, () => {
   logger.info(`  /api/rent`);
   logger.info(`  /api/escrow`);
   logger.info(`  /api/payments (webhook)`);
+  logger.info(`  /api/bookings (manual-payment, verify-payment)`);
   logger.info(`  /api/whatsapp`);
 });
 

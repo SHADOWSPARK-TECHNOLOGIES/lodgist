@@ -62,7 +62,7 @@ module.exports = (prisma) => {
           isHNW: user.isHNW || false,
         },
         process.env.JWT_SECRET,
-        { expiresIn: "24h" }
+        { expiresIn: process.env.JWT_EXPIRES_IN || "24h" }
       );
 
       res.status(201).json({
@@ -104,7 +104,7 @@ module.exports = (prisma) => {
         where: { email },
       });
 
-      if (!user) {
+      if (!user || !user.passwordHash) {
         return res.status(401).json({
           success: false,
           error: "Invalid credentials",
@@ -130,7 +130,7 @@ module.exports = (prisma) => {
           isHNW: user.isHNW || false,
         },
         process.env.JWT_SECRET,
-        { expiresIn: "24h" }
+        { expiresIn: process.env.JWT_EXPIRES_IN || "24h" }
       );
 
       res.json({
@@ -357,7 +357,7 @@ module.exports = (prisma) => {
           isHNW: user.isHNW || false,
         },
         process.env.JWT_SECRET,
-        { expiresIn: "24h" }
+        { expiresIn: process.env.JWT_EXPIRES_IN || "24h" }
       );
 
       res.json({
