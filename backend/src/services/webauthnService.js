@@ -85,7 +85,7 @@ async function generatePasskeyRegistrationOptions(user, existingCredentials = []
  * @param {object} credential - The credential object from the client
  * @returns {Promise<object>} { verified, credential }
  */
-async function verifyAndStorePasskey(prisma, userId, credential) {
+async function verifyAndStorePasskey(prisma, userId, credential, expectedChallenge) {
   if (!isWebAuthnEnabled()) {
     throw new Error("WebAuthn is not enabled");
   }
@@ -94,6 +94,7 @@ async function verifyAndStorePasskey(prisma, userId, credential) {
     credential,
     expectedRPID: RP_ID,
     expectedOrigin: ORIGIN,
+    expectedChallenge,
   });
 
   if (!verification.verified || !verification.registrationInfo) {
@@ -157,7 +158,7 @@ async function generatePasskeyAuthenticationOptions(allowedCredentials = []) {
  * @param {object} storedCredential - The stored PasskeyCredential from DB
  * @returns {Promise<object>} { verified, newCounter }
  */
-async function verifyPasskeyAuthentication(credential, storedCredential) {
+async function verifyPasskeyAuthentication(credential, storedCredential, expectedChallenge) {
   if (!isWebAuthnEnabled()) {
     throw new Error("WebAuthn is not enabled");
   }
@@ -166,6 +167,7 @@ async function verifyPasskeyAuthentication(credential, storedCredential) {
     credential,
     expectedRPID: RP_ID,
     expectedOrigin: ORIGIN,
+    expectedChallenge,
     credential: {
       id: storedCredential.credentialId,
       publicKey: new Uint8Array(storedCredential.publicKey),

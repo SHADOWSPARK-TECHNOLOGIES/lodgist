@@ -72,6 +72,12 @@ module.exports = (prisma) => {
         { expiresIn: process.env.JWT_EXPIRES_IN || "24h" }
       );
 
+      const refreshToken = jwt.sign(
+        { id: user.id, type: "refresh" },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d" }
+      );
+
       res.status(201).json({
         success: true,
         message: "User registered successfully",
@@ -83,6 +89,7 @@ module.exports = (prisma) => {
           isHNW: user.isHNW || false,
         },
         token,
+        refreshToken,
       });
     } catch (error) {
       console.error("Error registering user:", error);
@@ -140,6 +147,12 @@ module.exports = (prisma) => {
         { expiresIn: process.env.JWT_EXPIRES_IN || "24h" }
       );
 
+      const refreshToken = jwt.sign(
+        { id: user.id, type: "refresh" },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d" }
+      );
+
       res.json({
         success: true,
         message: "Login successful",
@@ -151,6 +164,7 @@ module.exports = (prisma) => {
           isHNW: user.isHNW || false,
         },
         token,
+        refreshToken,
       });
     } catch (error) {
       console.error("Error logging in:", error);
@@ -200,14 +214,19 @@ module.exports = (prisma) => {
         user.passkeys
       );
 
-      // Store challenge in the database (via user record or Redis; for now pass back)
-      // In production, store challenge in Redis with TTL
-      res.json({
-        success: true,
-        options,
-        // Frontend needs to pass this challenge back in the verify step
-        challenge: options.challenge,
+      // Delete any previous unexpired challenges for this user (one active challenge at a time)
+      await prisma.passkeyChallenge.deleteMany({ where: { userId: user.id } });
+
+      // Store challenge server-side with 5-minute TTL — never trust the client to supply it
+      await prisma.passkeyChallenge.create({
+        data: {
+          userId: user.id,
+          challenge: options.challenge,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        },
       });
+
+      res.json({ success: true, options });
     } catch (error) {
       console.error("Error generating passkey registration options:", error);
       res.status(500).json({
@@ -236,10 +255,26 @@ module.exports = (prisma) => {
         });
       }
 
+      // Fetch and consume the stored challenge — one-time use
+      const storedChallenge = await prisma.passkeyChallenge.findFirst({
+        where: { userId, expiresAt: { gt: new Date() } },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!storedChallenge) {
+        return res.status(400).json({
+          success: false,
+          error: "No valid challenge found. Request new registration options.",
+        });
+      }
+
+      await prisma.passkeyChallenge.delete({ where: { id: storedChallenge.id } });
+
       const result = await webauthnService.verifyAndStorePasskey(
         prisma,
         userId,
-        credential
+        credential,
+        storedChallenge.challenge
       );
 
       res.json({
@@ -285,11 +320,20 @@ module.exports = (prisma) => {
         allowedCredentials
       );
 
-      res.json({
-        success: true,
-        options,
-        challenge: options.challenge,
+      // Store challenge server-side (userId may be null for discoverable/usernameless flows)
+      const userId = email
+        ? (await prisma.user.findUnique({ where: { email }, select: { id: true } }))?.id ?? null
+        : null;
+
+      await prisma.passkeyChallenge.create({
+        data: {
+          userId,
+          challenge: options.challenge,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        },
       });
+
+      res.json({ success: true, options });
     } catch (error) {
       console.error("Error generating passkey login options:", error);
       res.status(500).json({
@@ -339,9 +383,32 @@ module.exports = (prisma) => {
         });
       }
 
+      // Extract challenge from clientDataJSON and look it up server-side
+      let challengeValue;
+      try {
+        const clientData = JSON.parse(
+          Buffer.from(credential.response.clientDataJSON, "base64").toString("utf8")
+        );
+        challengeValue = clientData.challenge;
+      } catch {
+        return res.status(400).json({ success: false, error: "Invalid clientDataJSON" });
+      }
+
+      const storedChallenge = await prisma.passkeyChallenge.findUnique({
+        where: { challenge: challengeValue },
+      });
+
+      if (!storedChallenge || storedChallenge.expiresAt < new Date()) {
+        if (storedChallenge) await prisma.passkeyChallenge.delete({ where: { id: storedChallenge.id } });
+        return res.status(400).json({ success: false, error: "Invalid or expired challenge" });
+      }
+
+      await prisma.passkeyChallenge.delete({ where: { id: storedChallenge.id } });
+
       const result = await webauthnService.verifyPasskeyAuthentication(
         credential,
-        storedCredential
+        storedCredential,
+        challengeValue
       );
 
       // Update counter to prevent replay attacks
@@ -353,18 +420,17 @@ module.exports = (prisma) => {
         },
       });
 
-      // Issue JWT
+      // Issue access + refresh tokens
       const user = storedCredential.user;
       const token = jwt.sign(
-        {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          isHNW: user.isHNW || false,
-        },
+        { id: user.id, email: user.email, name: user.name, role: user.role, isHNW: user.isHNW || false },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRES_IN || "24h" }
+      );
+      const refreshToken = jwt.sign(
+        { id: user.id, type: "refresh" },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d" }
       );
 
       res.json({
@@ -378,6 +444,7 @@ module.exports = (prisma) => {
           isHNW: user.isHNW || false,
         },
         token,
+        refreshToken,
       });
     } catch (error) {
       console.error("Error verifying passkey login:", error);
@@ -468,6 +535,40 @@ module.exports = (prisma) => {
         success: false,
         error: "Internal server error",
       });
+    }
+  });
+
+  // ── POST /api/auth/refresh ─────────────────────────────────────────────────
+  // Exchange a valid refresh token for a new access token + refresh token pair.
+  // Refresh tokens carry type:"refresh" in the payload to prevent access tokens
+  // from being used here.
+  router.post("/refresh", async (req, res) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, error: "refreshToken is required" });
+    }
+    try {
+      const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+      if (decoded.type !== "refresh") {
+        return res.status(401).json({ success: false, error: "Invalid token type" });
+      }
+      const user = await prisma.user.findUnique({ where: { id: decoded.id } });
+      if (!user) {
+        return res.status(401).json({ success: false, error: "User not found" });
+      }
+      const token = jwt.sign(
+        { id: user.id, email: user.email, name: user.name, role: user.role, isHNW: user.isHNW || false },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || "7d" }
+      );
+      const newRefreshToken = jwt.sign(
+        { id: user.id, type: "refresh" },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d" }
+      );
+      return res.json({ success: true, token, refreshToken: newRefreshToken });
+    } catch {
+      return res.status(401).json({ success: false, error: "Invalid or expired refresh token" });
     }
   });
 

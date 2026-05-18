@@ -177,7 +177,7 @@ app.use((_req, res) => {
 app.use(globalErrorHandler);
 
 app.listen(PORT, HOST, () => {
-  logger.info(`Lodgist API server running on http://${HOST}:${PORT}`);
+  logger.info(`Lodgist API server running on http://${HOST}:${PORT} [${NODE_ENV}]`);
   logger.info(`Routes:`);
   logger.info(`  GET  /api/health`);
   logger.info(`  /api/auth (register, login, passkey)`);
@@ -194,6 +194,12 @@ app.listen(PORT, HOST, () => {
   logger.info(`  /api/payments (webhook)`);
   logger.info(`  /api/bookings (manual-payment, verify-payment)`);
   logger.info(`  /api/whatsapp`);
+
+  // Warm up the Neon connection pool on startup so the first real request doesn't
+  // hit an ETIMEDOUT from a cold-start suspension.
+  prisma.user.count()
+    .then(() => logger.info("DB warmup: connected"))
+    .catch((err) => logger.warn("DB warmup failed (Neon may be cold)", { error: err.code }));
 });
 
 module.exports = app;

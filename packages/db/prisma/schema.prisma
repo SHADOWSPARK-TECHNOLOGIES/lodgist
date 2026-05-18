@@ -90,6 +90,7 @@ model User {
 
   // Relations
   passkeys          PasskeyCredential[]
+  passkeyChallenges PasskeyChallenge[]
   listings          Listing[]
   bookings          Booking[]              @relation("TenantBookings")
   verifiedBookings  Booking[]              @relation("VerifierBookings")
@@ -349,6 +350,8 @@ model WhatsAppSession {
   contact     User             @relation("ContactWhatsappSessions", fields: [contactId], references: [id])
   listingId   Int?
   listing     Listing?         @relation(fields: [listingId], references: [id])
+  contactName String?
+  platform    String           @default("whatsapp")
   isActive    Boolean          @default(true)
   messages    WhatsAppMessage[]
   createdAt   DateTime         @default(now())
@@ -367,6 +370,7 @@ model WhatsAppMessage {
   sender    User             @relation("SenderMessages", fields: [senderId], references: [id])
   content   String
   messageType String         @default("TEXT") // TEXT, IMAGE, DOCUMENT, LOCATION
+  direction   String         @default("INBOUND") // INBOUND, OUTBOUND
   metadata  Json?
   sentAt    DateTime         @default(now())
   deliveredAt DateTime?
@@ -477,4 +481,22 @@ model ProcessedWebhookEvent {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ── Passkey Challenge Store ───────────────────────────────────────────────────
+// Short-lived server-side challenge storage for WebAuthn ceremonies.
+// Prevents replay attacks by ensuring the challenge was issued by this server.
+// userId is nullable to support discoverable (usernameless) login flows.
+
+model PasskeyChallenge {
+  id        String    @id @default(cuid())
+  userId    Int?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge String    @unique
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([challenge])
+  @@index([expiresAt])
 }

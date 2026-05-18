@@ -218,15 +218,18 @@ router.get("/rnpl/:id", requireAuth, (req, res) => {
 
 // GET /api/rent/rnpl
 // List all RNPL agreements
-router.get("/rnpl", requireAuth, (_req, res) => {
-  const list = Array.from(rnplAgreements.values()).map((a) => ({
-    id: a.id,
-    status: a.status,
-    monthlyRent: a.monthlyRent,
-    durationMonths: a.durationMonths,
-    totalRent: a.totalRent,
-    createdAt: a.createdAt,
-  }));
+router.get("/rnpl", requireAuth, (req, res) => {
+  const isAdmin = req.user.role === "STUDIO_ADMIN";
+  const list = Array.from(rnplAgreements.values())
+    .filter((a) => isAdmin || a.tenantId === req.user.id || a.landlordId === req.user.id)
+    .map((a) => ({
+      id: a.id,
+      status: a.status,
+      monthlyRent: a.monthlyRent,
+      durationMonths: a.durationMonths,
+      totalRent: a.totalRent,
+      createdAt: a.createdAt,
+    }));
 
   res.json(list);
 });

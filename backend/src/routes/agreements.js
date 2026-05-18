@@ -9,7 +9,7 @@
 
 const express = require("express");
 const router = express.Router();
-const { requireAuth } = require("../middleware/auth");
+const { requireAuth, requireRole } = require("../middleware/auth");
 const {
   hashAgreement,
   createAuditLog,
@@ -207,7 +207,7 @@ router.get("/:id/certificate", requireAuth, (req, res) => {
 
 // GET /api/agreements
 // List all agreements
-router.get("/", requireAuth, (_req, res) => {
+router.get("/", requireAuth, requireRole("STUDIO_ADMIN"), (_req, res) => {
   const list = Array.from(agreements.values()).map((a) => ({
     id: a.id,
     status: a.status,

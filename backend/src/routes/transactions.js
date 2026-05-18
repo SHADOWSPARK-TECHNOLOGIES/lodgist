@@ -239,14 +239,17 @@ router.get("/:reference", requireAuth, (req, res) => {
 
 // GET /api/transactions
 // List all transactions
-router.get("/", requireAuth, (_req, res) => {
-  const list = Array.from(transactions.values()).map((tx) => ({
-    reference: tx.id,
-    status: tx.status,
-    amount: tx.amount,
-    currency: tx.currency,
-    createdAt: tx.createdAt,
-  }));
+router.get("/", requireAuth, (req, res) => {
+  const isAdmin = req.user.role === "STUDIO_ADMIN";
+  const list = Array.from(transactions.values())
+    .filter((tx) => isAdmin || tx.tenantId === req.user.id || tx.landlordId === req.user.id)
+    .map((tx) => ({
+      reference: tx.id,
+      status: tx.status,
+      amount: tx.amount,
+      currency: tx.currency,
+      createdAt: tx.createdAt,
+    }));
 
   res.json(list);
 });
