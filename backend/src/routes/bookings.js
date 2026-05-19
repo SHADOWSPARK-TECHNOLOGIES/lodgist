@@ -1,15 +1,85 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const PaystackService = require("../services/paystackService");
+const logger = require("../utils/logger");
 
 // Booking payment references use this sub-prefix so the webhook handler can
 // route them away from EscrowTransaction lookups without touching paystackService.js.
-// paystackService.applyReferencePrefix() treats anything already starting with
-// "LODG-ESC-" as already-prefixed and returns it unchanged.
 const BOOKING_REF_PREFIX = "LODG-ESC-BK-";
+
+const ADMIN_ROLES = ["STUDIO_ADMIN", "LANDLORD"];
+
+function isAdmin(user) {
+  return ADMIN_ROLES.includes(user.role);
+}
 
 function createBookingsRouter(prisma) {
   const router = express.Router();
+
+  // ── GET /api/bookings ─────────────────────────────────────────────────────
+  // Admin-only: list all bookings with optional filters.
+  // Query params: status, tenantId, listingId, page (default 1, page size 20)
+  // This is the concierge operations queue — support staff use this to see
+  // pending payment verifications and manage the pipeline.
+  router.get("/", requireAuth, async (req, res) => {
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    const { status, tenantId, listingId, page: pageQuery } = req.query;
+    const pageSize = 20;
+    const page = Math.max(1, parseInt(pageQuery || "1", 10));
+    const skip = (page - 1) * pageSize;
+
+    const where = {};
+    if (status) where.status = status;
+    if (tenantId) where.tenantId = parseInt(tenantId, 10);
+    if (listingId) where.listingId = parseInt(listingId, 10);
+
+    try {
+      const [total, bookings] = await Promise.all([
+        prisma.booking.count({ where }),
+        prisma.booking.findMany({
+          where,
+          include: {
+            tenant: { select: { id: true, name: true, email: true, phone: true } },
+            listing: { select: { id: true, title: true, price: true } },
+            verifier: { select: { id: true, name: true } },
+          },
+          orderBy: { updatedAt: "desc" },
+          skip,
+          take: pageSize,
+        }),
+      ]);
+
+      return res.json({
+        success: true,
+        data: bookings,
+        pagination: { total, page, pageSize, pages: Math.ceil(total / pageSize) },
+      });
+    } catch (error) {
+      logger.error("[Bookings] Error listing bookings", { error: error.message });
+      return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  // ── GET /api/bookings/mine ────────────────────────────────────────────────
+  // Tenant reads their own booking list. Must come before /:id.
+  router.get("/mine", requireAuth, async (req, res) => {
+    try {
+      const bookings = await prisma.booking.findMany({
+        where: { tenantId: req.user.id },
+        include: {
+          listing: { select: { id: true, title: true, price: true } },
+        },
+        orderBy: { updatedAt: "desc" },
+      });
+      return res.json({ success: true, data: bookings });
+    } catch (error) {
+      logger.error("[Bookings] Error fetching tenant bookings", { error: error.message, userId: req.user.id });
+      return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
 
   // ── POST /api/bookings ────────────────────────────────────────────────────
   // Admin or LANDLORD creates a booking on behalf of a tenant.
@@ -17,11 +87,11 @@ function createBookingsRouter(prisma) {
   // admin creates the booking, tenant then submits payment reference via
   // PATCH /manual-payment, admin verifies via PATCH /verify-payment.
   router.post("/", requireAuth, async (req, res) => {
-    if (!["STUDIO_ADMIN", "LANDLORD"].includes(req.user.role)) {
+    if (!isAdmin(req.user)) {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
-    const { listingId, tenantId, startDate, endDate, totalAmount, currency, notes } = req.body;
+    const { listingId, tenantId, startDate, endDate, totalAmount, currency, notes, sourceChannel } = req.body;
 
     if (!listingId || !tenantId || !startDate || !endDate || totalAmount == null) {
       return res.status(400).json({
@@ -41,31 +111,37 @@ function createBookingsRouter(prisma) {
 
       const booking = await prisma.booking.create({
         data: {
-          listingId:   listing.id,
-          tenantId:    tenant.id,
-          startDate:   new Date(startDate),
-          endDate:     new Date(endDate),
-          totalAmount: parseFloat(totalAmount),
-          currency:    currency || "NGN",
-          notes:       notes   || null,
-          status:      "PENDING",
+          listingId:     listing.id,
+          tenantId:      tenant.id,
+          startDate:     new Date(startDate),
+          endDate:       new Date(endDate),
+          totalAmount:   parseFloat(totalAmount),
+          currency:      currency || "NGN",
+          notes:         notes || null,
+          sourceChannel: sourceChannel || null,
+          status:        "PENDING",
         },
+      });
+
+      logger.info("[Bookings] Booking created", {
+        bookingId: booking.id,
+        tenantId: tenant.id,
+        listingId: listing.id,
+        sourceChannel: booking.sourceChannel,
+        createdBy: req.user.id,
       });
 
       return res.status(201).json({ success: true, booking });
     } catch (error) {
-      console.error("[Bookings] Error creating booking:", error);
+      logger.error("[Bookings] Error creating booking", { error: error.message });
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
   });
 
   // ── POST /api/bookings/:id/initiate-payment ──────────────────────────────
   // Tenant initiates a Paystack payment for a booking.
-  // Creates a Paystack transaction, stores the reference on the booking, and
-  // transitions status → PENDING_VERIFICATION.
-  // On charge.success webhook: auto-confirms to CONFIRMED (no admin needed).
-  // Manual payment fallback (PATCH /manual-payment) remains available when
-  // a tenant pays via bank transfer instead of Paystack.
+  // Creates a Paystack transaction and transitions status → PENDING_VERIFICATION.
+  // Manual payment fallback (PATCH /manual-payment) remains available for bank transfers.
   router.post("/:id/initiate-payment", requireAuth, async (req, res) => {
     const { id } = req.params;
     const { email, callbackUrl } = req.body;
@@ -92,8 +168,6 @@ function createBookingsRouter(prisma) {
         });
       }
 
-      // Reference format: LODG-ESC-BK-{bookingId} — already has the LODG-ESC- prefix
-      // so paystackService.applyReferencePrefix() returns it unchanged.
       const reference = `${BOOKING_REF_PREFIX}${id}`;
 
       const payment = await PaystackService.initializePayment({
@@ -125,30 +199,79 @@ function createBookingsRouter(prisma) {
         bookingId: id,
       });
     } catch (error) {
-      console.error("[Bookings] Error initiating Paystack payment:", error);
+      logger.error("[Bookings] Error initiating Paystack payment", { error: error.message, bookingId: id });
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
   });
 
   // ── GET /api/bookings/:id ─────────────────────────────────────────────────
-  // Tenant reads their own booking; STUDIO_ADMIN or LANDLORD reads any.
+  // Tenant reads their own booking; admin reads any.
+  // adminNotes are excluded from tenant responses.
   router.get("/:id", requireAuth, async (req, res) => {
     try {
-      const booking = await prisma.booking.findUnique({ where: { id: req.params.id } });
+      const booking = await prisma.booking.findUnique({
+        where: { id: req.params.id },
+        include: {
+          listing: { select: { id: true, title: true, price: true } },
+          verifier: { select: { id: true, name: true } },
+        },
+      });
       if (!booking) return res.status(404).json({ success: false, error: "Booking not found" });
-      const isAdmin = ["STUDIO_ADMIN", "LANDLORD"].includes(req.user.role);
-      if (!isAdmin && booking.tenantId !== req.user.id)
+
+      const admin = isAdmin(req.user);
+      if (!admin && booking.tenantId !== req.user.id) {
         return res.status(403).json({ success: false, error: "Forbidden" });
-      return res.json({ success: true, booking });
+      }
+
+      // Hide internal admin notes from tenants
+      const response = admin ? booking : { ...booking, adminNotes: undefined };
+      return res.json({ success: true, booking: response });
     } catch (error) {
-      console.error("[Bookings] Error fetching booking:", error);
+      logger.error("[Bookings] Error fetching booking", { error: error.message, bookingId: req.params.id });
+      return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  // ── PATCH /api/bookings/:id/cancel ────────────────────────────────────────
+  // Tenant self-cancels their own PENDING booking.
+  // Only valid from PENDING status — once payment is submitted the admin must decide.
+  router.patch("/:id/cancel", requireAuth, async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      const booking = await prisma.booking.findUnique({ where: { id } });
+
+      if (!booking) {
+        return res.status(404).json({ success: false, error: "Booking not found" });
+      }
+
+      const admin = isAdmin(req.user);
+      if (!admin && booking.tenantId !== req.user.id) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+
+      if (booking.status !== "PENDING") {
+        return res.status(409).json({
+          success: false,
+          error: `Cannot cancel a booking in status ${booking.status}. Contact support.`,
+        });
+      }
+
+      const updated = await prisma.booking.update({
+        where: { id },
+        data: { status: "CANCELLED" },
+      });
+
+      logger.info("[Bookings] Booking cancelled by tenant", { bookingId: id, userId: req.user.id });
+      return res.json({ success: true, booking: updated });
+    } catch (error) {
+      logger.error("[Bookings] Error cancelling booking", { error: error.message, bookingId: id });
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
   });
 
   // ── PATCH /api/bookings/:id/manual-payment ────────────────────────────────
-  // Tenant OR STUDIO_ADMIN submits a manual payment reference (bank transfer, cash, etc.).
-  // Admin can record the ref on behalf of a tenant in the concierge flow.
+  // Tenant OR STUDIO_ADMIN submits a manual payment reference (bank transfer, etc.).
   // Sets status → PENDING_VERIFICATION and records the reference for admin review.
   router.patch("/:id/manual-payment", requireAuth, async (req, res) => {
     const { id } = req.params;
@@ -165,8 +288,8 @@ function createBookingsRouter(prisma) {
         return res.status(404).json({ success: false, error: "Booking not found" });
       }
 
-      const isAdmin = req.user.role === "STUDIO_ADMIN";
-      if (!isAdmin && booking.tenantId !== req.user.id) {
+      const admin = req.user.role === "STUDIO_ADMIN";
+      if (!admin && booking.tenantId !== req.user.id) {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
@@ -185,9 +308,48 @@ function createBookingsRouter(prisma) {
         },
       });
 
+      logger.info("[Bookings] Manual payment reference submitted", {
+        bookingId: id,
+        submittedBy: req.user.id,
+        isAdmin: admin,
+      });
+
       return res.json({ success: true, booking: updated });
     } catch (error) {
-      console.error("[Bookings] Error updating manual payment:", error);
+      logger.error("[Bookings] Error updating manual payment", { error: error.message, bookingId: id });
+      return res.status(500).json({ success: false, error: "Internal server error" });
+    }
+  });
+
+  // ── PATCH /api/bookings/:id/admin-notes ──────────────────────────────────
+  // Admin updates internal notes on a booking. Not visible to tenants.
+  // Useful for recording verification reasoning, rejection explanation,
+  // or operational context from WhatsApp/chatbot interactions.
+  router.patch("/:id/admin-notes", requireAuth, async (req, res) => {
+    const { id } = req.params;
+    const { adminNotes } = req.body;
+
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ success: false, error: "Forbidden" });
+    }
+
+    if (typeof adminNotes !== "string") {
+      return res.status(400).json({ success: false, error: "adminNotes must be a string" });
+    }
+
+    try {
+      const booking = await prisma.booking.findUnique({ where: { id } });
+      if (!booking) return res.status(404).json({ success: false, error: "Booking not found" });
+
+      const updated = await prisma.booking.update({
+        where: { id },
+        data: { adminNotes: adminNotes.trim() || null },
+      });
+
+      logger.info("[Bookings] Admin notes updated", { bookingId: id, adminId: req.user.id });
+      return res.json({ success: true, booking: updated });
+    } catch (error) {
+      logger.error("[Bookings] Error updating admin notes", { error: error.message, bookingId: id });
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
   });
@@ -195,15 +357,16 @@ function createBookingsRouter(prisma) {
   // ── PATCH /api/bookings/:id/verify-payment ────────────────────────────────
   // Admin confirms or rejects a manual payment.
   // action: "approve" → CONFIRMED | "reject" → PENDING (clears ref) | "cancel" → CANCELLED
+  // Optional adminNotes field records the reasoning for audit purposes.
   router.patch("/:id/verify-payment", requireAuth, async (req, res) => {
     const { id } = req.params;
-    const { action } = req.body;
+    const { action, adminNotes } = req.body;
 
     if (!["approve", "reject", "cancel"].includes(action)) {
       return res.status(400).json({ success: false, error: "action must be approve | reject | cancel" });
     }
 
-    if (!["STUDIO_ADMIN", "LANDLORD"].includes(req.user.role)) {
+    if (!isAdmin(req.user)) {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
@@ -223,23 +386,33 @@ function createBookingsRouter(prisma) {
 
       const statusMap = {
         approve: "CONFIRMED",
-        reject: "PENDING",
-        cancel: "CANCELLED",
+        reject:  "PENDING",
+        cancel:  "CANCELLED",
       };
 
       const updated = await prisma.booking.update({
         where: { id },
         data: {
-          status: statusMap[action],
+          status:          statusMap[action],
+          // Clear manual ref on reject so tenant can resubmit; retain on approve/cancel for records
           manualPaymentRef: action === "reject" ? null : booking.manualPaymentRef,
-          verifiedBy: req.user.id,
-          verifiedAt: new Date(),
+          verifiedBy:      req.user.id,
+          verifiedAt:      new Date(),
+          // Record admin reasoning if provided
+          ...(adminNotes !== undefined && { adminNotes: adminNotes.trim() || null }),
         },
+      });
+
+      logger.info("[Bookings] Payment verification action taken", {
+        bookingId: id,
+        action,
+        adminId: req.user.id,
+        newStatus: updated.status,
       });
 
       return res.json({ success: true, booking: updated });
     } catch (error) {
-      console.error("[Bookings] Error verifying payment:", error);
+      logger.error("[Bookings] Error verifying payment", { error: error.message, bookingId: id });
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
   });

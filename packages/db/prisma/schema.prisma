@@ -228,6 +228,8 @@ model Booking {
   totalAmount      Float
   currency         Currency      @default(NGN)
   notes            String?
+  sourceChannel    String?       // lead origin: whatsapp | instagram | chatbot | direct | referral
+  adminNotes       String?       // internal staff notes — not visible to tenant
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 

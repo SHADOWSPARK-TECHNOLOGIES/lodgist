@@ -433,6 +433,10 @@ module.exports = function (prisma) {
   // ─── POST /api/whatsapp/send — Send a message via WhatsApp ────────────────
 
   router.post("/send", requireAuth, async (req, res) => {
+    if (req.user.role !== "STUDIO_ADMIN") {
+      return res.status(403).json({ success: false, error: "Forbidden: STUDIO_ADMIN only" });
+    }
+
     try {
       const { to, message, sessionId } = req.body;
       if (!to || !message) {
