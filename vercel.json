@@ -1,17 +1,6 @@
 {
-  "buildCommand": "pnpm install && pnpm --filter=frontend build",
-  "outputDirectory": "apps/lodgist/.next",
-  "installCommand": "pnpm install --frozen-lockfile",
   "framework": "nextjs",
-  "experimentalServices": {
-    "frontend": {
-      "entrypoint": "frontend",
-      "routePrefix": "/",
-      "framework": "nextjs"
-    },
-    "backend": {
-      "entrypoint": "backend",
-      "routePrefix": "/_/backend"
-    }
-  }
+  "installCommand": "cd lodgist && npm install",
+  "buildCommand": "cd lodgist && npm install --prefix ../packages/db || true && npx prisma generate --config prisma.config.ts && next build",
+  "outputDirectory": "lodgist/.next"
 }
