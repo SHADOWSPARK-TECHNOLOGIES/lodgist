@@ -20,7 +20,7 @@ export default function LoginPage() {
     try {
       await loginFn(email, password);
       toast('Welcome back!', 'success');
-      router.push('/dashboard');
+      router.push('/listings');
     } catch (err: any) {
       toast(err.message ?? 'Login failed', 'error');
     } finally {

@@ -1,0 +1,23 @@
+# ── Commit Message Template ──────────────────────────────────────────────
+# Lines starting with '#' are ignored. An empty message aborts the commit.
+#
+# FORMAT: <type>(<scope>): <subject>
+# TYPES:   feat | fix | chore | refactor | style | test | docs | perf | ci | build | revert
+# SCOPE:   frontend | backend | db | infra | packages | ai-core | lodgist | config | meta
+#
+# RULES:
+#   • Subject:     ≤ 50 chars, imperative mood, no period
+#   • Body:        wrap at 72 chars, explain WHAT and WHY (not HOW)
+#   • Footer:      references, breaking changes
+#
+# ── Example ──────────────────────────────────────────────────────────────
+# feat(auth): add WebAuthn passkey registration endpoint
+#
+# Implements passkey credential creation via @simplewebauthn/server.
+# Stores challenge in Redis with 5-minute TTL. Returns attestation
+# options to client for platform authenticator creation.
+#
+# BREAKING CHANGE: Registration flow now requires WebAuthn-capable browser
+# Closes: #142
+#
+# ── Your commit message starts below ─────────────────────────────────────

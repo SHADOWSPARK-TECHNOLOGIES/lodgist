@@ -17,7 +17,7 @@ function resolveIPv4Sync(hostname) {
   try {
     const result = execSync(
       `dig +short A ${hostname} | grep -E '^[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+$' | head -1`,
-      { timeout: 5000 }
+      { timeout: 1000 }
     ).toString().trim();
     return result || null;
   } catch {

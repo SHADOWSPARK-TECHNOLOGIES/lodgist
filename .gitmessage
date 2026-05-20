@@ -1,0 +1,50 @@
+# ── Lodgist Commit Message Template ──────────────────────────────────────
+# Lines starting with '#' are ignored. An empty message aborts the commit.
+#
+# FORMAT:
+#   <type>(<scope>): <subject>
+#
+# TYPES:
+#   feat      New feature for the user, not a new feature for build script
+#   fix       Bug fix for the user, not a fix to a build script
+#   docs      Changes to the documentation
+#   style     Formatting, missing semi colons, etc; no production code change
+#   refactor  Refactoring production code, eg. renaming a variable
+#   perf      Performance improvements
+#   test      Adding missing tests, refactoring tests; no production code change
+#   build     Changes that affect the build system or external dependencies
+#   ci        Changes to CI configuration files and scripts
+#   chore     Updating grunt tasks etc; no production code change
+#
+# SCOPES (Lodgist):
+#   frontend      Next.js app-router frontend
+#   backend       Express API, services, middleware
+#   db            Prisma schema, migrations, seeds
+#   infra         AWS CDK, App Runner, RDS, CI/CD
+#   auth          NextAuth, WebAuthn, RBAC, session
+#   payments      Paystack integration, escrow, webhooks
+#   bookings      Booking flow, concierge, tenancy agreements
+#   verification  Land registry, trust safety engine, fraud detection
+#   listings      Listing CRUD, search, detail pages
+#   docs          README, BETA_STATUS, AGENTS, plans
+#   ci            GitHub Actions, Amplify, Vercel config
+#   config        Env vars, tooling config, workspace settings
+#   packages      Shared packages (ai-core, db, etc.)
+#
+# RULES:
+#   • Subject:     ≤ 50 chars, imperative mood ("add" not "added"), no period
+#   • Body:        wrap at 72 chars, explain WHAT and WHY (not HOW)
+#   • Footer:      reference issues (Closes: #N), mark BREAKING CHANGE
+#
+# ── Example ──────────────────────────────────────────────────────────────
+# feat(payments): add Paystack escrow verification endpoint
+#
+# Implements /api/payments/verify to confirm Paystack transaction
+# references on booking confirmation. Validates HMAC signature,
+# transitions escrow state to HELD, and triggers concierge SMS.
+#
+# BREAKING CHANGE: Existing bookings without paystack_reference will
+#   require migration to populate the column.
+# Closes: #189
+#
+# ── Your commit message starts below ──

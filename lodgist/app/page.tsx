@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Menu, X, Search, ChevronDown, Star, Shield, Zap, MapPin, TrendingUp, ArrowRight, MessageCircle } from "lucide-react";
+import { Menu, X, Search, ChevronDown, Star, Shield, Zap, MapPin, TrendingUp, ArrowRight, MessageCircle, Home } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

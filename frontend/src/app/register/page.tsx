@@ -22,7 +22,7 @@ export default function RegisterPage() {
     try {
       await register(email, password, name, phone || undefined);
       toast('Account created successfully!', 'success');
-      router.push('/dashboard');
+      router.push('/listings');
     } catch (err: any) {
       toast(err.message ?? 'Registration failed', 'error');
     } finally {

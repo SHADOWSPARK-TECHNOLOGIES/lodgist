@@ -1,22 +1,24 @@
-import { PrismaClient } from "@prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
-import pg from "pg";
+// ─── Canonical PrismaClient Singleton ─────────────────────────────────────────
+// This file delegates to the shared PrismaClient from packages/db/src/client.js,
+// which is the single source of truth for database connectivity across the entire
+// monorepo (handles IPv4 resolution for Neon, pooled connections, SSL/SNI, etc.).
+//
+// The globalThis guard prevents multiple instances during Next.js hot-module
+// reloading in development.
+// ───────────────────────────────────────────────────────────────────────────────
+
+import basePrisma from "../../packages/db/src/client.js";
+import type { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-function createPrismaClient(): PrismaClient {
-  const pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-  const adapter = new PrismaPg(pool);
-  return new PrismaClient({ adapter });
-}
-
-export const prisma =
-  globalForPrisma.prisma ?? createPrismaClient();
+export const prisma: PrismaClient =
+  globalForPrisma.prisma ?? basePrisma;
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
+
+export default prisma;
