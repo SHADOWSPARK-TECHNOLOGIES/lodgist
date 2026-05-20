@@ -15,7 +15,7 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 export const prisma: PrismaClient =
-  globalForPrisma.prisma ?? basePrisma;
+  (globalForPrisma.prisma ?? basePrisma) as unknown as PrismaClient;
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

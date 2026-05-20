@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Menu, X, Search, ChevronDown, Star, Shield, Zap, MapPin, TrendingUp, ArrowRight, MessageCircle, Home } from "lucide-react";
+import { Menu, X, Search, ChevronDown, Star, Shield, Zap, MapPin, TrendingUp, ArrowRight, MessageCircle, Home as HomeIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -363,7 +363,7 @@ function HowItWorks() {
       color: "bg-[#FF6F3C]/10 text-[#FF6F3C]",
     },
     {
-      icon: Home,
+      icon: HomeIcon,
       title: "Book a Viewing",
       description: "Schedule directly with the landlord. No agent fees, no middlemen.",
       color: "bg-[#1ABC9C]/10 text-[#1ABC9C]",
