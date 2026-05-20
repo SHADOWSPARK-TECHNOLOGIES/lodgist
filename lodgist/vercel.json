@@ -4,7 +4,6 @@
   "outputDirectory": ".next",
   "installCommand": "npm install",
   "env": {
-    "NEXTAUTH_URL": "https://lodgist.ng",
-    "NEXTAUTH_SECRET": "@nextauth_secret"
+    "NEXTAUTH_URL": "https://lodgist.shadowspark-tech.site"
   }
 }

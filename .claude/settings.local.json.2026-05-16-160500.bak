@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -v \"^$\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(d.get\\('name'\\), d.get\\('version'\\), list\\(d.get\\('scripts',{}\\).keys\\(\\)\\)\\)\")",
+      "Bash(npx prisma *)",
+      "Bash(DATABASE_URL=\"postgresql://lodgist_user:lodgist_pass@localhost:5432/lodgist_db\" npx prisma migrate resolve --applied \"20260514000000_add_passkey_credentials_hnw\" --config prisma.config.ts)",
+      "Bash(DATABASE_URL=\"postgresql://lodgist_user:lodgist_pass@localhost:5432/lodgist_db\" npx prisma migrate resolve --applied \"20260516000000_convert_old_lodgist_schema_to_packages_db\" --config prisma.config.ts)",
+      "Bash(DATABASE_URL=\"postgresql://lodgist_user:lodgist_pass@localhost:5432/lodgist_db\" npx prisma *)",
+      "Bash(git *)",
+      "Bash(xargs ls -la)",
+      "Bash(DATABASE_URL=postgresql://lodgist_admin:ShadowLodgist2026%21@shadowspark-spine.cgdee2822czx.us-east-1.rds.amazonaws.com:5432/postgres?schema=public npx prisma migrate status --config prisma.config.ts)",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

@@ -1,0 +1,557 @@
+{
+  "folders": [
+    {
+      "name": "🏠 Lodgist",
+      "path": "lodgist"
+    },
+    {
+      "name": "🎨 Frontend",
+      "path": "frontend"
+    },
+    {
+      "name": "⚙️ Backend",
+      "path": "backend"
+    },
+    {
+      "name": "🧠 AI Core",
+      "path": "packages/ai-core"
+    },
+    {
+      "name": "🗄️ DB",
+      "path": "packages/db"
+    },
+    {
+      "name": "☁️ Infra",
+      "path": "infra"
+    },
+    {
+      "name": "🔌 Perplexity MCP",
+      "path": "VSCode-Perplexity-MCP"
+    }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+      "source.fixAll.eslint": "explicit",
+      "source.organizeImports": "never"
+    },
+    "editor.rulers": [80, 100, 120],
+    "editor.renderWhitespace": "boundary",
+    "editor.tabSize": 2,
+    "editor.detectIndentation": false,
+    "editor.bracketPairColorization.enabled": true,
+    "editor.guides.bracketPairs": true,
+    "editor.minimap.enabled": false,
+
+    "files.exclude": {
+      "**/node_modules/": true,
+      "**/.git/": true,
+      "**/dist/": true,
+      "**/.next/": true,
+      "**/coverage/": true,
+      "**/build/": true
+    },
+    "files.insertFinalNewline": true,
+    "files.trimTrailingWhitespace": true,
+    "files.associations": {
+      "*.css": "tailwindcss",
+      "*.prisma": "prisma",
+      ".env.example": "dotenv",
+      ".env.*": "dotenv"
+    },
+
+    "search.exclude": {
+      "**/node_modules": true,
+      "**/.next": true,
+      "**/pnpm-lock.yaml": true,
+      "**/dist": true,
+      "**/coverage": true,
+      "**/.git": true,
+      "**/package-lock.json": true,
+      "**/*.mhtml": true
+    },
+
+    "typescript.tsdk": "./node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "typescript.preferences.importModuleSpecifier": "relative",
+
+    "terminal.integrated.defaultProfile.linux": "zsh",
+    "terminal.integrated.defaultLocation": "editor",
+    "terminal.integrated.enableMultiLinePasteWarning": "always",
+
+    "npm.packageManager": "pnpm",
+    "npm-intellisense.scopeDevDependencies": true,
+
+    "git.autofetch": true,
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    "git.inputValidationSubjectLength": 72,
+
+    "security.workspace.trust.enabled": true,
+
+    "emmet.includeLanguages": {
+      "postcss": "css"
+    },
+
+    "extensions.ignoreRecommendations": false,
+    "telemetry.telemetryLevel": "off",
+
+    "[prisma]": {
+      "editor.defaultFormatter": "Prisma.prisma"
+    },
+    "[javascript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescript]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[typescriptreact]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[json]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[jsonc]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[markdown]": {
+      "editor.defaultFormatter": "yzhang.markdown-all-in-one"
+    },
+    "[css]": {
+      "editor.defaultFormatter": "esbenp.prettier-vscode"
+    },
+    "[dockerfile]": {
+      "editor.defaultFormatter": "ms-azuretools.vscode-docker"
+    },
+
+    "workbench.colorCustomizations": {
+      "titleBar.activeForeground": "#e7e7e7",
+      "titleBar.inactiveForeground": "#e7e7e799",
+      "titleBar.activeBackground": "#0f1a2e",
+      "titleBar.inactiveBackground": "#0f1a2e99"
+    },
+    "window.title": "${dirty}${activeFolderShort}${separator}${rootName}${separator}${appName}",
+    "workbench.editor.labelFormat": "short",
+
+    "${workspaceFolder:🏠 Lodgist}.lodgist.port": 3000,
+    "${workspaceFolder:🏠 Lodgist}.typescript.tsdk": "${workspaceFolder:🏠 Lodgist}/node_modules/typescript/lib",
+    "${workspaceFolder:🏠 Lodgist}.files.exclude": {
+      "**/node_modules/": true,
+      "**/.next/": true,
+      "**/coverage/": true
+    },
+
+    "${workspaceFolder:🎨 Frontend}.frontend.port": 3001,
+    "${workspaceFolder:🎨 Frontend}.eslint.options": {
+      "configFile": "${workspaceFolder:🎨 Frontend}/eslint.config.mjs"
+    },
+    "${workspaceFolder:🎨 Frontend}.typescript.tsdk": "${workspaceFolder:🎨 Frontend}/node_modules/typescript/lib",
+    "${workspaceFolder:🎨 Frontend}.files.exclude": {
+      "**/node_modules/": true,
+      "**/.next/": true
+    },
+
+    "${workspaceFolder:⚙️ Backend}.backend.port": 4000,
+    "${workspaceFolder:⚙️ Backend}.eslint.options": {
+      "configFile": "${workspaceFolder:⚙️ Backend}/.eslintrc.json"
+    },
+    "${workspaceFolder:⚙️ Backend}.debug.node.autoAttach": "on",
+    "${workspaceFolder:⚙️ Backend}.vitest.configPath": "${workspaceFolder:⚙️ Backend}/vitest.config.js",
+    "${workspaceFolder:⚙️ Backend}.files.exclude": {
+      "**/node_modules/": true
+    },
+
+    "${workspaceFolder:🧠 AI Core}.aicore.port": 4001,
+    "${workspaceFolder:🧠 AI Core}.vitest.configPath": "${workspaceFolder:🧠 AI Core}/vitest.config.js",
+    "${workspaceFolder:🧠 AI Core}.files.exclude": {
+      "**/node_modules/": true
+    },
+
+    "${workspaceFolder:🗄️ DB}.prisma.fileWatcher": true,
+    "${workspaceFolder:🗄️ DB}.prisma.formatOnSave": true,
+    "${workspaceFolder:🗄️ DB}.files.exclude": {
+      "**/node_modules/": true
+    },
+
+    "${workspaceFolder:☁️ Infra}.typescript.tsdk": "${workspaceFolder:☁️ Infra}/node_modules/typescript/lib",
+    "${workspaceFolder:☁️ Infra}.files.exclude": {
+      "**/node_modules/": true,
+      "**/coverage/": true,
+      "**/cdk.out/": true
+    },
+
+    "${workspaceFolder:🔌 Perplexity MCP}.extensions.ignoreRecommendations": true,
+    "${workspaceFolder:🔌 Perplexity MCP}.files.exclude": {
+      "**/node_modules/": true,
+      "**/dist/": true
+    }
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "🏠 Lodgist — Next.js (port 3000)",
+        "type": "node-terminal",
+        "request": "launch",
+        "command": "pnpm dev",
+        "cwd": "${workspaceFolder:🏠 Lodgist}",
+        "serverReadyAction": {
+          "action": "debugWithEdge",
+          "pattern": "\\>\\s+Local:\\s+(https?://[^\\s]+)",
+          "uriFormat": "%s",
+          "webRoot": "${workspaceFolder:🏠 Lodgist}"
+        },
+        "env": {
+          "PORT": "3000",
+          "NODE_ENV": "development"
+        }
+      },
+      {
+        "name": "🎨 Frontend — Next.js (port 3001)",
+        "type": "node-terminal",
+        "request": "launch",
+        "command": "pnpm dev",
+        "cwd": "${workspaceFolder:🎨 Frontend}",
+        "serverReadyAction": {
+          "action": "debugWithEdge",
+          "pattern": "\\>\\s+Local:\\s+(https?://[^\\s]+)",
+          "uriFormat": "%s",
+          "webRoot": "${workspaceFolder:🎨 Frontend}"
+        },
+        "env": {
+          "PORT": "3001",
+          "NODE_ENV": "development"
+        }
+      },
+      {
+        "name": "⚙️ Backend — Express API (port 4000)",
+        "type": "node-terminal",
+        "request": "launch",
+        "command": "node --watch src/index.js",
+        "cwd": "${workspaceFolder:⚙️ Backend}",
+        "env": {
+          "PORT": "4000",
+          "NODE_ENV": "development"
+        },
+        "serverReadyAction": {
+          "action": "openExternally",
+          "pattern": "listening on port (\\d+)",
+          "uriFormat": "http://localhost:%s"
+        }
+      },
+      {
+        "name": "🧠 AI Core — Fraud Detection (port 4001)",
+        "type": "node-terminal",
+        "request": "launch",
+        "command": "node --watch src/index.js",
+        "cwd": "${workspaceFolder:🧠 AI Core}",
+        "env": {
+          "PORT": "4001",
+          "NODE_ENV": "development"
+        },
+        "serverReadyAction": {
+          "action": "openExternally",
+          "pattern": "listening on port (\\d+)",
+          "uriFormat": "http://localhost:%s"
+        }
+      }
+    ],
+    "compounds": [
+      {
+        "name": "🔁 All Servers",
+        "configurations": [
+          "🏠 Lodgist — Next.js (port 3000)",
+          "🎨 Frontend — Next.js (port 3001)",
+          "⚙️ Backend — Express API (port 4000)",
+          "🧠 AI Core — Fraud Detection (port 4001)"
+        ],
+        "stopAll": true
+      }
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "🔁 Start All",
+        "dependsOn": [
+          "🏠 lodgist: dev",
+          "🎨 frontend: dev",
+          "⚙️ backend: dev",
+          "🧠 ai-core: dev"
+        ],
+        "dependsOrder": "parallel",
+        "group": {
+          "kind": "build",
+          "isDefault": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "🏠 lodgist: dev",
+        "type": "shell",
+        "command": "pnpm dev",
+        "options": {
+          "cwd": "${workspaceFolder:🏠 Lodgist}"
+        },
+        "problemMatcher": [],
+        "isBackground": true
+      },
+      {
+        "label": "🎨 frontend: dev",
+        "type": "shell",
+        "command": "pnpm dev",
+        "options": {
+          "cwd": "${workspaceFolder:🎨 Frontend}"
+        },
+        "problemMatcher": [],
+        "isBackground": true
+      },
+      {
+        "label": "⚙️ backend: dev",
+        "type": "shell",
+        "command": "npm run dev",
+        "options": {
+          "cwd": "${workspaceFolder:⚙️ Backend}"
+        },
+        "problemMatcher": [],
+        "isBackground": true
+      },
+      {
+        "label": "🧠 ai-core: dev",
+        "type": "shell",
+        "command": "npm run dev",
+        "options": {
+          "cwd": "${workspaceFolder:🧠 AI Core}"
+        },
+        "problemMatcher": [],
+        "isBackground": true
+      },
+      {
+        "label": "🧪 Test All",
+        "dependsOn": [
+          "🏠 lodgist: test",
+          "⚙️ backend: test",
+          "🧠 ai-core: test",
+          "🗄️ db: test",
+          "☁️ infra: test",
+          "🔌 perplexity-mcp: test"
+        ],
+        "dependsOrder": "parallel",
+        "group": {
+          "kind": "test",
+          "isDefault": true
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "🏠 lodgist: test",
+        "type": "shell",
+        "command": "pnpm test",
+        "options": {
+          "cwd": "${workspaceFolder:🏠 Lodgist}"
+        },
+        "problemMatcher": ["$vitest"]
+      },
+      {
+        "label": "⚙️ backend: test",
+        "type": "shell",
+        "command": "npm test",
+        "options": {
+          "cwd": "${workspaceFolder:⚙️ Backend}"
+        },
+        "problemMatcher": ["$vitest"]
+      },
+      {
+        "label": "🧠 ai-core: test",
+        "type": "shell",
+        "command": "npm test",
+        "options": {
+          "cwd": "${workspaceFolder:🧠 AI Core}"
+        },
+        "problemMatcher": ["$vitest"]
+      },
+      {
+        "label": "🗄️ db: test",
+        "type": "shell",
+        "command": "pnpm test",
+        "options": {
+          "cwd": "${workspaceFolder:🗄️ DB}"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "☁️ infra: test",
+        "type": "shell",
+        "command": "npm test",
+        "options": {
+          "cwd": "${workspaceFolder:☁️ Infra}"
+        },
+        "problemMatcher": ["$jest"]
+      },
+      {
+        "label": "🔌 perplexity-mcp: test",
+        "type": "shell",
+        "command": "npm test",
+        "options": {
+          "cwd": "${workspaceFolder:🔌 Perplexity MCP}"
+        },
+        "problemMatcher": ["$vitest"]
+      },
+      {
+        "label": "🏗️ Build All",
+        "dependsOn": [
+          "🏠 lodgist: build",
+          "🎨 frontend: build",
+          "☁️ infra: build",
+          "🔌 perplexity-mcp: build"
+        ],
+        "dependsOrder": "parallel",
+        "group": {
+          "kind": "build"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "🏠 lodgist: build",
+        "type": "shell",
+        "command": "pnpm build",
+        "options": {
+          "cwd": "${workspaceFolder:🏠 Lodgist}"
+        },
+        "problemMatcher": ["$tsc"]
+      },
+      {
+        "label": "🎨 frontend: build",
+        "type": "shell",
+        "command": "pnpm build",
+        "options": {
+          "cwd": "${workspaceFolder:🎨 Frontend}"
+        },
+        "problemMatcher": ["$tsc"]
+      },
+      {
+        "label": "☁️ infra: build",
+        "type": "shell",
+        "command": "npm run build",
+        "options": {
+          "cwd": "${workspaceFolder:☁️ Infra}"
+        },
+        "problemMatcher": ["$tsc"]
+      },
+      {
+        "label": "🔌 perplexity-mcp: build",
+        "type": "shell",
+        "command": "npm run build",
+        "options": {
+          "cwd": "${workspaceFolder:🔌 Perplexity MCP}"
+        },
+        "problemMatcher": ["$tsc"]
+      },
+      {
+        "label": "📦 Install All",
+        "dependsOn": [
+          "🏠 lodgist: install",
+          "🎨 frontend: install",
+          "⚙️ backend: install",
+          "🧠 ai-core: install",
+          "🗄️ db: install",
+          "☁️ infra: install",
+          "🔌 perplexity-mcp: install"
+        ],
+        "dependsOrder": "parallel",
+        "group": {
+          "kind": "none"
+        },
+        "problemMatcher": []
+      },
+      {
+        "label": "🏠 lodgist: install",
+        "type": "shell",
+        "command": "pnpm install",
+        "options": {
+          "cwd": "${workspaceFolder:🏠 Lodgist}"
+        }
+      },
+      {
+        "label": "🎨 frontend: install",
+        "type": "shell",
+        "command": "pnpm install",
+        "options": {
+          "cwd": "${workspaceFolder:🎨 Frontend}"
+        }
+      },
+      {
+        "label": "⚙️ backend: install",
+        "type": "shell",
+        "command": "npm install",
+        "options": {
+          "cwd": "${workspaceFolder:⚙️ Backend}"
+        }
+      },
+      {
+        "label": "🧠 ai-core: install",
+        "type": "shell",
+        "command": "pnpm install",
+        "options": {
+          "cwd": "${workspaceFolder:🧠 AI Core}"
+        }
+      },
+      {
+        "label": "🗄️ db: install",
+        "type": "shell",
+        "command": "pnpm install",
+        "options": {
+          "cwd": "${workspaceFolder:🗄️ DB}"
+        }
+      },
+      {
+        "label": "☁️ infra: install",
+        "type": "shell",
+        "command": "npm install",
+        "options": {
+          "cwd": "${workspaceFolder:☁️ Infra}"
+        }
+      },
+      {
+        "label": "🔌 perplexity-mcp: install",
+        "type": "shell",
+        "command": "npm install",
+        "options": {
+          "cwd": "${workspaceFolder:🔌 Perplexity MCP}"
+        }
+      }
+    ]
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-vscode.vscode-typescript-next",
+      "dbaeumer.vscode-eslint",
+      "esbenp.prettier-vscode",
+      "Prisma.prisma",
+      "bradlc.vscode-tailwindcss",
+      "vitest.explorer",
+      "usernamehw.errorlens",
+      "eamodio.gitlens",
+      "github.vscode-github-actions",
+      "mhutchie.git-graph",
+      "amazonwebservices.aws-toolkit-vscode",
+      "ms-azuretools.vscode-docker",
+      "ms-vscode.vscode-kubernetes-tools",
+      "ms-vscode-remote.remote-containers",
+      "RooVeterinaryInc.roo-cline",
+      "thekrishnarajput.perplexity-copilot",
+      "continue.continue",
+      "Google.geminicodeassist",
+      "PKief.material-icon-theme",
+      "2gua.rainbow-brackets",
+      "oderwat.indent-rainbow",
+      "christian-kohler.path-intellisense",
+      "wix.vscode-import-cost",
+      "streetsidesoftware.code-spell-checker",
+      "vivaxy.vscode-conventional-commits"
+    ],
+    "unwantedRecommendations": []
+  }
+}

@@ -6,10 +6,13 @@ import {
   CheckCircle,
   Clock,
   AlertTriangle,
-  Loader2,
+  MessageCircle,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+
+const SUPPORT_WA =
+  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2349136094315";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -28,6 +31,7 @@ interface Milestone {
 interface MilestonePaymentProps {
   milestones: Milestone[];
   onPay?: (milestoneId: string) => Promise<void>;
+  bookingId?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -37,9 +41,9 @@ interface MilestonePaymentProps {
 export default function MilestonePayment({
   milestones,
   onPay,
+  bookingId,
 }: MilestonePaymentProps) {
   const [expanded, setExpanded] = useState(false);
-  const [payingId, setPayingId] = useState<string | null>(null);
 
   const totalPaid = milestones
     .filter((m) => m.status === "completed")
@@ -51,14 +55,15 @@ export default function MilestonePayment({
 
   const currency = milestones[0]?.currency ?? "NGN";
 
-  const handlePay = async (id: string) => {
-    if (!onPay) return;
-    setPayingId(id);
-    try {
-      await onPay(id);
-    } finally {
-      setPayingId(null);
-    }
+  const buildWaUrl = (milestone: Milestone) => {
+    const text = encodeURIComponent(
+      `Hi Lodgist Support, I'd like to complete a milestone payment.\n\n` +
+        `Milestone: ${milestone.label}\n` +
+        `Amount: ${milestone.currency} ${milestone.amount.toLocaleString()}\n` +
+        (bookingId ? `Booking ID: ${bookingId}\n` : "") +
+        `\nPlease assist me with next steps.`
+    );
+    return `https://wa.me/${SUPPORT_WA}?text=${text}`;
   };
 
   const statusIcon = (status: string) => {
@@ -157,18 +162,16 @@ export default function MilestonePayment({
                   <p className="font-mono text-sm font-semibold text-off-white">
                     {currency} {m.amount.toLocaleString()}
                   </p>
-                  {m.status === "pending" && onPay && (
-                    <button
-                      onClick={() => handlePay(m.id)}
-                      disabled={payingId === m.id}
-                      className="mt-1 rounded bg-teal px-3 py-1 text-xs font-medium text-white transition-all hover:bg-teal/80 disabled:opacity-50"
+                  {m.status === "pending" && (
+                    <a
+                      href={buildWaUrl(m)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 inline-flex items-center gap-1 rounded bg-green-600 px-3 py-1 text-xs font-medium text-white transition-all hover:bg-green-700"
                     >
-                      {payingId === m.id ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        "Pay Now"
-                      )}
-                    </button>
+                      <MessageCircle className="h-3 w-3" />
+                      Complete via Support
+                    </a>
                   )}
                   {m.status === "completed" && m.completed_at && (
                     <p className="mt-1 text-[10px] text-teal">

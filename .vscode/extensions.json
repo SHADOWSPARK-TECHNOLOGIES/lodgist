@@ -1,6 +1,30 @@
 {
-    "recommendations": [
-        "thekrishnarajput.perplexity-copilot",
-        "ms-kubernetes-tools.vscode-kubernetes-tools"
-    ]
+  "recommendations": [
+    "ms-vscode.vscode-typescript-next",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "Prisma.prisma",
+    "bradlc.vscode-tailwindcss",
+    "vitest.explorer",
+    "usernamehw.errorlens",
+    "eamodio.gitlens",
+    "github.vscode-github-actions",
+    "mhutchie.git-graph",
+    "amazonwebservices.aws-toolkit-vscode",
+    "ms-azuretools.vscode-docker",
+    "ms-vscode.vscode-kubernetes-tools",
+    "ms-vscode-remote.remote-containers",
+    "RooVeterinaryInc.roo-cline",
+    "thekrishnarajput.perplexity-copilot",
+    "continue.continue",
+    "Google.geminicodeassist",
+    "PKief.material-icon-theme",
+    "2gua.rainbow-brackets",
+    "oderwat.indent-rainbow",
+    "christian-kohler.path-intellisense",
+    "wix.vscode-import-cost",
+    "streetsidesoftware.code-spell-checker",
+    "vivaxy.vscode-conventional-commits",
+    "wassimdev.wassimdev-vscode-deepseek"
+  ]
 }

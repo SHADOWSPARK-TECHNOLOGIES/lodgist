@@ -1,0 +1,11 @@
+{
+  "frontend.port": 3001,
+  "typescript.tsdk": "./node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "eslint.options": {
+    "configFile": "./eslint.config.mjs"
+  },
+  "files.associations": {
+    "*.css": "tailwindcss"
+  }
+}

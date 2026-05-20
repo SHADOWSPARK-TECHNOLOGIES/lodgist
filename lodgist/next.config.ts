@@ -1,7 +1,7 @@
 const nextConfig = {
   experimental: {
-    workerThreads: false,
-    cpus: 1
-  }
+    cpus: 2,
+  },
 }
+
 export default nextConfig

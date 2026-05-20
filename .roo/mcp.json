@@ -3,6 +3,54 @@
 		"git-mcp": {
 			"type": "streamable-http",
 			"url": "https://gitmcp.io/Shadow7user/ Shadow7user/lodgist"
+		},
+		"filesystem": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@anthropic/mcp-server-filesystem",
+				"/home/shadowweaver/Desktop/lodgist"
+			]
+		},
+		"postgres": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@anthropic/mcp-server-postgres"
+			],
+			"env": {
+				"POSTGRES_URL": "${POSTGRES_URL}"
+			}
+		},
+		"playwright": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@anthropic/mcp-server-playwright"
+			]
+		},
+		"memory": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@anthropic/mcp-server-memory"
+			]
+		},
+		"sequential-thinking": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@anthropic/mcp-server-sequential-thinking"
+			]
+		},
+		"context7": {
+			"type": "streamable-http",
+			"url": "https://context7-mcp-server.vercel.app/mcp"
 		}
 	}
 }

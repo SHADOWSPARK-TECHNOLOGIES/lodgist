@@ -1,0 +1,12 @@
+{
+  "lodgist.port": 3000,
+  "typescript.tsdk": "./node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true,
+  "vitest.configPath": "./vitest.config.ts",
+  "prisma.fileWatcher": true,
+  "prisma.formatOnSave": true,
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma",
+    "editor.formatOnSave": true
+  }
+}

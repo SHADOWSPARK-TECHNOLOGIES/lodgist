@@ -13,7 +13,7 @@
 
 | Role     | Email                  | Password        |
 |----------|------------------------|-----------------|
-| Admin    | admin@lodgist.ng       | Admin2026!      |
+| STUDIO_ADMIN | admin@lodgist.ng   | Admin2026!      |
 | Landlord | emeka@lodgist.ng       | Landlord2026!   |
 | Landlord | fatima@lodgist.ng      | Landlord2026!   |
 | Tenant   | chioma@lodgist.ng      | Tenant2026!     |

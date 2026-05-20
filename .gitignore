@@ -36,11 +36,19 @@ npm-debug.log*
 # Testing
 coverage/
 .vercel
-file.txt
 
-# Security
+# Security — credential files and sensitive archives
 lodgist-deploy-key.json
-lodgist-deploy-key.json
-node_modules/
-.cache/
-lodgist-deploy-key.json
+REASEARCHED/
+Google/
+github_credentials.txt
+
+# Root-level AI-generated draft files (not part of the app)
+P0_USER_RUNBOOK.sh
+P0_nextauth_complete.ts
+P0_prisma_prod_migration.sh
+P1_verify_payment_api.ts
+P2_truth_schema.prisma
+P2_truth_scoring.ts
+MASTER_MANIFEST.md
+safe_credential_migration.sh

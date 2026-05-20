@@ -1,0 +1,8 @@
+{
+  "aicore.port": 4001,
+  "vitest.configPath": "./vitest.config.js",
+  "debug.node.autoAttach": "on",
+  "files.associations": {
+    "*.ejs": "html"
+  }
+}

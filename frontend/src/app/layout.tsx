@@ -19,13 +19,15 @@ const openSans = Open_Sans({
   display: "swap",
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lodgist.shadowspark-tech.site";
+
 export const metadata: Metadata = {
   title: { default: 'Lodgist — Verified Property in Nigeria', template: '%s | Lodgist' },
   description: "Nigeria's most trusted property listing platform. Zero fraud. Verified landlords. Rent escrow protected.",
   keywords: ['property Nigeria', 'rent Imo State', 'verified listings', 'Lagos apartments', 'no agent fee', 'Owerri property'],
   authors: [{ name: 'ShadowSpark Technologies' }],
   openGraph: {
-    type: 'website', locale: 'en_NG', url: 'https://lodgist.ng', siteName: 'Lodgist',
+    type: 'website', locale: 'en_NG', url: siteUrl, siteName: 'Lodgist',
     images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Lodgist — Verified Property Nigeria' }],
   },
   twitter: { card: 'summary_large_image', creator: '@lodgist_ng' },
@@ -48,7 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <NavBar />
             <main>{children}</main>
             {/* WhatsApp float */}
-            <a href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace('+','') || '2348000000000'}`}
+            <a href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace('+','') || '2349136094315'}`}
                target="_blank" rel="noopener noreferrer"
                className="wa-float" aria-label="Chat on WhatsApp">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor">

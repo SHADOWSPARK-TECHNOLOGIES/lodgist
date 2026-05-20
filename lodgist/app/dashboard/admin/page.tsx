@@ -327,4 +327,4 @@ const AdminDashboard = () => {
 
 export const dynamic = "force-dynamic";
 
-export default withRole(AdminDashboard, { allowedRoles: ["ADMIN"] });
+export default withRole(AdminDashboard, { allowedRoles: ["STUDIO_ADMIN"] });

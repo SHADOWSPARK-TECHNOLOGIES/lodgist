@@ -1,0 +1,32 @@
+# ─── Ngrok Configuration for Lodgist WhatsApp Webhook Testing ────────────────
+# 
+# Usage:
+#   1. Install ngrok: https://ngrok.com/download
+#   2. Authenticate: ngrok config add-authtoken YOUR_AUTH_TOKEN
+#   3. Run: ngrok start --config=backend/ngrok.yml whatsapp-webhook
+#   4. Copy the HTTPS URL to Meta WhatsApp Cloud API webhook config
+#   5. Set WHATSAPP_PUBLIC_URL in backend/.env to the ngrok URL
+#
+# Meta Cloud API Setup:
+#   - Callback URL: https://YOUR_NGROK_SUBDOMAIN.ngrok.io/api/whatsapp/webhook
+#   - Verify Token: lodgist_verify_2026
+#   - Subscribe to: messages, message_deliveries, message_reads
+
+version: "3"
+agent:
+  # Log all requests for debugging
+  log_level: info
+
+tunnels:
+  whatsapp-webhook:
+    proto: http
+    addr: 4000
+    # Optional: Reserve a fixed subdomain on your paid ngrok plan
+    # subdomain: lodgist-whatsapp
+    # Inspect requests in browser at http://127.0.0.1:4040
+    inspect: true
+    # Request headers to forward (Meta sends x-hub-signature-256)
+    request_header:
+      - "x-forwarded-proto: https"
+    # Metadata tags for identification
+    metadata: "Lodgist WhatsApp Webhook Dev"

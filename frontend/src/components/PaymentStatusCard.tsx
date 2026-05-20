@@ -7,10 +7,13 @@ import {
   Clock,
   XCircle,
   AlertTriangle,
+  MessageCircle,
   ChevronDown,
   ChevronUp,
-  Loader2,
 } from "lucide-react";
+
+const SUPPORT_WA =
+  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2349136094315";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -71,10 +74,8 @@ const statusConfig: Record<
 
 export default function PaymentStatusCard({
   payments,
-  onRetry,
 }: PaymentStatusCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const totalCompleted = payments
     .filter((p) => p.status === "completed")
@@ -86,14 +87,15 @@ export default function PaymentStatusCard({
 
   const currency = payments[0]?.currency ?? "NGN";
 
-  const handleRetry = async (id: string) => {
-    if (!onRetry) return;
-    setRetryingId(id);
-    try {
-      await onRetry(id);
-    } finally {
-      setRetryingId(null);
-    }
+  const buildWaUrl = (p: Payment) => {
+    const text = encodeURIComponent(
+      `Hi Lodgist Support, I need help with a payment.\n\n` +
+        `Reference: ${p.reference}\n` +
+        `Amount: ${p.currency} ${p.amount.toLocaleString()}\n` +
+        `Status: ${p.status}\n\n` +
+        `Please assist me.`
+    );
+    return `https://wa.me/${SUPPORT_WA}?text=${text}`;
   };
 
   if (payments.length === 0) {
@@ -181,18 +183,16 @@ export default function PaymentStatusCard({
                     >
                       {cfg.label}
                     </span>
-                    {p.status === "failed" && onRetry && (
-                      <button
-                        onClick={() => handleRetry(p.id)}
-                        disabled={retryingId === p.id}
-                        className="ml-2 rounded bg-teal px-2 py-0.5 text-[10px] font-medium text-white transition-all hover:bg-teal/80 disabled:opacity-50"
+                    {p.status === "failed" && (
+                      <a
+                        href={buildWaUrl(p)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-2 inline-flex items-center gap-1 rounded bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white transition-all hover:bg-green-700"
                       >
-                        {retryingId === p.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          "Retry"
-                        )}
-                      </button>
+                        <MessageCircle className="h-3 w-3" />
+                        Contact Support
+                      </a>
                     )}
                   </div>
                 </div>

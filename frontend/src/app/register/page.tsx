@@ -51,7 +51,7 @@ export default function RegisterPage() {
           </div>
           <div>
             <label className="label">Phone (optional)</label>
-            <input type="tel" className="input" placeholder="+234 800 000 0000"
+            <input type="tel" className="input" placeholder="+234 913 609 4315"
               value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
           <div>
