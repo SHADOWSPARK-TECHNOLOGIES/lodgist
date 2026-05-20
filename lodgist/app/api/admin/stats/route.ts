@@ -85,10 +85,12 @@ export async function GET(req: NextRequest) {
       pendingVerifications,
       totalBookings,
       totalUsers,
-      listingsPerState: listingsPerState.map((entry) => ({
-        state: entry.state,
-        count: entry._count.id,
-      })),
+      listingsPerState: listingsPerState.map(
+        (entry: { state: string; _count: { id: number } }) => ({
+          state: entry.state,
+          count: entry._count.id,
+        }),
+      ),
       recentBookings,
     });
   } catch (error) {
