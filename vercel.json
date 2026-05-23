@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "installCommand": "cd lodgist && pnpm install",
+  "installCommand": "cd lodgist && pnpm install --no-frozen-lockfile",
   "buildCommand": "cd lodgist && npx prisma generate --config prisma.config.ts && next build",
   "outputDirectory": "lodgist/.next"
 }
