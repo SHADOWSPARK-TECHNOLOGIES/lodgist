@@ -1,6 +1,0 @@
-{
-  "framework": "nextjs",
-  "installCommand": "cd lodgist && npm install",
-  "buildCommand": "cd lodgist && npm install --prefix ../packages/db || true && npx prisma generate --config prisma.config.ts && next build",
-  "outputDirectory": "lodgist/.next"
-}

@@ -52,3 +52,6 @@ P2_truth_schema.prisma
 P2_truth_scoring.ts
 MASTER_MANIFEST.md
 safe_credential_migration.sh
+.env*
+packages/ai-core/node_modules/
+node_modules/
