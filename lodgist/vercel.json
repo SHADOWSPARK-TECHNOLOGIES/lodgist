@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm install --prefix ../packages/db || true && npx prisma generate --config prisma.config.ts && next build",
+  "buildCommand": "npx prisma generate --config prisma.config.ts && next build",
   "outputDirectory": ".next",
-  "installCommand": "npm install"
+  "installCommand": "pnpm install --no-frozen-lockfile"
 }
