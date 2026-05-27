@@ -108,8 +108,13 @@ model User {
   ownedProperties   Property[]
   profile           Profile?
   referrals         Referral[]
-  accounts          Account[]
-  sessions          Session[]
+  accounts                Account[]
+  sessions                Session[]
+  verificationSubmissions VerificationRequest[] @relation("VerificationSubmissions")
+  verificationReviews     VerificationRequest[] @relation("VerificationReviews")
+  fraudSignalReports      FraudSignal[]         @relation("FraudReports")
+  fraudSignalResolutions  FraudSignal[]         @relation("FraudResolutions")
+  adminActions            AdminAction[]         @relation("AdminActions")
 
   @@index([email])
   @@index([whatsappId])
@@ -173,6 +178,8 @@ model Listing {
   views           Int              @default(0)
   isFlaggedForFraud Boolean         @default(false)
   fraudReason       String?
+  riskState         RiskState       @default(UNVERIFIED)
+  truthIndex        Int?
 
   // Nigerian real estate metadata
   totalMoveInCost Json?            // { base_rent, agency_fee, legal_fee, caution_fee, inspection_fee?, currency, total }
@@ -190,8 +197,11 @@ model Listing {
   fraudSignals      AIFraudSignal[]
   reviews           Review[]
   escrowTransactions EscrowTransaction[]
-  fraudReports      FraudReport[]
-  whatsappSessions  WhatsAppSession[]
+  fraudReports         FraudReport[]
+  whatsappSessions     WhatsAppSession[]
+  verificationRequests VerificationRequest[]
+  trustSignals         FraudSignal[]
+  trustComponents      TrustComponent[]
 
   @@index([ownerId])
   @@index([category])
@@ -502,4 +512,137 @@ model PasskeyChallenge {
   @@index([userId])
   @@index([challenge])
   @@index([expiresAt])
+}
+
+// ── Trust Layer Enums ──────────────────────────────────────────────────────
+
+enum RiskState {
+  VERIFIED
+  UNVERIFIED
+  UNDER_REVIEW
+  FLAGGED
+  SUSPENDED
+}
+
+enum VerificationStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  NEEDS_MORE_INFO
+}
+
+enum FraudSignalType {
+  DUPLICATE_LISTING
+  FAKE_DOCUMENT
+  PRICE_MANIPULATION
+  IDENTITY_MISMATCH
+  SUSPICIOUS_ACTIVITY
+  USER_REPORT
+  AGENT_REPORT
+}
+
+enum SignalSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SignalSource {
+  SYSTEM
+  USER_REPORT
+  ADMIN_MANUAL
+  AGENT_REPORT
+}
+
+enum SignalStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+enum AdminActionType {
+  RISK_STATE_OVERRIDE
+  FRAUD_SIGNAL_CREATED
+  FRAUD_SIGNAL_RESOLVED
+  VERIFICATION_APPROVED
+  VERIFICATION_REJECTED
+}
+
+// ── Trust Layer Models ─────────────────────────────────────────────────────
+
+model VerificationRequest {
+  id            String             @id @default(cuid())
+  listingId     Int
+  listing       Listing            @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  submittedById Int
+  submittedBy   User               @relation("VerificationSubmissions", fields: [submittedById], references: [id])
+  status        VerificationStatus @default(PENDING)
+  documentUrls  String[]
+  notes         String?
+  reviewNote    String?
+  reviewedById  Int?
+  reviewedBy    User?              @relation("VerificationReviews", fields: [reviewedById], references: [id])
+  reviewedAt    DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([listingId])
+  @@index([status])
+  @@index([submittedById])
+}
+
+model FraudSignal {
+  id           String          @id @default(cuid())
+  listingId    Int
+  listing      Listing         @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  signalType   FraudSignalType
+  severity     SignalSeverity  @default(MEDIUM)
+  source       SignalSource
+  description  String
+  status       SignalStatus    @default(OPEN)
+  reportedById Int?
+  reportedBy   User?           @relation("FraudReports", fields: [reportedById], references: [id])
+  resolvedById Int?
+  resolvedBy   User?           @relation("FraudResolutions", fields: [resolvedById], references: [id])
+  resolvedAt   DateTime?
+  metadata     Json?
+  createdAt    DateTime        @default(now())
+
+  @@index([listingId])
+  @@index([status])
+  @@index([severity])
+}
+
+model TrustComponent {
+  id           String    @id @default(cuid())
+  listingId    Int
+  listing      Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  componentKey String
+  label        String
+  passed       Boolean   @default(false)
+  weight       Int
+  notes        String?
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([listingId, componentKey])
+  @@index([listingId])
+}
+
+model AdminAction {
+  id              String          @id @default(cuid())
+  adminId         Int
+  admin           User            @relation("AdminActions", fields: [adminId], references: [id])
+  actionType      AdminActionType
+  targetListingId Int?
+  targetUserId    Int?
+  payload         Json
+  createdAt       DateTime        @default(now())
+
+  @@index([adminId])
+  @@index([targetListingId])
 }

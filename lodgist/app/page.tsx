@@ -122,34 +122,42 @@ function Navbar() {
 
         {/* Desktop Nav */}
         <nav className="hidden items-center gap-8 md:flex">
-          {["Properties", "How It Works", "About"].map((link) => (
+          {[
+            { label: "Properties", href: "/search" },
+            { label: "How It Works", href: "#how-it-works" },
+            { label: "About", href: "#" },
+          ].map((link) => (
             <Link
-              key={link}
-              href="#"
+              key={link.label}
+              href={link.href}
               className={cn(
                 "text-sm font-medium transition-colors hover:text-[#FF6F3C]",
                 scrolled ? "text-[#0B1B2B]" : "text-white/90",
               )}
             >
-              {link}
+              {link.label}
             </Link>
           ))}
         </nav>
 
         {/* Desktop Buttons */}
         <div className="hidden items-center gap-3 md:flex">
-          <Button
-            variant="ghost"
-            className={cn(
-              "text-sm font-medium",
-              scrolled ? "text-[#0B1B2B]" : "text-white/90 hover:text-white hover:bg-white/10",
-            )}
-          >
-            List Property
-          </Button>
-          <Button className="bg-[#FF6F3C] text-white hover:bg-[#e85d2c] text-sm font-semibold px-5">
-            Sign In
-          </Button>
+          <Link href="/register">
+            <Button
+              variant="ghost"
+              className={cn(
+                "text-sm font-medium",
+                scrolled ? "text-[#0B1B2B]" : "text-white/90 hover:text-white hover:bg-white/10",
+              )}
+            >
+              List Property
+            </Button>
+          </Link>
+          <Link href="/login">
+            <Button className="bg-[#FF6F3C] text-white hover:bg-[#e85d2c] text-sm font-semibold px-5">
+              Sign In
+            </Button>
+          </Link>
         </div>
 
         {/* Mobile Hamburger */}
@@ -169,23 +177,31 @@ function Navbar() {
       {menuOpen && (
         <div className="border-t bg-white px-4 pb-5 pt-3 md:hidden">
           <nav className="flex flex-col gap-3">
-            {["Properties", "How It Works", "About"].map((link) => (
+            {[
+              { label: "Properties", href: "/search" },
+              { label: "How It Works", href: "#how-it-works" },
+              { label: "About", href: "#" },
+            ].map((link) => (
               <Link
-                key={link}
-                href="#"
+                key={link.label}
+                href={link.href}
                 className="text-sm font-medium text-[#0B1B2B] hover:text-[#FF6F3C]"
                 onClick={() => setMenuOpen(false)}
               >
-                {link}
+                {link.label}
               </Link>
             ))}
             <hr className="my-2" />
-            <Button variant="ghost" className="justify-start text-sm text-[#0B1B2B]">
-              List Property
-            </Button>
-            <Button className="bg-[#FF6F3C] text-white hover:bg-[#e85d2c] text-sm font-semibold w-full">
-              Sign In
-            </Button>
+            <Link href="/register" onClick={() => setMenuOpen(false)}>
+              <Button variant="ghost" className="justify-start text-sm text-[#0B1B2B] w-full">
+                List Property
+              </Button>
+            </Link>
+            <Link href="/login" onClick={() => setMenuOpen(false)}>
+              <Button className="bg-[#FF6F3C] text-white hover:bg-[#e85d2c] text-sm font-semibold w-full">
+                Sign In
+              </Button>
+            </Link>
           </nav>
         </div>
       )}
@@ -328,7 +344,7 @@ function FeaturedListings() {
             </p>
           </div>
           <Link
-            href="#"
+            href="/search"
             className="flex items-center gap-1.5 text-sm font-semibold text-[#1ABC9C] transition-colors hover:text-[#15a082]"
           >
             View All Properties
@@ -343,9 +359,11 @@ function FeaturedListings() {
         </div>
 
         <div className="mt-10 text-center">
-          <Button className="bg-[#1ABC9C] px-8 py-3 text-sm font-semibold text-white hover:bg-[#15a082]">
-            View All Properties
-          </Button>
+          <Link href="/search">
+            <Button className="bg-[#1ABC9C] px-8 py-3 text-sm font-semibold text-white hover:bg-[#15a082]">
+              View All Properties
+            </Button>
+          </Link>
         </div>
       </div>
     </section>
@@ -475,11 +493,11 @@ function TruthIndexExplainer() {
               We flag it for review. No more guessing if a listing is real.
             </p>
             <Link
-              href="#"
-              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1ABC9C] transition-colors hover:text-[#15a082]"
+            href="/search"
+            className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1ABC9C] transition-colors hover:text-[#15a082]"
             >
-              Learn how the algorithm works
-              <ArrowRight className="h-4 w-4" />
+            Browse verified properties
+            <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
 
@@ -557,10 +575,9 @@ function TrustStatsBanner() {
 
 function Footer() {
   const footerLinks = [
-    { label: "Properties", href: "#" },
-    { label: "Landlords", href: "#" },
-    { label: "Agents", href: "#" },
-    { label: "Blog", href: "#" },
+    { label: "Properties", href: "/search" },
+    { label: "Landlords", href: "/search" },
+    { label: "Agents", href: "/verify" },
     { label: "Privacy", href: "#" },
     { label: "Terms", href: "#" },
   ];

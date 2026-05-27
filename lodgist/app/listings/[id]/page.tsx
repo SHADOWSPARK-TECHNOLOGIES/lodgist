@@ -310,6 +310,75 @@ export default async function ListingDetailPage({ params }: PageProps) {
               bgColor={truthBgColor}
             />
 
+            {/* ── 4. Why This Score ────────────────────────────────────── */}
+            <Card>
+              <CardContent className="p-6 sm:p-8">
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-[#0B1B2B]">
+                  <Shield className="h-5 w-5 text-[#1ABC9C]" />
+                  Why This Score?
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  The Truth Index is Lodgist&apos;s proprietary AI-powered scoring system. It evaluates
+                  each listing across five dimensions to give you a single trustworthy score out of 100.
+                  A score of <span className="font-semibold text-[#1ABC9C]">80+ means low risk</span> —
+                  the listing has passed all verification checks.
+                </p>
+                <ul className="mt-4 space-y-2">
+                  {[
+                    { label: "Images (20%)", desc: "Are the photos real, high-quality, and consistent?" },
+                    { label: "Description (15%)", desc: "Does the listing text match the actual property?" },
+                    { label: "Owner Verification (25%)", desc: "Has the landlord&apos;s identity been confirmed?" },
+                    { label: "Price Fairness (20%)", desc: "Is the rent realistic for the area and property type?" },
+                    { label: "Reviews & History (20%)", desc: "What do previous tenants say? Any fraud flags?" },
+                  ].map((item) => (
+                    <li key={item.label} className="flex items-start gap-2 text-sm">
+                      <Star className="mt-0.5 h-4 w-4 shrink-0 text-[#1ABC9C]" />
+                      <div>
+                        <span className="font-medium text-[#0B1B2B]">{item.label}</span>
+                        <span className="text-muted-foreground"> — {item.desc}</span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+
+            {/* ── 5. What to Check Before Paying ─────────────────────────── */}
+            <Card>
+              <CardContent className="p-6 sm:p-8">
+                <h2 className="flex items-center gap-2 text-lg font-semibold text-[#0B1B2B]">
+                  <Shield className="h-5 w-5 text-[#1ABC9C]" />
+                  What to Check Before Paying
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+                  Protect yourself from property fraud. Follow these steps before making any payment.
+                </p>
+                <div className="mt-4 space-y-3">
+                  {[
+                    { icon: "📸", title: "Request a live video tour", desc: "Ask the landlord to show the property on a WhatsApp video call. Compare with listing photos." },
+                    { icon: "📋", title: "Confirm the owner&apos;s identity", desc: "Ask for a government-issued ID and verify the name matches the property documents." },
+                    { icon: "🤝", title: "Insist on escrow payment", desc: "Never pay rent directly. Use Lodgist Escrow — funds are released only after you inspect and confirm." },
+                    { icon: "🏛️", title: "Verify land documents", desc: "For landed properties, confirm the Certificate of Occupancy (C of O) or survey plan with the state land registry." },
+                    { icon: "🔍", title: "Search for past fraud reports", desc: "Check if this listing or landlord has been reported for fraud on our platform." },
+                  ].map((item) => (
+                    <div key={item.title} className="flex items-start gap-3 rounded-lg bg-amber-50 p-3">
+                      <span className="text-lg">{item.icon}</span>
+                      <div>
+                        <p className="text-sm font-medium text-[#0B1B2B]">{item.title}</p>
+                        <p className="text-xs text-muted-foreground">{item.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-lg border border-[#1ABC9C]/20 bg-[#1ABC9C]/5 p-3">
+                  <p className="text-xs leading-relaxed text-[#1ABC9C]">
+                    <strong>Pro tip:</strong> Only make payments through Lodgist&apos;s escrow system.
+                    If a landlord asks for payment outside the platform, report them immediately.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* ── 6. Reviews Section ────────────────────────────────────── */}
             <ReviewsSection
               reviews={reviews.map((r) => ({
@@ -380,7 +449,47 @@ export default async function ListingDetailPage({ params }: PageProps) {
             {/* ── 5. Booking Form ────────────────────────────────────────── */}
             <BookingForm listingId={String(listing.id)} price={listing.price} />
 
-            {/* ── 7. Report Fraud Button ──────────────────────────────────── */}
+            {/* ── Escrow / Payment Protection ────────────────────────── */}
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1ABC9C]/10">
+                    <Shield className="h-6 w-6 text-[#1ABC9C]" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[#0B1B2B]">Payment Protection</p>
+                    <p className="text-xs text-[#1ABC9C] font-medium">
+                      Escrow Ready ✓
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+                  This listing supports Lodgist Escrow. Your payment is held securely
+                  and released only after you confirm the property matches the listing.
+                  <Link href="/verify" className="ml-1 font-medium text-[#1ABC9C] hover:underline">
+                    Learn more
+                  </Link>
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* ── Request Verification CTA ──────────────────────────────── */}
+            <Card>
+              <CardContent className="p-6 text-center">
+                <p className="text-sm font-semibold text-[#0B1B2B]">Not sure about this listing?</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Request a manual verification check by our team.
+                </p>
+                <Link href="/verify">
+                  <Button className="mt-4 w-full bg-[#FF6F3C] text-white hover:bg-[#e85d2c]">
+                    <Shield className="h-4 w-4" />
+                    Request Verification
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+
+            {/* ── Report Fraud Button ──────────────────────────────────── */}
             <Card>
               <CardContent className="p-6">
                 <form action="/api/fraud-reports" method="POST">
