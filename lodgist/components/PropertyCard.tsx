@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Bed, Bath, MapPin, BadgeCheck, Star } from "lucide-react";
+import { Bed, Bath, MapPin, BadgeCheck, Star, AlertTriangle, Shield } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import {
@@ -7,6 +7,8 @@ import {
   CardContent,
   CardFooter,
 } from "@/components/ui/card";
+import { TrustBadge } from "@/components/TrustBadge";
+import type { VerificationState } from "@/components/TrustBadge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -68,6 +70,21 @@ function showRoomCounts(propertyType: string): boolean {
   return propertyType === "apartment" || propertyType === "house";
 }
 
+/** Derive verification state from truth index. */
+function getVerificationState(index: number): VerificationState {
+  if (index >= 80) return "verified";
+  if (index >= 50) return "under_review";
+  if (index > 0) return "flagged";
+  return "pending";
+}
+
+/** Human-readable trust summary. */
+function getTrustSummary(index: number): { label: string; icon: typeof Shield; color: string } {
+  if (index >= 80) return { label: "Low risk — verified listing", icon: BadgeCheck, color: "text-[#1ABC9C]" };
+  if (index >= 50) return { label: "Medium risk — review before paying", icon: AlertTriangle, color: "text-amber-600" };
+  return { label: "High risk — proceed with caution", icon: AlertTriangle, color: "text-red-600" };
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -92,6 +109,9 @@ export default function PropertyCard({ listing }: { listing: Listing }) {
       : "/placeholder-property.svg";
 
   const showRooms = showRoomCounts(propertyType);
+  const verificationState = getVerificationState(truthIndex);
+  const trustSummary = getTrustSummary(truthIndex);
+  const TrustSummaryIcon = trustSummary.icon;
 
   return (
     <Link href={`/listings/${id}`} className="block">
@@ -114,6 +134,11 @@ export default function PropertyCard({ listing }: { listing: Listing }) {
             <Star className="h-3 w-3 fill-current" />
             {truthIndex}
           </span>
+
+          {/* Verification badge (bottom-left) */}
+          <div className="absolute bottom-2 left-2">
+            <TrustBadge state={verificationState} size="sm" />
+          </div>
         </div>
 
         {/* ---- Content ---- */}
@@ -156,6 +181,14 @@ export default function PropertyCard({ listing }: { listing: Listing }) {
               )}
             </div>
           )}
+
+          {/* Trust summary */}
+          <div className="flex items-center gap-1.5 text-xs">
+            <TrustSummaryIcon className={cn("h-3.5 w-3.5", trustSummary.color)} />
+            <span className={cn("font-medium", trustSummary.color)}>
+              {trustSummary.label}
+            </span>
+          </div>
         </CardContent>
 
         {/* ---- Footer / Owner ---- */}
