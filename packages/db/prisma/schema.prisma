@@ -181,6 +181,12 @@ model Listing {
   riskState         RiskState       @default(UNVERIFIED)
   truthIndex        Int?
 
+  // Student housing fields
+  isStudentLodge   Boolean  @default(false)
+  nearbySchool     String?
+  distanceToSchool String?
+  studentAmenities String[]
+
   // Nigerian real estate metadata
   totalMoveInCost Json?            // { base_rent, agency_fee, legal_fee, caution_fee, inspection_fee?, currency, total }
   availableFrom   DateTime?

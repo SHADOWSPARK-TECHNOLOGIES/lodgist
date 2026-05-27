@@ -24,15 +24,23 @@ export async function GET(
 
   await initializeTrustComponents(listingId, prisma);
 
-  const components = await prisma.trustComponent.findMany({
-    where: { listingId },
-    select: { label: true, passed: true, weight: true, notes: true },
-    orderBy: { weight: "desc" },
-  });
+  const [components, latestRequest] = await Promise.all([
+    prisma.trustComponent.findMany({
+      where: { listingId },
+      select: { label: true, passed: true, weight: true, notes: true },
+      orderBy: { weight: "desc" },
+    }),
+    prisma.verificationRequest.findFirst({
+      where: { listingId },
+      orderBy: { createdAt: "desc" },
+      select: { status: true },
+    }),
+  ]);
 
   return NextResponse.json({
     riskState: listing.riskState,
     truthIndex: listing.truthIndex ?? 0,
+    verificationStatus: latestRequest?.status ?? null,
     components,
   });
 }

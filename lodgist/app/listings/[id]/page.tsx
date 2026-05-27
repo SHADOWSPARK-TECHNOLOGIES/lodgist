@@ -22,6 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import PropertyCard from "@/components/PropertyCard";
 import { ImageGallery } from "./ImageGallery";
 import { TruthIndexCard } from "./TruthIndexCard";
+import { TrustSection } from "./TrustSection";
 import { BookingForm } from "./BookingForm";
 import { ReviewsSection } from "./ReviewsSection";
 import { cn } from "@/lib/utils";
@@ -301,7 +302,10 @@ export default async function ListingDetailPage({ params }: PageProps) {
               </CardContent>
             </Card>
 
-            {/* ── 3. Truth Index Score Card ─────────────────────────────── */}
+            {/* ── 3. Trust & Verification Panel (live from API) ─────────── */}
+            <TrustSection listingId={String(listing.id)} />
+
+            {/* ── 4. Truth Index Score Card (breakdown) ────────────────── */}
             <TruthIndexCard
               score={truthIndex}
               breakdown={null}
