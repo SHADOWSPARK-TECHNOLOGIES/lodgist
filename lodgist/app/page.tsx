@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Menu, X, Search, ChevronDown, Star, Shield, Zap, MapPin, TrendingUp, ArrowRight, MessageCircle, Home as HomeIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -212,11 +213,19 @@ function Navbar() {
 // ─── Hero Section ────────────────────────────────────────────────────────────
 
 function HeroSection() {
+  const router = useRouter();
   const states = getAllStateNames();
   const [selectedState, setSelectedState] = useState("");
   const [selectedType, setSelectedType] = useState("");
   const [stateOpen, setStateOpen] = useState(false);
   const [typeOpen, setTypeOpen] = useState(false);
+
+  function handleSearch() {
+    const params = new URLSearchParams();
+    if (selectedState) params.set("state", selectedState);
+    if (selectedType) params.set("type", selectedType.toLowerCase());
+    router.push(`/search${params.size > 0 ? `?${params}` : ""}`);
+  }
 
   return (
     <section className="relative flex min-h-[90vh] items-center justify-center overflow-hidden bg-[#0B1B2B] px-4 pt-20 pb-16 sm:px-6 lg:px-8">
@@ -304,7 +313,10 @@ function HeroSection() {
             )}
           </div>
 
-          <Button className="flex items-center gap-2 bg-[#FF6F3C] px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#e85d2c] sm:w-auto">
+          <Button
+            onClick={handleSearch}
+            className="flex items-center gap-2 bg-[#FF6F3C] px-8 py-3 text-sm font-semibold text-white shadow-sm hover:bg-[#e85d2c] sm:w-auto"
+          >
             <Search className="h-4 w-4" />
             Search
           </Button>

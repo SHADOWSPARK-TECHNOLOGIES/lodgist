@@ -127,11 +127,17 @@ export default function VerifyPage() {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    setIsSubmitting(false);
-    setSubmitted(true);
+    try {
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      setSubmitted(true);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   // ─── Submitted state ─────────────────────────────────────────────────

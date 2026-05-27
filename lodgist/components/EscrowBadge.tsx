@@ -20,7 +20,7 @@ export interface EscrowBadgeProps {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const ESCOW_CONFIG: Record<
+const ESCROW_CONFIG: Record<
   EscrowStatus,
   { icon: typeof ShieldCheck; label: string; colors: string; iconColors: string }
 > = {
@@ -55,7 +55,7 @@ export function EscrowBadge({
   size = "md",
   className,
 }: EscrowBadgeProps) {
-  const cfg = ESCOW_CONFIG[status];
+  const cfg = ESCROW_CONFIG[status];
   const Icon = cfg.icon;
 
   const sizeClasses = {
