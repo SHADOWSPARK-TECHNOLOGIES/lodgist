@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, SlidersHorizontal, ChevronDown, X, MapPin, Star, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -322,9 +323,14 @@ function ResultsBar({ count, sortBy, setSortBy }: {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function SearchPage() {
+  const params = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedState, setSelectedState] = useState("");
-  const [selectedType, setSelectedType] = useState("All");
+  const [selectedState, setSelectedState] = useState(params.get("state") ?? "");
+  const [selectedType, setSelectedType] = useState(
+    params.get("type")
+      ? params.get("type")!.charAt(0).toUpperCase() + params.get("type")!.slice(1)
+      : "All",
+  );
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [minTrust, setMinTrust] = useState("");

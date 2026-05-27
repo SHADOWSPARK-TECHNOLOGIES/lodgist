@@ -246,7 +246,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
                     </div>
                     <div className="flex flex-wrap items-center gap-3 text-sm">
                       <span className="rounded-full bg-[#1ABC9C]/10 px-3 py-1 text-xs font-medium text-[#1ABC9C]">
-                        {propertyTypeLabel(listing.title) || "Property"}
+                        {propertyTypeLabel(listing.category.toLowerCase()) || "Property"}
                       </span>
                       <span className="flex items-center gap-1 text-muted-foreground">
                         <Calendar className="h-3.5 w-3.5" />
@@ -327,7 +327,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
                   {[
                     { label: "Images (20%)", desc: "Are the photos real, high-quality, and consistent?" },
                     { label: "Description (15%)", desc: "Does the listing text match the actual property?" },
-                    { label: "Owner Verification (25%)", desc: "Has the landlord&apos;s identity been confirmed?" },
+                    { label: "Owner Verification (25%)", desc: "Has the landlord's identity been confirmed?" },
                     { label: "Price Fairness (20%)", desc: "Is the rent realistic for the area and property type?" },
                     { label: "Reviews & History (20%)", desc: "What do previous tenants say? Any fraud flags?" },
                   ].map((item) => (
@@ -356,7 +356,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
                 <div className="mt-4 space-y-3">
                   {[
                     { icon: "📸", title: "Request a live video tour", desc: "Ask the landlord to show the property on a WhatsApp video call. Compare with listing photos." },
-                    { icon: "📋", title: "Confirm the owner&apos;s identity", desc: "Ask for a government-issued ID and verify the name matches the property documents." },
+                    { icon: "📋", title: "Confirm the owner's identity", desc: "Ask for a government-issued ID and verify the name matches the property documents." },
                     { icon: "🤝", title: "Insist on escrow payment", desc: "Never pay rent directly. Use Lodgist Escrow — funds are released only after you inspect and confirm." },
                     { icon: "🏛️", title: "Verify land documents", desc: "For landed properties, confirm the Certificate of Occupancy (C of O) or survey plan with the state land registry." },
                     { icon: "🔍", title: "Search for past fraud reports", desc: "Check if this listing or landlord has been reported for fraud on our platform." },
