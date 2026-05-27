@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, SlidersHorizontal, ChevronDown, X, MapPin, Star, Shield } from "lucide-react";
@@ -322,7 +322,7 @@ function ResultsBar({ count, sortBy, setSortBy }: {
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-export default function SearchPage() {
+function SearchContent() {
   const params = useSearchParams();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedState, setSelectedState] = useState(params.get("state") ?? "");
@@ -439,5 +439,13 @@ export default function SearchPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SearchPage() {
+  return (
+    <Suspense>
+      <SearchContent />
+    </Suspense>
   );
 }
