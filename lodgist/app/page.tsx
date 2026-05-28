@@ -11,80 +11,6 @@ import PropertyCard from "@/components/PropertyCard";
 import { getAllStateNames } from "@/lib/data/nigerianLgas";
 import type { Listing } from "@/components/PropertyCard";
 
-// ─── Listings (sourced from nigeriapropertycentre.com & propertypro.ng) ────────
-
-const MOCK_LISTINGS: Listing[] = [
-  {
-    id: "1",
-    title: "Luxury 3-Bedroom Apartment + BQ, Pool, Gym & Tennis Court",
-    price: 40000000,
-    location: { address: "Banana Island Estate", lga: "Eti-Osa", state: "Lagos" },
-    propertyType: "apartment",
-    bedrooms: 3,
-    bathrooms: 3,
-    amenities: ["Pool", "Gym", "Tennis Court", "BQ", "Security", "Parking"],
-    truthIndex: 88,
-    owner: { name: "Emeka Eze", verified: true },
-  },
-  {
-    id: "2",
-    title: "Four Bedroom Terrace Duplex + 2-Room BQ",
-    price: 75000000,
-    location: { address: "Ikoyi", lga: "Eti-Osa", state: "Lagos" },
-    propertyType: "house",
-    bedrooms: 4,
-    bathrooms: 5,
-    amenities: ["BQ", "Parking", "CCTV", "Generator", "Security"],
-    truthIndex: 91,
-    owner: { name: "Chukwudi Obi", verified: true },
-  },
-  {
-    id: "3",
-    title: "2-Bedroom Flat, Ilasan",
-    price: 12000000,
-    location: { address: "Ilasan", lga: "Eti-Osa", state: "Lagos" },
-    propertyType: "apartment",
-    bedrooms: 2,
-    bathrooms: 2,
-    amenities: ["Parking", "Generator", "Security"],
-    truthIndex: 79,
-    owner: { name: "Tobi Okafor", verified: true },
-  },
-  {
-    id: "4",
-    title: "Exquisite 2-Bedroom Apartment, Wuye",
-    price: 20000000,
-    location: { address: "Wuye", lga: "Abuja Municipal", state: "FCT" },
-    propertyType: "apartment",
-    bedrooms: 2,
-    bathrooms: 3,
-    amenities: ["Gym", "Pool", "Parking", "Generator", "CCTV"],
-    truthIndex: 90,
-    owner: { name: "Aisha Mohammed", verified: true },
-  },
-  {
-    id: "5",
-    title: "Luxury 5-Bedroom Fully Detached Duplex, Goodnews Estate",
-    price: 10000000,
-    location: { address: "Goodnews Estate, Sangotedo", lga: "Eti-Osa", state: "Lagos" },
-    propertyType: "house",
-    bedrooms: 5,
-    bathrooms: 5,
-    amenities: ["Swimming Pool", "Generator", "Parking", "Security", "Backup Power"],
-    truthIndex: 85,
-    owner: { name: "Bola Adeyemi", verified: true },
-  },
-  {
-    id: "6",
-    title: "55 Sqm Office Space, Lekki Phase 1",
-    price: 11000000,
-    location: { address: "Lekki Phase 1", lga: "Eti-Osa", state: "Lagos" },
-    propertyType: "commercial",
-    amenities: ["AC", "Parking", "Security", "Elevator"],
-    truthIndex: 82,
-    owner: { name: "Prestige Commercial Properties", verified: true },
-  },
-];
 
 const PROPERTY_TYPES = ["Apartment", "House", "Land", "Commercial"];
 
@@ -348,6 +274,17 @@ function HeroSection() {
 // ─── Featured Listings ───────────────────────────────────────────────────────
 
 function FeaturedListings() {
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/listings?limit=6")
+      .then((r) => r.ok ? r.json() : Promise.reject(r))
+      .then((d) => setListings(d.listings ?? []))
+      .catch(() => setListings([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <section className="bg-gray-50 px-4 py-20 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
@@ -369,11 +306,30 @@ function FeaturedListings() {
           </Link>
         </div>
 
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {MOCK_LISTINGS.map((listing) => (
-            <PropertyCard key={listing.id} listing={listing} />
-          ))}
-        </div>
+        {loading ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="animate-pulse rounded-xl bg-white border overflow-hidden">
+                <div className="aspect-[4/3] bg-gray-200" />
+                <div className="p-4 space-y-3">
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-5 bg-gray-100 rounded w-1/2" />
+                  <div className="h-3 bg-gray-100 rounded w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : listings.length === 0 ? (
+          <div className="py-20 text-center text-sm text-gray-400">
+            No listings yet. Check back soon.
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {listings.map((listing) => (
+              <PropertyCard key={listing.id} listing={listing} />
+            ))}
+          </div>
+        )}
 
         <div className="mt-10 text-center">
           <Link href="/search">

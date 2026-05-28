@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, SlidersHorizontal, ChevronDown, X, MapPin, Star, Shield } from "lucide-react";
@@ -9,106 +9,6 @@ import { Button } from "@/components/ui/button";
 import PropertyCard from "@/components/PropertyCard";
 import { getAllStateNames } from "@/lib/data/nigerianLgas";
 import type { Listing } from "@/components/PropertyCard";
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const MOCK_LISTINGS: Listing[] = [
-  {
-    id: "1",
-    title: "Modern 3-Bedroom Apartment in Lekki Phase 1",
-    price: 4500000,
-    location: { address: "12 Admiralty Way", lga: "Eti Osa", state: "Lagos" },
-    propertyType: "apartment",
-    bedrooms: 3, bathrooms: 2,
-    amenities: ["Parking", "Generator", "Security"],
-    truthIndex: 92,
-    owner: { name: "Chidi Okonkwo", verified: true },
-  },
-  {
-    id: "2",
-    title: "Spacious 4-Bedroom Duplex in Wuse 2",
-    price: 8500000,
-    location: { address: "45 Aminu Kano Crescent", lga: "Municipal Area Council", state: "FCT" },
-    propertyType: "house",
-    bedrooms: 4, bathrooms: 3,
-    amenities: ["Pool", "Garden", "Parking", "CCTV"],
-    truthIndex: 88,
-    owner: { name: "Fatima Bello", verified: true },
-  },
-  {
-    id: "3",
-    title: "Prime Commercial Plot in Victoria Island",
-    price: 25000000,
-    location: { address: "Plot 7, Bishop Oluwole Street", lga: "Eti Osa", state: "Lagos" },
-    propertyType: "land",
-    truthIndex: 76,
-    owner: { name: "Lekki Properties Ltd", verified: true },
-  },
-  {
-    id: "4",
-    title: "2-Bedroom Flat in GRA Phase 2, Port Harcourt",
-    price: 3200000,
-    location: { address: "8 Woji Road", lga: "Obio/Akpor", state: "Rivers" },
-    propertyType: "apartment",
-    bedrooms: 2, bathrooms: 2,
-    amenities: ["Parking", "Generator"],
-    truthIndex: 85,
-    owner: { name: "Ngozi Eze", verified: true },
-  },
-  {
-    id: "5",
-    title: "Luxury 5-Bedroom Villa in Ikoyi",
-    price: 18000000,
-    location: { address: "22 Bourdillon Road", lga: "Eti Osa", state: "Lagos" },
-    propertyType: "house",
-    bedrooms: 5, bathrooms: 4,
-    amenities: ["Pool", "Garden", "Smart Home", "CCTV", "Staff Quarters"],
-    truthIndex: 95,
-    owner: { name: "Tunde Balogun", verified: true },
-  },
-  {
-    id: "6",
-    title: "Commercial Shop in Abuja City Centre",
-    price: 6200000,
-    location: { address: "30 Ibrahim Taiwo Road", lga: "Municipal Area Council", state: "FCT" },
-    propertyType: "commercial",
-    truthIndex: 71,
-    owner: { name: "Aso Properties", verified: false },
-  },
-  {
-    id: "7",
-    title: "Cozy 1-Bedroom Flat in Surulere",
-    price: 1800000,
-    location: { address: "15 Bode Thomas Street", lga: "Surulere", state: "Lagos" },
-    propertyType: "apartment",
-    bedrooms: 1, bathrooms: 1,
-    amenities: ["Generator", "Security"],
-    truthIndex: 45,
-    owner: { name: "Adebayo Ogun", verified: false },
-  },
-  {
-    id: "8",
-    title: "3-Bedroom Terrace in New Haven, Enugu",
-    price: 3800000,
-    location: { address: "7 Chime Avenue", lga: "Enugu East", state: "Enugu" },
-    propertyType: "house",
-    bedrooms: 3, bathrooms: 2,
-    amenities: ["Parking", "Garden"],
-    truthIndex: 82,
-    owner: { name: "Ifeanyi Obi", verified: true },
-  },
-  {
-    id: "9",
-    title: "Studio Apartment in Yaba",
-    price: 1200000,
-    location: { address: "42 Herbert Macaulay Way", lga: "Yaba", state: "Lagos" },
-    propertyType: "apartment",
-    bedrooms: 1, bathrooms: 1,
-    amenities: ["Generator"],
-    truthIndex: 58,
-    owner: { name: "Tola Benson", verified: false },
-  },
-];
 
 const PROPERTY_TYPES = ["All", "Apartment", "House", "Land", "Commercial"];
 
@@ -324,7 +224,7 @@ function ResultsBar({ count, sortBy, setSortBy }: {
 
 function SearchContent() {
   const params = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(params.get("q") ?? "");
   const [selectedState, setSelectedState] = useState(params.get("state") ?? "");
   const [selectedType, setSelectedType] = useState(
     params.get("type")
@@ -337,50 +237,41 @@ function SearchContent() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [sortBy, setSortBy] = useState("default");
 
-  const filtered = useMemo(() => {
-    let results = [...MOCK_LISTINGS];
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-    // Keyword search
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      results = results.filter(l =>
-        l.title.toLowerCase().includes(q) ||
-        l.location.address.toLowerCase().includes(q) ||
-        l.location.state.toLowerCase().includes(q) ||
-        l.owner.name?.toLowerCase().includes(q)
-      );
-    }
+  // Debounce keyword so we don't fire on every keystroke
+  const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(searchQuery), 350);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-    // State filter
-    if (selectedState) {
-      results = results.filter(l => l.location.state === selectedState);
-    }
+  useEffect(() => {
+    const qs = new URLSearchParams();
+    if (debouncedQuery) qs.set("q", debouncedQuery);
+    if (selectedState) qs.set("state", selectedState);
+    if (selectedType && selectedType !== "All") qs.set("category", selectedType.toUpperCase());
+    if (minPrice) qs.set("minPrice", minPrice);
+    if (maxPrice) qs.set("maxPrice", maxPrice);
+    if (verifiedOnly) qs.set("verified", "true");
+    if (sortBy !== "default") qs.set("sortBy", sortBy);
+    qs.set("limit", "24");
 
-    // Type filter
-    if (selectedType && selectedType !== "All") {
-      results = results.filter(l => l.propertyType === selectedType.toLowerCase());
-    }
+    setLoading(true);
+    fetch(`/api/listings?${qs.toString()}`)
+      .then((r) => r.ok ? r.json() : Promise.reject(r))
+      .then((d) => { setListings(d.listings ?? []); setTotal(d.total ?? 0); })
+      .catch(() => { setListings([]); setTotal(0); })
+      .finally(() => setLoading(false));
+  }, [debouncedQuery, selectedState, selectedType, minPrice, maxPrice, verifiedOnly, sortBy]);
 
-    // Price range
-    if (minPrice) results = results.filter(l => l.price >= Number(minPrice));
-    if (maxPrice) results = results.filter(l => l.price <= Number(maxPrice));
-
-    // Min trust score
-    if (minTrust) results = results.filter(l => l.truthIndex >= Number(minTrust));
-
-    // Verified only
-    if (verifiedOnly) results = results.filter(l => l.owner.verified);
-
-    // Sort
-    switch (sortBy) {
-      case "price-asc": results.sort((a, b) => a.price - b.price); break;
-      case "price-desc": results.sort((a, b) => b.price - a.price); break;
-      case "trust-desc": results.sort((a, b) => b.truthIndex - a.truthIndex); break;
-      case "trust-asc": results.sort((a, b) => a.truthIndex - b.truthIndex); break;
-    }
-
-    return results;
-  }, [searchQuery, selectedState, selectedType, minPrice, maxPrice, minTrust, verifiedOnly, sortBy]);
+  // Client-side minTrust filter (not worth a round-trip)
+  const displayed = useMemo(() =>
+    minTrust ? listings.filter(l => l.truthIndex >= Number(minTrust)) : listings,
+    [listings, minTrust],
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -408,9 +299,22 @@ function SearchContent() {
 
         {/* Results */}
         <div className="mt-6">
-          <ResultsBar count={filtered.length} sortBy={sortBy} setSortBy={setSortBy} />
+          <ResultsBar count={total} sortBy={sortBy} setSortBy={setSortBy} />
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="animate-pulse rounded-xl bg-white border overflow-hidden">
+                  <div className="aspect-[4/3] bg-gray-200" />
+                  <div className="p-4 space-y-3">
+                    <div className="h-4 bg-gray-200 rounded w-3/4" />
+                    <div className="h-5 bg-gray-100 rounded w-1/2" />
+                    <div className="h-3 bg-gray-100 rounded w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : displayed.length === 0 ? (
             <div className="mt-12 flex flex-col items-center gap-4 text-center">
               <Search className="h-12 w-12 text-muted-foreground/30" />
               <div>
@@ -431,7 +335,7 @@ function SearchContent() {
             </div>
           ) : (
             <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filtered.map(listing => (
+              {displayed.map(listing => (
                 <PropertyCard key={listing.id} listing={listing} />
               ))}
             </div>
