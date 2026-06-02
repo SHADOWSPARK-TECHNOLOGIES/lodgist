@@ -23,6 +23,12 @@ enum ListingCategory {
   SHORT_LET
 }
 
+enum ListingSource {
+  USER_CREATED       // Tier 1 — landlord signed up, identity verified
+  SCRAPED_EXTERNAL   // Tier 2 — sourced from Jiji, PropertyPro, Facebook, etc.
+  CLAIMED_FROM_SCRAPE // Was scraped, owner claimed and got verified
+}
+
 enum ListingStatus {
   PENDING
   VERIFIED
@@ -186,6 +192,20 @@ model Listing {
   nearbySchool     String?
   distanceToSchool String?
   studentAmenities String[]
+
+  // Display fields (denormalized for search / scraped listings without a Property record)
+  address          String?
+  bedrooms         Int?
+  bathrooms        Int?
+  propertyType     String?  // "self-contain" | "single-room" | "flat" | "apartment" | "duplex" | "bungalow"
+
+  // Two-tier listing source
+  source            ListingSource @default(USER_CREATED)
+  sourceUrl         String?       // for scraped — link back to original
+  sourceName        String?       // "Jiji" | "PropertyPro" | "Facebook" | etc.
+  estimatedAgentFee Float?        // estimated extra fees a tenant would pay
+  isClaimable       Boolean       @default(false)
+  publishedAt       DateTime?     // null until ready to show publicly
 
   // Nigerian real estate metadata
   totalMoveInCost Json?            // { base_rent, agency_fee, legal_fee, caution_fee, inspection_fee?, currency, total }

@@ -1,42 +1,61 @@
-# ── Lodgist Commit Message Template ──────────────────────────────────────
-# Lines starting with '#' are ignored. An empty message aborts the commit.
 #
-# FORMAT:
+# ── Lodgist Commit Message Template ──────────────────────────────────────────
+# Reference: https://www.conventionalcommits.org/en/v1.0.0/
+#
 #   <type>(<scope>): <subject>
+#   <BLANK LINE>
+#   <body>
+#   <BLANK LINE>
+#   <footer>
 #
-# TYPES:
-#   feat      New feature for the user, not a new feature for build script
-#   fix       Bug fix for the user, not a fix to a build script
-#   docs      Changes to the documentation
-#   style     Formatting, missing semi colons, etc; no production code change
-#   refactor  Refactoring production code, eg. renaming a variable
-#   perf      Performance improvements
-#   test      Adding missing tests, refactoring tests; no production code change
-#   build     Changes that affect the build system or external dependencies
-#   ci        Changes to CI configuration files and scripts
-#   chore     Updating grunt tasks etc; no production code change
+# ── Types (Conventional Commits) ────────────────────────────────────────────
 #
-# SCOPES (Lodgist):
+# Changes to user-facing code:
+#   feat        New feature (triggers minor version bump)
+#   fix         Bug fix (triggers patch version bump)
+#   perf        Performance improvement (triggers patch version bump)
+#
+# Changes that do NOT affect production code:
+#   docs        Documentation only (README, API docs, guides)
+#   style       Formatting, whitespace, missing semicolons; no logic change
+#   refactor    Code restructure without feature/fix intent (rename, extract)
+#   test        Adding/refactoring tests; no production code change
+#   build       Build system or external dependency changes
+#   ci          CI/CD config, scripts, pipeline changes
+#   chore       Maintenance tasks, tooling, config; no production code change
+#
+# ── Scopes (Lodgist) ────────────────────────────────────────────────────────
 #   frontend      Next.js app-router frontend
 #   backend       Express API, services, middleware
 #   db            Prisma schema, migrations, seeds
-#   infra         AWS CDK, App Runner, RDS, CI/CD
+#   infra         AWS CDK, App Runner, RDS
 #   auth          NextAuth, WebAuthn, RBAC, session
 #   payments      Paystack integration, escrow, webhooks
 #   bookings      Booking flow, concierge, tenancy agreements
 #   verification  Land registry, trust safety engine, fraud detection
 #   listings      Listing CRUD, search, detail pages
-#   docs          README, BETA_STATUS, AGENTS, plans
-#   ci            GitHub Actions, Amplify, Vercel config
+#   docs          README, BETA_STATUS, AGENTS, engineering plans
 #   config        Env vars, tooling config, workspace settings
-#   packages      Shared packages (ai-core, db, etc.)
+#   packages      Shared monorepo packages (ai-core, db, ui, etc.)
 #
-# RULES:
-#   • Subject:     ≤ 50 chars, imperative mood ("add" not "added"), no period
-#   • Body:        wrap at 72 chars, explain WHAT and WHY (not HOW)
-#   • Footer:      reference issues (Closes: #N), mark BREAKING CHANGE
+# ── Rules ───────────────────────────────────────────────────────────────────
+#   Subject : ≤ 50 chars · imperative mood ("add" not "added") · no period
+#   Body    : wrap at 72 chars · explain WHAT and WHY (not HOW)
+#   Footer  : reference issues (Closes: #N, Ref: #N) · mark BREAKING CHANGE
 #
-# ── Example ──────────────────────────────────────────────────────────────
+#   Breaking change in subject: append ! after type/scope
+#     e.g. feat(payments)!: remove deprecated v1 verify endpoint
+#   Breaking change in footer (when body is needed):
+#     BREAKING CHANGE: <description of what breaks and migration path>
+#
+# ── Edge Cases ──────────────────────────────────────────────────────────────
+#   Multiple unrelated changes → split into separate commits
+#   WIP / partial commit    → use "wip:" prefix (squash before merge)
+#   Co-authored commits     → add Co-authored-by: name <email> in footer
+#   Reverts                 → use "revert:" type + reference original SHA
+#   Subject > 50 chars      → move detail to body; subject is summary only
+#
+# ── Example ─────────────────────────────────────────────────────────────────
 # feat(payments): add Paystack escrow verification endpoint
 #
 # Implements /api/payments/verify to confirm Paystack transaction
@@ -44,7 +63,7 @@
 # transitions escrow state to HELD, and triggers concierge SMS.
 #
 # BREAKING CHANGE: Existing bookings without paystack_reference will
-#   require migration to populate the column.
+#   require data migration to populate the column.
 # Closes: #189
 #
 # ── Your commit message starts below ──
