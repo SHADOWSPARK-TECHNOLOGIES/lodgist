@@ -56,3 +56,7 @@ safe_credential_migration.sh
 packages/ai-core/node_modules/
 node_modules/
 /VSCode-Perplexity-MCP
+
+# Triage 2026-06-02 — backups & binary archive blobs (drafts kept untracked, not ignored)
+*.bak
+docs/*.zip
