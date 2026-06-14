@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 
+const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === "true";
+
 const SUPPORT_WHATSAPP =
   process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2348000000000";
 
@@ -9,6 +11,13 @@ const SUPPORT_WHATSAPP =
 // Tenants are directed to WhatsApp to confirm payment status with the team.
 
 export async function POST(req: NextRequest) {
+  if (!PAYMENTS_ENABLED) {
+    return NextResponse.json(
+      { status: "coming_soon", message: "Payments launching soon" },
+      { status: 200 }
+    );
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ message: "Authentication required." }, { status: 401 });

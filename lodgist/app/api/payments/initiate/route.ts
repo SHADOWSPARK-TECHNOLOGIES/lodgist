@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import * as z from "zod";
 
+const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === "true";
+
 // ─── Validation ──────────────────────────────────────────────────────────────
 
 const initiatePaymentSchema = z.object({
@@ -21,6 +23,13 @@ const SUPPORT_WHATSAPP =
 // tenant is directed to WhatsApp to complete payment with the support team.
 
 export async function POST(req: NextRequest) {
+  if (!PAYMENTS_ENABLED) {
+    return NextResponse.json(
+      { status: "coming_soon", message: "Payments launching soon" },
+      { status: 200 }
+    );
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ message: "Authentication required." }, { status: 401 });
