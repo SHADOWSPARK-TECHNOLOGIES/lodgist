@@ -11,6 +11,18 @@ function overlapWhere(stay: Stay) {
   };
 }
 
+function isExclusionConflict(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const record = error as { code?: string; message?: string; meta?: { code?: string } };
+  const message = record.message ?? "";
+  return (
+    record.code === "23P01" ||
+    record.meta?.code === "23P01" ||
+    message.includes("23P01") ||
+    message.includes("booking_no_overlap")
+  );
+}
+
 function whatsappEmail(phone: string): string {
   return `wa.${phone}@lodgist.local`;
 }
@@ -108,20 +120,26 @@ export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
         }
       }
 
-      const booking =
-        existing ??
-        (await prisma.booking.create({
-          data: {
-            listingId,
-            tenantId: tenant.id,
-            startDate,
-            endDate,
-            totalAmount: listing.price,
-            status: "PENDING",
-            sourceChannel: "whatsapp",
-            notes: `WhatsApp booking from +${phone}`,
-          },
-        }));
+      let booking = existing;
+      if (!booking) {
+        try {
+          booking = await prisma.booking.create({
+            data: {
+              listingId,
+              tenantId: tenant.id,
+              startDate,
+              endDate,
+              totalAmount: listing.price,
+              status: "PENDING",
+              sourceChannel: "whatsapp",
+              notes: `WhatsApp booking from +${phone}`,
+            },
+          });
+        } catch (error) {
+          if (!isExclusionConflict(error)) throw error;
+          return { ok: false, message: `Listing ${listingId} is not available for those dates.` };
+        }
+      }
 
       return {
         ok: true,
