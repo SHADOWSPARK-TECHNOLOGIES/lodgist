@@ -4,7 +4,7 @@ Cursor owns `/home/moronto/src/lodgist` on `agent/cursor-lodgist`. Do not push. 
 
 ## Done
 
-Reproducible pnpm 9.15.9 installs for the root, `packages/db`, and `lodgist`. Local WhatsApp search/book/status in `lodgist/lib/whatsapp/`, with `ProcessedWebhookEvent` duplicate protection. Postgres integration test passed against a throwaway local database.
+Reproducible pnpm 9.15.9 installs for the root, `packages/db`, and `lodgist`. WhatsApp guest text can search by place and dates, pick a numbered option, and create the existing `Booking` with `sourceChannel: whatsapp`. Admin recent bookings show the channel. Postgres integration test still covers the command path when `LODGIST_TEST_DATABASE_URL` is set.
 
 ## Leave alone
 
@@ -15,7 +15,7 @@ Reproducible pnpm 9.15.9 installs for the root, `packages/db`, and `lodgist`. Lo
 
 ## Next
 
-Set `WHATSAPP_VERIFY_TOKEN` locally when a real Meta app exists, then confirm `GET /api/whatsapp/webhook` echoes `hub.challenge`. Do not deploy and do not invent tokens. Outbound Cloud API sends stay unwired until a phone number id and token are provided.
+External only. Follow `docs/WHATSAPP_PRODUCTION_READINESS.md`: rotate the credential that was in `github.authkey`, set Meta env, deploy, verify the webhook, smoke-test. Do not invent tokens.
 
 ## Blockers
 

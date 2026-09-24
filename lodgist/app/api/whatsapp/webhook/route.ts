@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   handleWhatsAppMessage,
   twimlMessage,
+  whatsAppWebhookOpen,
   type IncomingMessage,
   type SessionState,
 } from "@/lib/whatsapp/conversation";
@@ -89,6 +90,13 @@ function jsonReply(repliesOut: string[], duplicate: boolean) {
 }
 
 export async function POST(req: NextRequest) {
+  if (!whatsAppWebhookOpen()) {
+    return NextResponse.json(
+      { message: "WhatsApp webhook signature verification is not configured." },
+      { status: 503 },
+    );
+  }
+
   try {
     const { channel, messages } = await readMessages(req);
     if (messages.length === 0) {
@@ -114,8 +122,11 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     console.error("Error processing WhatsApp webhook:", error);
+    if ((req.headers.get("content-type") ?? "").includes("application/json")) {
+      return NextResponse.json({ message: "Webhook processing failed." }, { status: 500 });
+    }
     return new NextResponse(twimlMessage("Sorry, something went wrong. Please try again."), {
-      status: 200,
+      status: 500,
       headers: { "Content-Type": "text/xml" },
     });
   }

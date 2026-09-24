@@ -115,4 +115,85 @@ describe.skipIf(!databaseUrl)("WhatsApp search and booking against Postgres", ()
     });
     expect(count).toBe(1);
   });
+
+  it("hides a listing that is already booked for the requested dates", async () => {
+    const guest = "2348099990002";
+    const landlord = await prisma.user.findUniqueOrThrow({ where: { email: "wa-landlord@lodgist.local" } });
+    const takenOwner = await prisma.user.create({
+      data: { name: "Taken Tenant", email: "wa-taken@lodgist.local", role: "TENANT" },
+    });
+    const openProperty = await prisma.property.create({
+      data: { ownerId: landlord.id, address: "Open Flat", city: "Lekki", state: "Lagos" },
+    });
+    const takenProperty = await prisma.property.create({
+      data: { ownerId: landlord.id, address: "Taken Flat", city: "Lekki", state: "Lagos" },
+    });
+    const openListing = await prisma.listing.create({
+      data: {
+        propertyId: openProperty.id,
+        ownerId: landlord.id,
+        title: "WA open listing",
+        description: "Free for the requested dates",
+        price: 1200000,
+        status: "VERIFIED",
+      },
+    });
+    const takenListing = await prisma.listing.create({
+      data: {
+        propertyId: takenProperty.id,
+        ownerId: landlord.id,
+        title: "WA taken listing",
+        description: "Already booked",
+        price: 900000,
+        status: "VERIFIED",
+      },
+    });
+    await prisma.booking.create({
+      data: {
+        listingId: takenListing.id,
+        tenantId: takenOwner.id,
+        startDate: new Date("2026-10-01T00:00:00.000Z"),
+        endDate: new Date("2026-10-05T00:00:00.000Z"),
+        totalAmount: 900000,
+        status: "CONFIRMED",
+        sourceChannel: "direct",
+      },
+    });
+
+    const db = createPrismaWhatsAppDb(prisma);
+    const state = {
+      db,
+      sessions: new Map<string, SessionState>(),
+      replies: new Map<string, string>(),
+    };
+    const found = await handleWhatsAppMessage(
+      {
+        phone: `+${guest}`,
+        body: "I need a place in Lagos from 2026-10-01 to 2026-10-05",
+        messageId: "wamid.db.dates",
+      },
+      state,
+    );
+    expect(found.reply).toContain("Open Flat");
+    expect(found.reply).not.toContain("Taken Flat");
+
+    const booked = await handleWhatsAppMessage(
+      { phone: `+${guest}`, body: "1", messageId: "wamid.db.option" },
+      state,
+    );
+    expect(booked.reply).toContain("2026-10-01");
+    expect(booked.reply).toContain("2026-10-05");
+
+    const row = await prisma.booking.findFirst({
+      where: { tenant: { whatsappId: guest }, listingId: openListing.id, sourceChannel: "whatsapp" },
+    });
+    expect(row?.startDate.toISOString().slice(0, 10)).toBe("2026-10-01");
+    expect(row?.endDate.toISOString().slice(0, 10)).toBe("2026-10-05");
+
+    await prisma.booking.deleteMany({ where: { listingId: { in: [openListing.id, takenListing.id] } } });
+    await prisma.listing.deleteMany({ where: { id: { in: [openListing.id, takenListing.id] } } });
+    await prisma.property.deleteMany({ where: { id: { in: [openProperty.id, takenProperty.id] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [takenOwner.id] } } });
+    await prisma.user.deleteMany({ where: { whatsappId: guest } });
+  });
 });

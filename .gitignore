@@ -42,6 +42,7 @@ lodgist-deploy-key.json
 REASEARCHED/
 Google/
 github_credentials.txt
+github.authkey
 
 # Root-level AI-generated draft files (not part of the app)
 P0_USER_RUNBOOK.sh

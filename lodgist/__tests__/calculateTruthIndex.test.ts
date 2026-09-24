@@ -404,7 +404,7 @@ describe("calculateTruthIndex", () => {
       data: expect.objectContaining({
         userId: 1,
         score: expect.any(Number),
-        breakdown: expect.any(Object),
+        metadata: expect.any(Object),
       }),
     });
   });

@@ -1,13 +1,14 @@
 import type { PrismaClient } from "@prisma/client";
-import type { BookResult, ListingHit, StatusResult, WhatsAppDb } from "./conversation";
+import type { BookResult, ListingHit, StatusResult, Stay, WhatsAppDb } from "./conversation";
 
-function isUniqueConflict(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { code: string }).code === "P2002"
-  );
+const BLOCKING_BOOKING = ["PENDING", "PENDING_VERIFICATION", "CONFIRMED"] as const;
+
+function overlapWhere(stay: Stay) {
+  return {
+    status: { in: [...BLOCKING_BOOKING] },
+    startDate: { lt: stay.end },
+    endDate: { gt: stay.start },
+  };
 }
 
 function whatsappEmail(phone: string): string {
@@ -16,7 +17,7 @@ function whatsappEmail(phone: string): string {
 
 export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
   return {
-    async search(location: string): Promise<ListingHit[]> {
+    async search(location: string, stay?: Stay): Promise<ListingHit[]> {
       const terms = location.split(/\s+/).filter(Boolean);
       if (terms.length === 0) return [];
 
@@ -35,7 +36,10 @@ export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
         },
         include: {
           listings: {
-            where: { status: "VERIFIED" },
+            where: {
+              status: "VERIFIED",
+              ...(stay ? { bookings: { none: overlapWhere(stay) } } : {}),
+            },
             select: { id: true, price: true },
             orderBy: { id: "asc" },
             take: 1,
@@ -59,7 +63,7 @@ export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
       });
     },
 
-    async book(phone: string, listingId: number): Promise<BookResult> {
+    async book(phone: string, listingId: number, stay?: Stay): Promise<BookResult> {
       const listing = await prisma.listing.findUnique({
         where: { id: listingId },
         include: { property: true },
@@ -91,9 +95,18 @@ export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
           status: { not: "CANCELLED" },
         },
       });
-      const startDate = new Date();
-      const endDate = new Date(startDate);
-      endDate.setUTCFullYear(endDate.getUTCFullYear() + 1);
+      const startDate = stay?.start ?? new Date();
+      const endDate = stay?.end ?? new Date(startDate);
+      if (!stay) endDate.setUTCFullYear(endDate.getUTCFullYear() + 1);
+
+      if (!existing) {
+        const clash = await prisma.booking.findFirst({
+          where: { listingId, ...overlapWhere({ start: startDate, end: endDate }) },
+        });
+        if (clash) {
+          return { ok: false, message: `Listing ${listingId} is not available for those dates.` };
+        }
+      }
 
       const booking =
         existing ??
@@ -119,12 +132,14 @@ export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
         state: listing.property.state,
         price: listing.price,
         created: !existing,
+        startDate: booking.startDate,
+        endDate: booking.endDate,
       };
     },
 
-    async status(bookingId: string): Promise<StatusResult> {
-      const booking = await prisma.booking.findUnique({
-        where: { id: bookingId },
+    async status(phone: string, bookingId: string): Promise<StatusResult> {
+      const booking = await prisma.booking.findFirst({
+        where: { id: bookingId, tenant: { whatsappId: phone } },
         include: {
           listing: {
             select: { property: { select: { address: true, city: true } } },
@@ -144,15 +159,14 @@ export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
     },
 
     async claimEvent(eventId: string): Promise<"new" | "duplicate"> {
-      try {
-        await prisma.processedWebhookEvent.create({
-          data: { id: `whatsapp:${eventId}` },
-        });
-        return "new";
-      } catch (error) {
-        if (isUniqueConflict(error)) return "duplicate";
-        throw error;
-      }
+      await prisma.processedWebhookEvent.create({
+        data: { id: `whatsapp:${eventId}` },
+      });
+      return "new";
+    },
+
+    async inTransaction<T>(fn: (db: WhatsAppDb) => Promise<T>): Promise<T> {
+      return prisma.$transaction((tx) => fn(createPrismaWhatsAppDb(tx as PrismaClient)));
     },
   };
 }

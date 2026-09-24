@@ -24,16 +24,22 @@ Verified 2026-09-24 by Cursor on `/home/moronto/src/lodgist`.
 
 Local conversation lives in `lodgist/lib/whatsapp/`. The webhook accepts Twilio form posts and JSON (`from`/`body`/`messageId`, or a Meta `entry` payload). It does not call the Graph API.
 
-- `search` queries verified listings by address, city, or state.
-- `book` creates a `PENDING` booking with `sourceChannel: whatsapp`, or returns the existing one for that phone and listing.
-- `status` reads that booking. Missing ids are reported as missing.
+- A guest message such as "I need a place in Lagos from 2026-10-01 to 2026-10-05" is parsed for a place and two `YYYY-MM-DD` dates. `search` queries verified listings and, when dates are present, hides listings with an overlapping `PENDING`, `PENDING_VERIFICATION`, or `CONFIRMED` booking.
+- Numbered replies book that option on the existing `Booking` model with `sourceChannel: whatsapp` and those dates. `book [id]` and `status` still work.
+- The admin recent-bookings table shows `sourceChannel`.
 - A repeated `messageId` / `MessageSid` is stored as `whatsapp:<id>` on `ProcessedWebhookEvent` and does not create a second booking.
 
 ## Verification
 
 - `corepack pnpm install --frozen-lockfile --ignore-scripts` at repo root: exit 0.
 - `corepack pnpm --dir lodgist install --frozen-lockfile --ignore-scripts`: exit 0.
-- `npx vitest run`: 17 passed, 1 skipped, 1 failed. The failure is the pre-existing `calculateTruthIndex.test.ts` payload assertion. The skip is the Postgres test when `LODGIST_TEST_DATABASE_URL` is unset.
+- Status lookup returns a booking only when `tenant.whatsappId` matches the sender.
+- A message id is claimed inside `prisma.$transaction`. A thrown booking rolls the claim back. The webhook returns HTTP 500 on that failure so the provider can retry.
+- `npx vitest run` in `lodgist/`: 23 passed, 2 skipped (Postgres tests; `LODGIST_TEST_DATABASE_URL` unset). 0 failed.
+- `POST /api/whatsapp/webhook` returns 503 when `NODE_ENV=production` until signature verification exists.
+- With throwaway Postgres on `127.0.0.1:54329`: `whatsappDb.integration.test.ts` 2 passed. Server stopped afterward.
+- TruthIndex persist assertion expected `breakdown`. The implementation and schema use `metadata`. The assertion was updated. It was stale since `bd9e39c2`, identical on `origin/main`.
+- `github.authkey` removed from the index only. The local file was kept. It was not read. It is still in Git history. Rotation has not happened.
 - With a throwaway embedded Postgres 18 on `127.0.0.1:54329` and `prisma db push` of `packages/db/prisma/schema.prisma`: `whatsappDb.integration.test.ts` 1 passed (search Lagos, one booking, duplicate event, status). That database was not a shared or production database. The server was stopped afterward.
 - `npx eslint` on the WhatsApp files: exit 0.
 
