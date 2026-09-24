@@ -1,0 +1,22 @@
+{
+  "autoRun": {
+    "allow_instructions": [
+      "Allow read-only repository inspection commands.",
+      "Allow git status, git diff, git log, git show, git branch, and git rev-parse operations.",
+      "Allow local linting, typechecking, tests, builds, and formatting.",
+      "Allow pnpm commands that operate on the local project and its dependency installation.",
+      "Allow creating and editing files inside the current repository as part of the active implementation task.",
+      "Allow starting and stopping disposable local development servers and disposable local test databases.",
+      "Allow local Git commits after verification when they do not push or rewrite remote history."
+    ],
+    "block_instructions": [
+      "Require approval for git push, force push, remote branch deletion, merge to main, tags, or releases.",
+      "Require approval before any production deployment.",
+      "Require approval for AWS, Vercel, Netlify, Railway, Render, Google Cloud, or other cloud commands that mutate remote infrastructure.",
+      "Require approval for production database migrations, resets, schema pushes, deletes, or data mutations.",
+      "Require approval before commands that print or inspect the contents of .env files, github.authkey, private keys, service-account keys, tokens, credentials, or secret files.",
+      "Require approval before modifying DNS, payment providers, OAuth provider settings, WhatsApp Meta configuration, billing, or external account configuration.",
+      "Require approval for destructive filesystem operations outside disposable build artifacts or temporary test directories."
+    ]
+  }
+}

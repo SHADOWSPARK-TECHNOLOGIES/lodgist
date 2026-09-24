@@ -44,6 +44,12 @@ Google/
 github_credentials.txt
 github.authkey
 
+# Local agent fleet state
+.agent-context.md
+ORCHESTRATOR_START.md
+.cursor/CONTEXT_INDEX.md
+.cursor/rules/99-agent-orchestrator.mdc
+
 # Root-level AI-generated draft files (not part of the app)
 P0_USER_RUNBOOK.sh
 P0_nextauth_complete.ts

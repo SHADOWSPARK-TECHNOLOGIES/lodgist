@@ -8,10 +8,10 @@ Reproducible pnpm 9.15.9 installs for the root, `packages/db`, and `lodgist`. Wh
 
 ## Leave alone
 
-- Uncommitted fleet files: `AGENTS.md`, `.agent-context.md`, `.cursor/`, `ORCHESTRATOR_START.md`.
-- Tracked `github.authkey` (41 bytes, not read). Do not print it. Rotation is still gated.
+- Local-only fleet files: `.agent-context.md`, `ORCHESTRATOR_START.md`, `.cursor/CONTEXT_INDEX.md`, `.cursor/rules/99-agent-orchestrator.mdc`. They are gitignored.
+- `github.authkey` on disk and in Git history. Do not print it. Rotation is still gated.
 - `backend/` and the separate `lodgist-backend` checkout.
-- Pre-existing `calculateTruthIndex.test.ts` failure.
+- Production application of `20260924100000_booking_no_overlap`.
 
 ## Next
 
