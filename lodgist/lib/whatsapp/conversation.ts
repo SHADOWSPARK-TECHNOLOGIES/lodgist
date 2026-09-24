@@ -75,10 +75,6 @@ export interface ConversationDeps {
   replies: Map<string, string>;
 }
 
-export function whatsAppWebhookOpen(nodeEnv: string | undefined = process.env.NODE_ENV): boolean {
-  return nodeEnv !== "production";
-}
-
 export function normalizePhone(from: string): string {
   return from.replace(/^whatsapp:/i, "").replace(/[^\d]/g, "");
 }

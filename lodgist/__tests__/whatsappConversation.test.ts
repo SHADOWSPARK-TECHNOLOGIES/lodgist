@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   handleWhatsAppMessage,
-  whatsAppWebhookOpen,
   type BookResult,
   type ListingHit,
   type SessionState,
@@ -230,11 +229,6 @@ describe("local WhatsApp conversation", () => {
     );
     expect(found.reply).toContain("End date must be after the start date");
     expect(db.books).toBe(0);
-  });
-
-  it("keeps the webhook closed in production until signatures exist", () => {
-    expect(whatsAppWebhookOpen("production")).toBe(false);
-    expect(whatsAppWebhookOpen("development")).toBe(true);
   });
 
   it("does not show another guest's booking", async () => {

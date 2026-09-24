@@ -8,7 +8,7 @@ Local booking is implemented in `lodgist/lib/whatsapp/` and `lodgist/app/api/wha
 2. **Meta app credentials.** Set `WHATSAPP_VERIFY_TOKEN` to the token from the Meta app. Phone number id and Cloud API token are still absent, so outbound sends stay unwired.
 3. **Production environment.** Set the app database URL, auth secret, and `WHATSAPP_VERIFY_TOKEN` on the host. Do not copy the local throwaway Postgres URL.
 4. **Deploy** the `lodgist` app from the reviewed branch. Do not deploy from this document.
-5. **Live webhook verification.** `POST /api/whatsapp/webhook` returns 503 when `NODE_ENV=production` because Meta and Twilio signatures are not checked yet. Implement that check with the app secret and Twilio auth token, then subscribe the production HTTPS URL. `GET /api/whatsapp/webhook` echoes `hub.challenge` only when `hub.verify_token` matches `WHATSAPP_VERIFY_TOKEN`.
+5. **Live webhook verification.** Set `WHATSAPP_APP_SECRET` (Meta HMAC-SHA256 of the raw body, header `X-Hub-Signature-256`) and `TWILIO_AUTH_TOKEN` (Twilio HMAC-SHA1, header `X-Twilio-Signature`). Missing or invalid signatures return 403. Unsigned local JSON is rejected when `NODE_ENV=production`. Then subscribe the production HTTPS URL. `GET /api/whatsapp/webhook` echoes `hub.challenge` only when `hub.verify_token` matches `WHATSAPP_VERIFY_TOKEN`.
 6. **Production smoke test.** From a real WhatsApp number: ask for a place and two `YYYY-MM-DD` dates, reply with the option number, confirm one `PENDING` booking in the admin recent-bookings table (`whatsapp` channel), then resend is rejected as a duplicate.
 
 ## Local limits that remain

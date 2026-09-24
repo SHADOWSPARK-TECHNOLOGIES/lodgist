@@ -3,11 +3,11 @@ import { prisma } from "@/lib/prisma";
 import {
   handleWhatsAppMessage,
   twimlMessage,
-  whatsAppWebhookOpen,
   type IncomingMessage,
   type SessionState,
 } from "@/lib/whatsapp/conversation";
 import { createPrismaWhatsAppDb } from "@/lib/whatsapp/prismaDb";
+import { verifyIncomingWebhook, type WebhookProvider } from "@/lib/whatsapp/verifyWebhook";
 
 const sessions = new Map<string, SessionState>();
 const replies = new Map<string, string>();
@@ -46,10 +46,16 @@ function metaMessages(body: unknown): IncomingMessage[] {
   return messages;
 }
 
-async function readMessages(req: NextRequest): Promise<{ channel: "twilio" | "json"; messages: IncomingMessage[] }> {
-  const contentType = req.headers.get("content-type") ?? "";
+function providerFor(contentType: string, body: unknown): WebhookProvider {
+  if (!contentType.includes("application/json")) return "twilio";
+  if (body && typeof body === "object" && "entry" in body) return "meta";
+  return "local";
+}
+
+async function readMessages(rawBody: string, contentType: string): Promise<{ channel: "twilio" | "json"; messages: IncomingMessage[] }> {
   if (contentType.includes("application/json")) {
-    const body: unknown = await req.json();
+    const body: unknown = rawBody ? JSON.parse(rawBody) : null;
+    if (!body || typeof body !== "object") return { channel: "json", messages: [] };
     const local = body as { from?: unknown; body?: unknown; messageId?: unknown };
     if (typeof local.from === "string" && typeof local.body === "string") {
       return {
@@ -66,7 +72,7 @@ async function readMessages(req: NextRequest): Promise<{ channel: "twilio" | "js
     return { channel: "json", messages: metaMessages(body) };
   }
 
-  const form = await req.formData();
+  const form = new URLSearchParams(rawBody);
   const from = form.get("From");
   const text = form.get("Body");
   const messageId = form.get("MessageSid");
@@ -90,15 +96,33 @@ function jsonReply(repliesOut: string[], duplicate: boolean) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!whatsAppWebhookOpen()) {
-    return NextResponse.json(
-      { message: "WhatsApp webhook signature verification is not configured." },
-      { status: 503 },
-    );
+  const rawBody = await req.text();
+  const contentType = req.headers.get("content-type") ?? "";
+  let parsed: unknown = null;
+  if (contentType.includes("application/json") && rawBody) {
+    try {
+      parsed = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json({ message: "Malformed JSON." }, { status: 400 });
+    }
+  } else if (!contentType.includes("application/json")) {
+    parsed = Object.fromEntries(new URLSearchParams(rawBody));
+  }
+  const verdict = verifyIncomingWebhook({
+    provider: providerFor(contentType, parsed),
+    headers: req.headers,
+    rawBody,
+    url: req.url,
+    body: parsed,
+    metaAppSecret: process.env.WHATSAPP_APP_SECRET,
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
+  });
+  if (!verdict.ok) {
+    return NextResponse.json({ message: verdict.message }, { status: verdict.status });
   }
 
   try {
-    const { channel, messages } = await readMessages(req);
+    const { channel, messages } = await readMessages(rawBody, contentType);
     if (messages.length === 0) {
       if (channel === "json") return jsonReply([], false);
       return new NextResponse(twimlMessage("Send a text message. Try help."), {
