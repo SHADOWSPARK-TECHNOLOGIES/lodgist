@@ -9,6 +9,15 @@ cd "$ROOT"
 
 DB_URL="postgresql://lodgist_user:lodgist_pass@127.0.0.1:5432/lodgist_db"
 
+echo "==> [0/4] Ensuring PostgreSQL is installed"
+if ! ls /usr/lib/postgresql/*/bin/postgres >/dev/null 2>&1; then
+  echo "    installing postgresql via apt"
+  sudo apt-get update -y
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql postgresql-contrib
+else
+  echo "    postgresql already present"
+fi
+
 echo "==> [1/4] Installing dependencies"
 corepack pnpm install --frozen-lockfile
 corepack pnpm --dir packages/db install --frozen-lockfile
