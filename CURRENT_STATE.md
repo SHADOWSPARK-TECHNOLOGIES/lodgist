@@ -1,6 +1,6 @@
 # CURRENT_STATE — Lodgist frontend
 
-Verified 2026-09-23 by Cursor on `/home/moronto/src/lodgist`.
+Verified 2026-09-24 by Cursor on `/home/moronto/src/lodgist`.
 
 ## Checkout
 
@@ -10,41 +10,38 @@ Verified 2026-09-23 by Cursor on `/home/moronto/src/lodgist`.
 | Branch | `agent/cursor-lodgist` |
 | Starting HEAD | `4b20027509d96111d1bf16719a51b58a19420a40` |
 | Remote | `origin` `SHADOWSPARK-TECHNOLOGIES/lodgist` |
-| `origin/main` | same commit as starting HEAD |
 
-This tree was restored from GitHub `main`. It is not evidence that remote `main` contains the unpublished local branch that existed before the Omarchy reinstall.
+## Install
 
-## Recovery gap (documented, not replayed)
+`pnpm@9.15.9` is pinned in the root `packageManager` field. CI installs the root, `packages/db`, and `lodgist` with `pnpm install --frozen-lockfile`.
 
-Historical engineering notes in the read-only backend docs describe local branch `fix/property-ownership-and-session` and commits `c0eb7193` and `313d538c`. Those objects are not in this clone (`git cat-file` fails). The branch is not in local or `origin` refs. The backup bundle named in fleet checksums is not in the accessible backup. Root-file snapshot comparison is `~/agent-orchestrator/state/frontend-backup-comparison.json`: root files match the snapshot except `.gitignore`.
+- Root frozen install failed before this checkpoint because `pnpm-lock.yaml` still listed `@vercel/analytics` and `package.json` does not. The lock now matches `package.json`. Frozen install exit 0.
+- `lodgist/pnpm-lock.yaml` was behind `lodgist/package.json`. It now matches, including `embedded-postgres`. Frozen install exit 0.
+- `packages/db` frozen install exit 0.
+- Lockfiles are v9, so CI now uses pnpm 9.15.9. pnpm 8 cannot install them.
 
-The snapshot `.gitignore` ignores `github.authkey` and `*.authkey`. Restored `.gitignore` does not. `github.authkey` is still tracked (41 bytes). Contents were not read. Untracking or rotating it is gated and was not done.
+## WhatsApp
 
-Missing historical work was not reconstructed from those notes. The property mutation gap below is visible in the current source.
+Local conversation lives in `lodgist/lib/whatsapp/`. The webhook accepts Twilio form posts and JSON (`from`/`body`/`messageId`, or a Meta `entry` payload). It does not call the Graph API.
 
-## What is present
-
-- Next app of record: `lodgist/` (Next 16.2.4, NextAuth 4, Vitest 4).
-- `Property.ownerId` is a Prisma `Int`. Credentials `authorize` returns `id: String(user.id)`. `Role` includes `STUDIO_ADMIN` and does not include `ADMIN`.
-- `POST /api/properties` sets `ownerId: parseInt(session.user.id)`.
-- `PUT` and `DELETE` on `/api/properties/[id]` required a session, then skipped ownership. The commented comparison used `ownerId !== session.user.id` and `role !== 'ADMIN'`, which cannot match the current id types or role enum.
-- `lodgist/app/layout.tsx` does not mount `SessionProvider`. `lodgist/hooks/use-role.ts` catches a missing provider and stays `isLoading: true`.
-
-## This checkpoint
-
-`canMutateProperty` allows the integer owner or `STUDIO_ADMIN`. `PUT` and `DELETE` return 403 when it is false. `ownerId` is still stripped from the update payload.
+- `search` queries verified listings by address, city, or state.
+- `book` creates a `PENDING` booking with `sourceChannel: whatsapp`, or returns the existing one for that phone and listing.
+- `status` reads that booking. Missing ids are reported as missing.
+- A repeated `messageId` / `MessageSid` is stored as `whatsapp:<id>` on `ProcessedWebhookEvent` and does not create a second booking.
 
 ## Verification
 
-- `npm ci --maxsockets=1` in `lodgist/` exit 0 (813 packages). Earlier `npm ci` failed `ENOTEMPTY` and was retried. `pnpm install --frozen-lockfile` failed: `lodgist/pnpm-lock.yaml` does not match `lodgist/package.json`. Install used `lodgist/package-lock.json`.
-- `npx vitest run __tests__/canMutateProperty.test.ts`: 5 passed.
-- `npm test`: 14 passed, 1 failed. Failure is pre-existing `calculateTruthIndex.test.ts` ("should persist the score to TruthIndexScore table"): create payload shape does not match the assertion. Not changed in this checkpoint.
-- `npx tsc --noEmit --incremental false` exit 2. Errors are missing generated `@prisma/client` exports (`PrismaClient`, `Role`, and others) plus implicit `any` in existing files. `lib/authz.ts` and the property route are not in that error list. `packages/db` client was not generated.
-- `npx eslint` on the three changed frontend files: 0 errors, 1 pre-existing warning (`ownerId: _` unused).
+- `corepack pnpm install --frozen-lockfile --ignore-scripts` at repo root: exit 0.
+- `corepack pnpm --dir lodgist install --frozen-lockfile --ignore-scripts`: exit 0.
+- `npx vitest run`: 17 passed, 1 skipped, 1 failed. The failure is the pre-existing `calculateTruthIndex.test.ts` payload assertion. The skip is the Postgres test when `LODGIST_TEST_DATABASE_URL` is unset.
+- With a throwaway embedded Postgres 18 on `127.0.0.1:54329` and `prisma db push` of `packages/db/prisma/schema.prisma`: `whatsappDb.integration.test.ts` 1 passed (search Lagos, one booking, duplicate event, status). That database was not a shared or production database. The server was stopped afterward.
+- `npx eslint` on the WhatsApp files: exit 0.
 
 ## Not done
 
-- SessionProvider wrapper.
-- Untrack or rotate `github.authkey`.
-- Replay of the missing ownership/session branch.
-- Writes under `backend/`.
+- `github.authkey` is still tracked (41 bytes). Contents were not read. Rotation was not performed.
+- Meta Cloud API tokens are unset. Webhook verification returns 403 for `hub.mode=subscribe` until `WHATSAPP_VERIFY_TOKEN` is set. No Graph API send path was added.
+- No deploy.
+- `backend/` was not modified.
+- SessionProvider is still absent.
+- `npm test` remains red on the pre-existing TruthIndex assertion.
