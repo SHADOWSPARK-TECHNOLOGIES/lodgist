@@ -1,5 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
-import type { BookResult, ListingHit, StatusResult, Stay, WhatsAppDb } from "./conversation";
+import type { BookResult, ListingHit, SessionState, StatusResult, Stay, WhatsAppDb } from "./conversation";
+
+const BOT_EMAIL = "wa-bot@lodgist.local";
 
 const BLOCKING_BOOKING = ["PENDING", "PENDING_VERIFICATION", "CONFIRMED"] as const;
 
@@ -181,6 +183,68 @@ export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
         data: { id: `whatsapp:${eventId}` },
       });
       return "new";
+    },
+
+    async saveDraft(phone: string, draft: SessionState): Promise<void> {
+      const guest = await prisma.user.upsert({
+        where: { whatsappId: phone },
+        create: {
+          name: `WhatsApp ${phone}`,
+          email: whatsappEmail(phone),
+          phone: `+${phone}`,
+          whatsappId: phone,
+          role: "TENANT",
+        },
+        update: {},
+      });
+      const bot = await prisma.user.upsert({
+        where: { email: BOT_EMAIL },
+        create: { name: "Lodgist WhatsApp", email: BOT_EMAIL, role: "TENANT" },
+        update: {},
+      });
+      const existing = await prisma.whatsAppSession.findFirst({
+        where: { userId: guest.id, contactId: bot.id, platform: "whatsapp" },
+      });
+      const session =
+        existing ??
+        (await prisma.whatsAppSession.create({
+          data: { userId: guest.id, contactId: bot.id, platform: "whatsapp" },
+        }));
+      await prisma.whatsAppMessage.create({
+        data: {
+          sessionId: session.id,
+          senderId: guest.id,
+          content: draft.stay ? `${draft.stay.start} ${draft.stay.end}` : "search",
+          direction: "INBOUND",
+          metadata: {
+            kind: "whatsapp-draft",
+            stage: draft.step,
+            options: draft.options ?? [],
+            stay: draft.stay ?? null,
+            guestCount: null,
+          },
+        },
+      });
+    },
+
+    async loadDraft(phone: string): Promise<SessionState | null> {
+      const message = await prisma.whatsAppMessage.findFirst({
+        where: {
+          session: { user: { whatsappId: phone }, platform: "whatsapp" },
+          direction: "INBOUND",
+        },
+        orderBy: { sentAt: "desc" },
+      });
+      const metadata = message?.metadata;
+      if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return null;
+      const record = metadata as {
+        kind?: string;
+        stage?: SessionState["step"];
+        options?: ListingHit[];
+        stay?: { start: string; end: string } | null;
+      };
+      if (record.kind !== "whatsapp-draft" || !record.stage) return null;
+      return { step: record.stage, options: record.options ?? [], stay: record.stay ?? undefined };
     },
 
     async inTransaction<T>(fn: (db: WhatsAppDb) => Promise<T>): Promise<T> {

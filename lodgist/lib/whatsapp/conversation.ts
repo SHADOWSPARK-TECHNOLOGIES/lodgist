@@ -56,6 +56,8 @@ export interface WhatsAppDb {
   status(phone: string, bookingId: string): Promise<StatusResult>;
   claimEvent(eventId: string): Promise<"new" | "duplicate">;
   inTransaction<T>(fn: (db: WhatsAppDb) => Promise<T>): Promise<T>;
+  saveDraft(phone: string, draft: SessionState): Promise<void>;
+  loadDraft(phone: string): Promise<SessionState | null>;
 }
 
 export interface IncomingMessage {
@@ -252,11 +254,13 @@ async function replyForText(
   }
 
   const choice = trimmed.match(/^\d+$/);
-  if (choice && session.options && session.options.length > 0) {
-    const index = Number(choice[0]) - 1;
-    const hit = session.options[index];
-    if (!hit) return `Reply with a number from 1 to ${session.options.length}.`;
-    const result = await deps.db.book(phone, hit.listingId, stayDates(session.stay));
+  if (choice) {
+    const remembered = session.options?.length ? session : await deps.db.loadDraft(phone);
+    const options = remembered?.options ?? [];
+    if (options.length === 0) return `Reply with a number from a search result.`;
+    const hit = options[Number(choice[0]) - 1];
+    if (!hit) return `Reply with a number from 1 to ${options.length}.`;
+    const result = await deps.db.book(phone, hit.listingId, stayDates(remembered?.stay));
     if (result.ok) deps.sessions.set(phone, { step: "idle" });
     return formatBook(result);
   }
@@ -279,7 +283,9 @@ async function searchAndRemember(
   stay?: { start: string; end: string },
 ): Promise<string> {
   const hits = await deps.db.search(location, stayDates(stay));
-  deps.sessions.set(phone, { step: "idle", options: hits, stay });
+  const next = { step: "idle" as const, options: hits, stay };
+  deps.sessions.set(phone, next);
+  await deps.db.saveDraft(phone, next);
   return formatSearchDated(location, hits, stay);
 }
 

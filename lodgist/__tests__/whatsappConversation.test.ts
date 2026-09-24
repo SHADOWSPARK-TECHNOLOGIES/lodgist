@@ -13,6 +13,7 @@ function memoryDb(
   blocked: Array<{ listingId: number; start: string; end: string }> = [],
 ): WhatsAppDb & { books: number; claims: string[]; lastStay?: { start: string; end: string } } {
   const bookings = new Map<string, { phone: string; listingId: number; id: string }>();
+  const drafts = new Map<string, SessionState>();
   const events = new Set<string>();
   const api = {
     books: 0,
@@ -99,6 +100,12 @@ function memoryDb(
       }
       events.add(eventId);
       return "new";
+    },
+    async saveDraft(phone: string, draft: SessionState): Promise<void> {
+      drafts.set(phone, draft);
+    },
+    async loadDraft(phone: string): Promise<SessionState | null> {
+      return drafts.get(phone) ?? null;
     },
     async inTransaction<T>(fn: (db: WhatsAppDb) => Promise<T>): Promise<T> {
       const before = new Set(events);
@@ -197,6 +204,34 @@ describe("local WhatsApp conversation", () => {
     expect(booked.reply).toContain("2026-10-05");
     expect(db.books).toBe(1);
     expect(db.lastStay).toEqual({ start: "2026-10-01", end: "2026-10-05" });
+  });
+
+  it("books option 2 after the in-memory session is dropped", async () => {
+    const second: ListingHit = {
+      listingId: 9,
+      price: 800000,
+      address: "9 Bourdillon",
+      city: "Ikoyi",
+      state: "Lagos",
+    };
+    const db = memoryDb([lagos, second]);
+    const found = await handleWhatsAppMessage(
+      { phone: "+2348011111111", body: "search Lagos" },
+      deps(db),
+    );
+    expect(found.reply).toContain("2. 9 Bourdillon");
+    const booked = await handleWhatsAppMessage(
+      { phone: "+2348011111111", body: "2", messageId: "wamid.option2" },
+      deps(db),
+    );
+    expect(booked.reply).toContain("9 Bourdillon");
+    expect(db.books).toBe(1);
+    const replay = await handleWhatsAppMessage(
+      { phone: "+2348011111111", body: "2", messageId: "wamid.option2" },
+      deps(db),
+    );
+    expect(replay.duplicate).toBe(true);
+    expect(db.books).toBe(1);
   });
 
   it("does not book again when the same event is delivered twice", async () => {

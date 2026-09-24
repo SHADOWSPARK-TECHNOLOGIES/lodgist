@@ -25,6 +25,12 @@ describe.skipIf(!databaseUrl)("WhatsApp search and booking against Postgres", ()
     pool = new pg.Pool({ connectionString: databaseUrl, ssl: false });
     prisma = new PrismaClientCtor({ adapter: new PrismaPg(pool) });
     await prisma.processedWebhookEvent.deleteMany({ where: { id: { startsWith: "whatsapp:" } } });
+    await prisma.whatsAppMessage.deleteMany({
+      where: { sender: { OR: [{ whatsappId: phone }, { email: "wa-bot@lodgist.local" }] } },
+    });
+    await prisma.whatsAppSession.deleteMany({
+      where: { OR: [{ user: { whatsappId: phone } }, { contact: { email: "wa-bot@lodgist.local" } }] },
+    });
     await prisma.booking.deleteMany({ where: { listing: { title: "WA race listing" } } });
     await prisma.listing.deleteMany({ where: { title: { in: ["WA integration listing", "WA race listing"] } } });
     await prisma.property.deleteMany({ where: { address: "Race Flat" } });
@@ -66,7 +72,12 @@ describe.skipIf(!databaseUrl)("WhatsApp search and booking against Postgres", ()
     if (!prisma) return;
     await prisma.processedWebhookEvent.deleteMany({ where: { id: { startsWith: "whatsapp:wamid.db" } } });
     await prisma.booking.deleteMany({ where: { tenant: { whatsappId: phone } } });
+    await prisma.whatsAppMessage.deleteMany({ where: { sender: { whatsappId: phone } } });
+    await prisma.whatsAppSession.deleteMany({
+      where: { OR: [{ user: { whatsappId: phone } }, { contact: { email: "wa-bot@lodgist.local" } }] },
+    });
     await prisma.user.deleteMany({ where: { whatsappId: phone } });
+    await prisma.user.deleteMany({ where: { email: "wa-bot@lodgist.local" } });
     await prisma.booking.deleteMany({ where: { listing: { title: "WA race listing" } } });
     await prisma.listing.deleteMany({ where: { title: { in: ["WA integration listing", "WA race listing"] } } });
     await prisma.property.deleteMany({ where: { address: "Race Flat" } });
@@ -118,6 +129,24 @@ describe.skipIf(!databaseUrl)("WhatsApp search and booking against Postgres", ()
     const tenant = await prisma.user.findUnique({ where: { whatsappId: phone } });
     const count = await prisma.booking.count({
       where: { tenantId: tenant?.id, sourceChannel: "whatsapp" },
+    });
+    expect(count).toBe(1);
+  });
+
+  it("books option 1 from a draft stored before the session map was dropped", async () => {
+    const db = createPrismaWhatsAppDb(prisma);
+    const found = await handleWhatsAppMessage(
+      { phone: `+${phone}`, body: "search Lagos", messageId: "wamid.db.draft" },
+      { db, sessions: new Map(), replies: new Map() },
+    );
+    expect(found.reply).toMatch(/1\. /);
+    const booked = await handleWhatsAppMessage(
+      { phone: `+${phone}`, body: "1", messageId: "wamid.db.draft.pick" },
+      { db, sessions: new Map(), replies: new Map() },
+    );
+    expect(booked.reply).toContain("12 Admiralty Way");
+    const count = await prisma.booking.count({
+      where: { tenant: { whatsappId: phone }, sourceChannel: "whatsapp" },
     });
     expect(count).toBe(1);
   });
@@ -199,6 +228,10 @@ describe.skipIf(!databaseUrl)("WhatsApp search and booking against Postgres", ()
     await prisma.booking.deleteMany({ where: { listingId: { in: [openListing.id, takenListing.id] } } });
     await prisma.listing.deleteMany({ where: { id: { in: [openListing.id, takenListing.id] } } });
     await prisma.property.deleteMany({ where: { id: { in: [openProperty.id, takenProperty.id] } } });
+    await prisma.whatsAppMessage.deleteMany({ where: { sender: { whatsappId: guest } } });
+    await prisma.whatsAppSession.deleteMany({
+      where: { OR: [{ user: { whatsappId: guest } }, { contact: { whatsappId: guest } }] },
+    });
     await prisma.user.deleteMany({ where: { id: { in: [takenOwner.id] } } });
     await prisma.user.deleteMany({ where: { whatsappId: guest } });
   });
