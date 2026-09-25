@@ -22,27 +22,37 @@ jobs:
 
       - uses: pnpm/action-setup@v3
         with:
-          version: 8
+          version: 10
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: packages/db/pnpm-lock.yaml
 
-      - name: Install dependencies
+      - name: Install database package
+        working-directory: packages/db
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: cd lodgist && npx prisma generate
+        working-directory: packages/db
+        run: pnpm exec prisma generate --config prisma.config.ts
+
+      - name: Install Lodgist app
+        working-directory: lodgist
+        run: npm ci
 
       - name: TypeScript check
-        run: cd lodgist && npx tsc --noEmit
+        working-directory: lodgist
+        run: npx tsc --noEmit
 
       - name: Run tests
-        run: cd lodgist && npx vitest run
+        working-directory: lodgist
+        run: npx vitest run
 
       - name: Build
-        run: cd lodgist && npx next build
+        working-directory: lodgist
+        run: npx next build
 
   deploy:
     name: Deploy to Vercel
