@@ -50,12 +50,10 @@ COPY --from=builder /app ./
 # Switch to non-root user for security
 USER node
 
-# Expose the API port
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/health || exit 1
+# PORT is injected at runtime (Railway). Default matches backend/src/index.js.
+# $$ so Docker does not expand PORT at build time.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider "http://127.0.0.1:$${PORT:-4000}/api/health" || exit 1
 
 # Start the server
 CMD ["node", "backend/src/index.js"]
