@@ -16,7 +16,6 @@ node_modules
 # Other projects / unrelated dirs
 VSCode-Perplexity-MCP
 frontend
-lodgist
 infra
 packages/ai-core
 packages/ai-core/node_modules
