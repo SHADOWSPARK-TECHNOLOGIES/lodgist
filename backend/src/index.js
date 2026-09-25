@@ -134,7 +134,7 @@ app.get("/api/health", async (_req, res) => {
     dbStatus = "connected";
   } catch (err) {
     dbStatus = "disconnected";
-    logger.error("Health check — DB unreachable", { code: err.code, error: err.message, cause: String(err.cause) });
+    logger.error("Health check — DB unreachable", { code: err.code });
   }
 
   res.json({
@@ -147,7 +147,6 @@ app.get("/api/health", async (_req, res) => {
       status: dbStatus,
       latencyMs: dbLatency,
     },
-    memory: process.memoryUsage(),
   });
 });
 
