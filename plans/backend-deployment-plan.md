@@ -118,7 +118,7 @@ docker images lodgist-backend
 
 # 3. Run a quick smoke test (local, with a test DATABASE_URL)
 docker run --rm -p 4000:4000 \
-  -e DATABASE_URL="postgresql://postgres:postgres@shadowspark-spine.cgdee2822czx.us-east-1.rds.amazonaws.com:5432/postgres" \
+  -e DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DATABASE" \
   -e NODE_ENV=development \
   -e PORT=4000 \
   lodgist-backend:latest
@@ -239,7 +239,7 @@ Follow the steps in [`APPRUNNER_DEPLOY.md`](../APPRUNNER_DEPLOY.md) section 2, b
 
 | Key | Value | Source |
 |-----|-------|--------|
-| `DATABASE_URL` | `postgresql://postgres:postgres@shadowspark-spine.cgdee2822czx.us-east-1.rds.amazonaws.com:5432/postgres` | RDS |
+| `DATABASE_URL` | `postgresql://USER:PASSWORD@HOST:5432/DATABASE` | RDS |
 | `NODE_ENV` | `production` | Static |
 | `PORT` | `4000` | Static |
 | `HOST` | `0.0.0.0` | Static |

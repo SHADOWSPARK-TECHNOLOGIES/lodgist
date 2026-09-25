@@ -42,7 +42,7 @@ create mode 100644 apprunner.yaml
 
 | Key | Value |
 |-----|-------|
-| `DATABASE_URL` | `postgresql://postgres:postgres@shadowspark-spine.cgdee2822czx.us-east-1.rds.amazonaws.com:5432/postgres` |
+| `DATABASE_URL` | `postgresql://USER:PASSWORD@HOST:5432/DATABASE` |
 | `NODE_ENV` | `production` |
 | `PORT` | `8080` |
 | `HOST` | `0.0.0.0` |
@@ -69,7 +69,7 @@ Create these secrets first (AWS Console → Secrets Manager → Store a new secr
 
 **Secret: `lodgist/whatsapp`**
 ```json
-{"WHATSAPP_API_TOKEN":"...","WHATSAPP_PHONE_NUMBER_ID":"...","WHATSAPP_VERIFY_TOKEN":"lodgist_verify_2026","WHATSAPP_APP_SECRET":"..."}
+{"WHATSAPP_API_TOKEN":"...","WHATSAPP_PHONE_NUMBER_ID":"...","WHATSAPP_VERIFY_TOKEN":"replace-with-verify-token","WHATSAPP_APP_SECRET":"..."}
 ```
 
 Then in App Runner → Environment variables → Add from **Secrets Manager**:

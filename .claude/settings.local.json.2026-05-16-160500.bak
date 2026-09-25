@@ -9,7 +9,7 @@
       "Bash(DATABASE_URL=\"postgresql://lodgist_user:lodgist_pass@localhost:5432/lodgist_db\" npx prisma *)",
       "Bash(git *)",
       "Bash(xargs ls -la)",
-      "Bash(DATABASE_URL=postgresql://lodgist_admin:ShadowLodgist2026%21@shadowspark-spine.cgdee2822czx.us-east-1.rds.amazonaws.com:5432/postgres?schema=public npx prisma migrate status --config prisma.config.ts)",
+      "Bash(DATABASE_URL=postgresql://USER:PASSWORD@HOST:5432/DATABASE npx prisma migrate status --config prisma.config.ts)",
       "Bash(python3 -c ' *)"
     ]
   }

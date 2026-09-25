@@ -118,10 +118,10 @@ Added missing vars:
 
 | Var | Current Value | Source |
 |-----|--------------|--------|
-| `DATABASE_URL` (lodgist) | `postgresql://lodgist_admin:****@shadowspark-spine....rds.amazonaws.com:5432/postgres?schema=public` | lodgist/.env |
+| `DATABASE_URL` (lodgist) | `postgresql://USER:PASSWORD@HOST:5432/DATABASE` | lodgist/.env |
 | `DATABASE_URL` (db) | Same | packages/db/.env |
 | `NEXTAUTH_URL` | `http://localhost:3000` | lodgist/.env |
-| `NEXTAUTH_SECRET` | `ONplPuHIPtR4a1xlFNN8C91OUAnSShVU9o2S8shemSc=` | lodgist/.env |
+| `NEXTAUTH_SECRET` | `<redacted — rotate>` | lodgist/.env |
 | `JWT_SECRET` | Not set | backend/.env missing |
 | `PAYSTACK_SECRET_KEY` | Not set | backend/.env missing |
 

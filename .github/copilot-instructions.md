@@ -215,7 +215,7 @@ The frontend uses Next.js 16.2.4, which has breaking changes from your training 
   - `WHATSAPP_API_TOKEN` — Bearer token for Cloud API calls
   - `WHATSAPP_PHONE_NUMBER_ID` — Your Meta Business phone number ID
   - `WHATSAPP_APP_SECRET` — Used for webhook signature verification
-  - `WHATSAPP_VERIFY_TOKEN` — Custom token for initial challenge (hardcoded as `lodgist_verify_2026`)
+  - `WHATSAPP_VERIFY_TOKEN` — Custom token for initial challenge (env only; no committed fallback)
 
 ### Webhook Signature Verification
 The WhatsApp router verifies incoming webhooks:
