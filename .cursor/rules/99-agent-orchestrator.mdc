@@ -1,0 +1,5 @@
+---
+description: Local fleet ownership and preservation rules
+alwaysApply: true
+---
+Read .agent-context.md, ORCHESTRATOR_START.md and /home/moronto/agent-orchestrator/MEMORY.md. Cursor owns frontend only; backend/ is read-only. Preserve existing work and verify before commit.
