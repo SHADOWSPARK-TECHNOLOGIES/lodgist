@@ -2,6 +2,9 @@ const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const { requireLiveness } = require("../middleware/livenessGate");
 
+// ponytail: hardcoded 5% platform fee; move to env/config only if the rate changes
+const COMMISSION_RATE = 0.05;
+
 /**
  * Create an Express router for escrow endpoints.
  * Accepts a `prisma` instance and a `paystackService` for testability.
@@ -259,11 +262,13 @@ function createEscrowRouter(prisma, paystackService) {
         });
       }
 
-      // 6. Trigger the transfer to the landlord
+      // 6. Deduct commission, then transfer the net to the landlord
       const transferReference = `LODG-REL-${escrowTransaction.reference.replace("LODG-ESC-", "")}-${Date.now()}`;
+      const commissionAmount = Number((escrowTransaction.amount * COMMISSION_RATE).toFixed(2));
+      const landlordAmount = Number((escrowTransaction.amount - commissionAmount).toFixed(2));
 
       const transfer = await PaystackService.transferToLandlord({
-        amount: escrowTransaction.amount,
+        amount: landlordAmount,
         recipientCode,
         reference: transferReference,
         reason: `Rent escrow release — ${escrowTransaction.description || "Lodgist"}`,
@@ -275,6 +280,7 @@ function createEscrowRouter(prisma, paystackService) {
         data: {
           status: "RELEASED",
           releaseDate: new Date(),
+          commissionAmount,
         },
       });
 
