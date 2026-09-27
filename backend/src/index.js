@@ -27,6 +27,7 @@ const createPaymentsRouter = require("./routes/payments");
 const paymentsRouter = createPaymentsRouter(prisma);
 const createBookingsRouter = require("./routes/bookings");
 const bookingsRouter = createBookingsRouter(prisma);
+const healthRouter = require("./routes/health")(prisma);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -123,33 +124,7 @@ app.use(morgan("combined", { stream: logger.morganStream }));
 
 // ── Health Check ────────────────────────────────────────────────────────────
 
-app.get("/api/health", async (_req, res) => {
-  let dbStatus = "unknown";
-  let dbLatency = null;
-
-  try {
-    const start = Date.now();
-    await prisma.user.count();
-    dbLatency = Date.now() - start;
-    dbStatus = "connected";
-  } catch (err) {
-    dbStatus = "disconnected";
-    logger.error("Health check — DB unreachable", { code: err.code, error: err.message, cause: String(err.cause) });
-  }
-
-  res.json({
-    status: dbStatus === "connected" ? "ok" : "degraded",
-    service: "Lodgist API",
-    version: "5.0.0",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: {
-      status: dbStatus,
-      latencyMs: dbLatency,
-    },
-    memory: process.memoryUsage(),
-  });
-});
+app.use("/api/health", healthRouter);
 
 // ── API Routes ──────────────────────────────────────────────────────────────
 
