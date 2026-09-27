@@ -14,6 +14,7 @@ dist/
 .env
 .env.local
 .env*.local
+*.env
 
 # Python
 **/__pycache__/
@@ -53,6 +54,7 @@ P2_truth_scoring.ts
 MASTER_MANIFEST.md
 safe_credential_migration.sh
 .env*
+!.env.template
 packages/ai-core/node_modules/
 node_modules/
 /VSCode-Perplexity-MCP

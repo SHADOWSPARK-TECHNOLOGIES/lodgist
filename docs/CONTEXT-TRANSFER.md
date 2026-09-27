@@ -13,6 +13,7 @@ Do not treat as final until reviewed.
 | v1.1.0 | 2024-02-20 | Added user context and account scoping |
 | v1.1.1 | 2024-03-10 | Refined security requirements and forbidden APIs |
 | v1.1.2 | 2026-09-27 | Takeout forensic ingest, source-account scope locked |
+| v1.1.3 | 2026-09-27 | RC-RAILWAY-003 pre-flight reconnaissance (read-only). O1–O6 findings appended. lodgist-api already exists — creation gated. |
 
 ---
 
@@ -601,3 +602,206 @@ When a source account is deleted:
 - FORBIDDEN sections are normative — do not use these endpoints
 - Changelog entries must be added for each version
 - Review before sharing externally
+
+---
+
+# RC-RAILWAY-003 Pre-Flight Reconnaissance (O1–O6)
+
+> Read-only reconnaissance. No mutations. No deploys. No service creation.
+> Session: 2026-09-27.
+
+## O1 — Railway project inventory (read-only)
+
+Status: OK
+
+Commands run:
+- `railway whoami`
+- `railway status`
+- `railway status --json | head -c 200000 | jq . >/dev/null && echo PARSE_OK || echo PARSE_FAIL`
+- `railway service list`
+- `railway domain --service lodgist`
+
+Findings:
+- F1: Railway CLI authenticated as wonderstevie702@gmail.com | Evidence: LIVE
+- F2: Project name = lodgist, Project ID = 46e8a12a-4123-4de8-b904-46b3883fb9be | Evidence: LIVE
+- F3: Single environment: production (ID 8c7ffbd7-0c78-4f48-ad4a-b7f682a5592b) | Evidence: LIVE
+- F4: Two services in production: lodgist (ID 7db5cf1e-6fbe-4f85-9849-130199fff2f6) and lodgist-api (ID 32bff927-2290-453a-af79-ebdf83e02ec6) | Evidence: LIVE
+- F5: Postgres database linked (ID d0629dae-bab7-4aca-b436-e0d038b49e12, 0.2 GB / 4.9 GB, EU West) | Evidence: LIVE
+- F6: status --json parses cleanly (PARSE_OK) | Evidence: LIVE
+- F7: lodgist service domains: lodgist-production.up.railway.app (service domain) and lodgist.online (custom, port 8080, ACTIVE) | Evidence: LIVE
+- F8: Canonical IDs verified: project ID 46e8a12a-4123-4de8-b904-46b3883fb9be matches; repo SHADOWSPARK-TECHNOLOGIES/lodgist matches service repo field | Evidence: LIVE
+
+Unknowns raised: none
+
+DoNot triggered: none (no create/delete/rename attempted)
+
+---
+
+## O2 — Does lodgist-api already exist?
+
+Status: BLOCKED — gate triggered
+
+Commands run:
+- `railway service list` (revealed lodgist-api)
+- `railway status` (confirmed Online status)
+
+Findings:
+- F9: lodgist-api ALREADY EXISTS and is Online | Evidence: LIVE
+- F10: lodgist-api service ID = 32bff927-2290-453a-af79-ebdf83e02ec6 | Evidence: LIVE
+- F11: lodgist-api URL = https://lodgist-api-production.up.railway.app | Evidence: LIVE
+- F12: lodgist-api deployment ID = 96489f6e-7bb2-428b-8209-83e7c9803cab | Evidence: LIVE
+- F13: lodgist-api repo = SHADOWSPARK-TECHNOLOGIES/lodgist (same as lodgist) | Evidence: LIVE
+- F14: lodgist-api region = EU West | Evidence: LIVE
+- F15: RC-RAILWAY-003 service-creation objective is BLOCKED — a prior attempt already landed; do NOT delete to "start clean" | Evidence: LOG
+
+Unknowns raised:
+- U1: Who created lodgist-api and when? (deployment ID 96489f6e present but no visible created-at in CLI output — need dashboard or deploy log to date it)
+- U2: Is lodgist-api's current deployment the intended target for RC-RAILWAY-003, or a stale/wrong build? (next prompt must decide whether to re-deploy onto existing service or treat as blocker)
+
+DoNot triggered:
+- FORBIDDEN-DELETE: did not delete lodgist-api to "start clean" (per O2 gate)
+- FORBIDDEN-CREATE: did not attempt to create a second lodgist-api service
+
+---
+
+## O3 — Backend deployability audit (local, read-only)
+
+Status: OK
+
+Commands run:
+- `cd /home/moronto/src/lodgist/backend && ls -la`
+- `cat package.json | jq '{name,version,scripts,engines,dependencies}'`
+- `head -60 src/index.js` + `sed -n '60,200p' src/index.js`
+- `find . -maxdepth 2 \( -name 'railway.toml' -o -name 'railway.json' -o -name 'Dockerfile' \)`
+- `test -f .railwayignore && cat .railwayignore || echo "NO_RAILWAYIGNORE"`
+- `cat Dockerfile`
+
+Findings:
+- F16: package.json name = lodgist-backend, version = 1.0.0 | Evidence: REPO
+- F17: `start` script defined: `node src/index.js` | Evidence: REPO
+- F18: `engines` field is null (no Node version pin in package.json) | Evidence: REPO
+- F19: src/index.js binds to `process.env.PORT || 4000` (env-var driven, fallback 4000) | Evidence: REPO
+- F20: src/index.js binds to `process.env.HOST || "0.0.0.0"` (env-var driven, fallback 0.0.0.0 — NOT localhost/127.0.0.1) | Evidence: REPO
+- F21: Health route exists at `GET /api/health`, returns JSON (`res.json({...})`) with fields: status, service, version, timestamp, uptime, database.{status,latencyMs}, memory | Evidence: REPO
+- F22: Health route performs a live DB connectivity check (`prisma.user.count()`) and reports dbStatus = "connected" | "disconnected" | "unknown" | Evidence: REPO
+- F23: No railway.toml in backend/ | Evidence: LOCAL
+- F24: No railway.json in backend/ | Evidence: LOCAL
+- F25: Dockerfile exists in backend/ (multi-stage: node:22-alpine builder + runtime, non-root USER node, EXPOSE 8080, HEALTHCHECK on /api/health) | Evidence: REPO
+- F26: No .railwayignore in backend/ | Evidence: LOCAL
+- F27: Dockerfile EXPOSE is 8080 but index.js default PORT fallback is 4000 — potential port mismatch if env PORT is not set; Railway sets PORT automatically but the Dockerfile CMD runs `node backend/src/index.js` without overriding PORT | Evidence: REPO
+- F28: Production startup guards crash at boot if JWT_SECRET, CORS_ORIGIN, WEBAUTHN_RP_ID, or WEBAUTHN_ORIGIN are missing/misconfigured in production | Evidence: REPO
+- F29: CORS fail-closed: in production with no CORS_ORIGIN, returns empty origin list (no external origins allowed) | Evidence: REPO
+- F30: Dockerfile build stage uses `npm install --omit=dev --production` for backend, but packages/db uses `npm install --legacy-peer-deps --no-package-lock` with explicit dependency versions (not from a lockfile) | Evidence: REPO
+
+Unknowns raised:
+- U3: Is the PORT mismatch (Dockerfile EXPOSE 8080 vs default 4000) intentional? Does the existing lodgist-api deployment set PORT=8080 as a Railway variable? (F27)
+- U4: packages/db has no lockfile in the Dockerfile install step — is that the intended build path, or was a pnpm workspace lockfile expected? (F30)
+- U5: No `engines` field in package.json — does the existing lodgist-api service pin a Node version via Railway runtime settings or a Dockerfile FROM? (F18)
+
+DoNot triggered: none
+
+---
+
+## O4 — Next service env (name-only, no values)
+
+Status: OK
+
+Commands run:
+- `railway variables --service lodgist | awk -F= '{print $1}' | sort`
+
+Findings:
+- F31: NEXT_PUBLIC_API_URL: PRESENT | Evidence: LIVE
+- F32: Full variable set for lodgist service includes: CORS_ORIGIN, DATABASE_URL, DIRECT_URL, HOST, HOSTNAME, JWT_SECRET (redacted), NEXTAUTH_SECRET (redacted), NEXTAUTH_URL, NEXT_PUBLIC_API_URL, NODE_ENV, RAILPACK_INSTALL_CMD, RAILWAY_ENVIRONMENT, RAILWAY_ENVIRONMENT_ID, RAILWAY_ENVIRONMENT_NAME, RAILWAY_PRIVATE_DOMAIN, RAILWAY_PROJECT_ID, RAILWAY_PROJECT_NAME, RAILWAY_PUBLIC_DOMAIN, RAILWAY_SERVICE_ID, RAILWAY_SERVICE_LODGIST_API_URL, RAILWAY_SERVICE_LODGIST_URL, RAILWAY_SERVICE_NAME, RAILWAY_STATIC_URL, WEBAUTHN_ORIGIN, WEBAUTHN_RP_ID | Evidence: LIVE
+- F33: REDACTED — JWT_SECRET, NEXTAUTH_SECRET shown as redacted in report; values NOT printed per refusal rules | Evidence: LIVE
+- F34: RAILWAY_SERVICE_LODGIST_API_URL = lodgist-api-production.up.railway.app (confirms Next knows about the existing API service) | Evidence: LIVE
+- F35: RAILWAY_SERVICE_LODGIST_URL = lodgist.online | Evidence: LIVE
+
+Unknowns raised: none
+
+DoNot triggered:
+- FORBIDDEN-PRINT-SECRET: did not print JWT_SECRET or NEXTAUTH_SECRET values (redacted, reported PRESENT NOT SHOWN)
+
+---
+
+## O5 — Repo state
+
+Status: OK
+
+Commands run:
+- `git rev-parse HEAD`
+- `git branch --show-current`
+- `git status --porcelain`
+- `git ls-files | grep -c '\.env'`
+- `git ls-files | grep -c 'github.authkey'`
+
+Findings:
+- F36: HEAD SHA = b4a54747f9b039dc097fea02407d85c3af93eeeb | Evidence: REPO
+- F37: Current branch = cursor/lodgist-prod-config-4cbdd | Evidence: REPO
+- F38: Dirty-file count = 4 (tracked modifications: .cursor/rules/99-agent-orchestrator.mdc, .gitignore; plus untracked: docs/CONTEXT-TRANSFER.md, docs/TRACK_B.md, docs/contracts/, skills-lock.json, .agent/, .agents/, .claude/skills/) | Evidence: REPO
+- F39: Tracked .env files = 2 | Evidence: REPO
+- F40: github.authkey IS tracked (count = 1) | Evidence: REPO
+- F41: Canonical branch cursor/lodgist-prod-config-4cbdd matches prompt expectation | Evidence: REPO
+
+Unknowns raised:
+- U6: Which 2 tracked .env files exist? (counts only; file names not printed — should be identified before any service creation to confirm they're not production secrets)
+- U7: github.authkey is tracked in the repo — is it a real secret or a placeholder? (count = 1 confirms presence; content not read per refusal rules)
+
+DoNot triggered:
+- FORBIDDEN-READ-SECRET: did not cat any .env file or github.authkey content (name-only counts reported)
+
+---
+
+## O6 — Lockfile / monorepo shape
+
+Status: OK
+
+Commands run:
+- `ls /home/moronto/src/lodgist/*.lock* /home/moronto/src/lodgist/*/pnpm-lock.yaml 2>/dev/null`
+- `ls /home/moronto/src/lodgist/pnpm-workspace.yaml /home/moronto/src/lodgist/package.json 2>/dev/null`
+
+Findings:
+- F42: Two pnpm-lock.yaml files exist: frontend/pnpm-lock.yaml and lodgist/pnpm-lock.yaml | Evidence: LOCAL
+- F43: Root package.json exists at /home/moronto/src/lodgist/package.json | Evidence: LOCAL
+- F44: No pnpm-workspace.yaml found at repo root | Evidence: LOCAL
+- F45: backend/ uses package-lock.json (npm), NOT pnpm-lock.yaml — backend is on npm, not pnpm | Evidence: REPO
+- F46: The Next.js "two lockfile" warning (F09: /app/pnpm-lock.yaml and /app/lodgist/pnpm-lock.yaml) is a BUILD-CONFIG problem, not expected — two pnpm-lock.yaml files in sibling directories without a pnpm-workspace.yaml means Next cannot determine which lockfile is canonical | Evidence: LOCAL
+- F47: Monorepo shape: root package.json + frontend/pnpm-lock.yaml + lodgist/pnpm-lock.yaml + backend/package-lock.json (npm) — mixed package managers across workspaces | Evidence: LOCAL
+
+Unknowns raised:
+- U8: Is the root package.json a pnpm workspace root (with `packages` field) despite missing pnpm-workspace.yaml, or is it a plain root package? (F44 — file read needed to confirm workspace field)
+- U9: Which pnpm-lock.yaml does the existing lodgist-api deployment use — frontend/ or lodgist/? (F46 — deployment variable RAILPACK_INSTALL_CMD = `pnpm install --frozen-lockfile` but no --dir flag visible; need to confirm which workspace it targets)
+
+DoNot triggered: none
+
+---
+
+# Pending patches to CONTEXT-TRANSFER
+
+## §2 F-rows to append (findings not yet woven into sections)
+
+- F1–F8 (O1): Railway inventory — already reflected in §2 narrative if present; otherwise append as Layer 14 or a new "Railway Deployment State" sub-section.
+- F9–F15 (O2): lodgist-api already exists — append as a gated finding under "Service Creation State".
+- F16–F30 (O3): Backend deployability — append as "Backend Deployment Readiness".
+- F31–F35 (O4): Next service env — append as "Next.js Environment Variables (lodgist service)".
+- F36–F41 (O5): Repo state — append as "Repository State at Pre-Flight".
+- F42–F47 (O6): Lockfile/monorepo — append as "Lockfile and Monorepo Shape".
+
+## §9 Changelog row to append
+
+- v1.1.3 | 2026-09-27 | RC-RAILWAY-003 pre-flight reconnaissance (read-only). O1–O6 findings appended. lodgist-api already exists — creation gated. See §2 F9–F15 and U1–U2.
+
+## Unknowns requiring resolution before RC-RAILWAY-003 execution
+
+- U1: Date/time of lodgist-api creation (deployment ID 96489f6e)
+- U2: Is lodgist-api's current deployment the intended target, or a stale build?
+- U3: PORT mismatch — Dockerfile EXPOSE 8080 vs default 4000; does existing service set PORT=8080?
+- U4: packages/db no lockfile in Dockerfile — intended or gap?
+- U5: No engines field — how is Node version pinned on existing service?
+- U6: Which 2 tracked .env files exist?
+- U7: Is tracked github.authkey a real secret or placeholder?
+- U8: Does root package.json declare a `packages` workspace field?
+- U9: Which pnpm-lock.yaml does lodgist-api deployment consume?
+
+---
+
+*End of RC-RAILWAY-003 pre-flight reconnaissance. No mutations performed.*
