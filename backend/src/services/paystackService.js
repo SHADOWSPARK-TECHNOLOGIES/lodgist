@@ -1,6 +1,19 @@
 /**
  * PaystackService — Paystack API integration for Lodgist escrow payments.
  *
+ * STATUS: UNAVAILABLE (as of 2026-09-27). No Paystack credentials are
+ * provisioned, and this is deliberate. We do not fabricate payment success,
+ * simulate charges, or fail open on money movement — doing any of those would
+ * record a rent payment as "received" that was never actually collected, which
+ * harms both tenant and landlord and is a fraud liability.
+ *
+ * Until live keys are provisioned, the sanctioned path is manual verification:
+ *   PATCH /api/bookings/:id/manual-payment   (tenant/agent submits bank-transfer ref)
+ *   PATCH /api/bookings/:id/verify-payment   (admin approves/rejects, logs reasoning)
+ * A human confirms real funds moved before any booking is marked CONFIRMED.
+ * When keys are added (PAYSTACK_SECRET_KEY / PAYSTACK_PUBLIC_KEY), this service
+ * starts working with no code change.
+ *
  * Endpoints used:
  *   POST /transaction/initialize   — Create a payment link
  *   GET  /transaction/verify/:ref  — Verify a completed payment

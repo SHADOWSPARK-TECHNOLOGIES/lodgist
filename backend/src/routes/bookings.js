@@ -142,9 +142,20 @@ function createBookingsRouter(prisma) {
   // Tenant initiates a Paystack payment for a booking.
   // Creates a Paystack transaction and transitions status → PENDING_VERIFICATION.
   // Manual payment fallback (PATCH /manual-payment) remains available for bank transfers.
+  //
+  // Paystack is currently UNAVAILABLE (no keys provisioned). Fail closed and
+  // point the tenant at the manual path instead of returning a cryptic 500.
   router.post("/:id/initiate-payment", requireAuth, async (req, res) => {
     const { id } = req.params;
     const { email, callbackUrl } = req.body;
+
+    if (!process.env.PAYSTACK_SECRET_KEY) {
+      return res.status(503).json({
+        success: false,
+        error: "Online payment is not available yet. Use the manual payment option to submit your transfer reference.",
+        code: "PAYSTACK_UNAVAILABLE",
+      });
+    }
 
     if (!email) {
       return res.status(400).json({ success: false, error: "email is required" });
