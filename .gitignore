@@ -58,3 +58,5 @@ safe_credential_migration.sh
 packages/ai-core/node_modules/
 node_modules/
 /VSCode-Perplexity-MCP
+github.authkey
+*.authkey
