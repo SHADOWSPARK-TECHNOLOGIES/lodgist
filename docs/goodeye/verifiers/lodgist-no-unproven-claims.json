@@ -1,0 +1,29 @@
+{
+  "name": "lodgist-no-unproven-claims",
+  "description": "Customer copy does not claim safety, verification, inventory, or rewards the supplied source does not support.",
+  "criterion": "Return passed=true only when every safety, verification, inventory, payment, or reward claim in the response is supported by the source. Return passed=false if the response says most trusted, 100% verified, zero fraud, a real home is available, or a cash reward when the source does not.",
+  "input_contract": "text",
+  "input_fields": ["response", "source"],
+  "few_shot_examples": [
+    {
+      "inputs": {
+        "response": "Example, not for rent. No Trust Score yet.",
+        "source": "Four sample rows. totalMoveInCost.sample is true. owner truthIndex is 0. Real homes: 0."
+      },
+      "passed": true,
+      "reasoning": "The response says the home is an example and does not invent a score."
+    },
+    {
+      "inputs": {
+        "response": "Nigeria's Most Trusted Property Platform. Verified homes in Owerri.",
+        "source": "Four sample rows. Real homes: 0. riskState is UNVERIFIED."
+      },
+      "passed": false,
+      "reasoning": "Most trusted and verified homes are not in the source."
+    }
+  ],
+  "model_settings": {
+    "model": "openai/gpt-5.4-mini",
+    "reasoning_effort": "medium"
+  }
+}
