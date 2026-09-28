@@ -18,7 +18,6 @@ module.exports = (prisma) => {
         select: {
           id: true,
           name: true,
-          email: true,
           truthIndex: true,
           isVerified: true,
           isHNW: true,

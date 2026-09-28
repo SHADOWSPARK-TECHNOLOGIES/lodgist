@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const webauthnService = require("../services/webauthnService");
 const { notifySignup } = require("../utils/notifySignup");
+const { requireAuth } = require("../middleware/auth");
 
 module.exports = (prisma) => {
   const router = express.Router();
@@ -182,7 +183,7 @@ module.exports = (prisma) => {
 
   // POST /api/auth/passkey/register/options
   // Step 1 of registration ceremony: get challenge
-  router.post("/passkey/register/options", async (req, res) => {
+  router.post("/passkey/register/options", requireAuth, async (req, res) => {
     try {
       if (!webauthnService.isWebAuthnEnabled()) {
         return res.status(501).json({
@@ -191,12 +192,11 @@ module.exports = (prisma) => {
         });
       }
 
-      const { userId } = req.body;
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          error: "userId is required",
-        });
+      // A passkey can only be added to the signed-in account. A body userId
+      // is accepted for compatibility but must match the token.
+      const userId = req.user.id;
+      if (req.body.userId !== undefined && Number(req.body.userId) !== userId) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
       // Fetch user
@@ -241,7 +241,7 @@ module.exports = (prisma) => {
 
   // POST /api/auth/passkey/register/verify
   // Step 2 of registration ceremony: verify and store credential
-  router.post("/passkey/register/verify", async (req, res) => {
+  router.post("/passkey/register/verify", requireAuth, async (req, res) => {
     try {
       if (!webauthnService.isWebAuthnEnabled()) {
         return res.status(501).json({
@@ -250,11 +250,15 @@ module.exports = (prisma) => {
         });
       }
 
-      const { userId, credential } = req.body;
-      if (!userId || !credential) {
+      const userId = req.user.id;
+      const { credential } = req.body;
+      if (req.body.userId !== undefined && Number(req.body.userId) !== userId) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+      if (!credential) {
         return res.status(400).json({
           success: false,
-          error: "userId and credential are required",
+          error: "credential is required",
         });
       }
 

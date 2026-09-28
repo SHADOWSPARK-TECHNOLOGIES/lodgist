@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node --test __tests__/listings.test.js __tests__/health.test.js __tests__/notifySignup.test.js"
+    "test": "node --test __tests__/listings.test.js __tests__/health.test.js __tests__/notifySignup.test.js __tests__/privacy.test.js"
   },
   "keywords": [],
   "author": "",
