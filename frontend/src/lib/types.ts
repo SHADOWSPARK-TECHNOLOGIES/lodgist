@@ -32,9 +32,11 @@ export interface PropertyRecord {
   id: number;
   title: string;
   description: string | null;
-  address: string;
+  /** Never sent by the public listing API; exact location stays server-side. */
+  address?: string;
   city: string;
   state: string;
+  lga?: string | null;
   price: number;
   currency: string;
   type: string;
@@ -42,6 +44,12 @@ export interface PropertyRecord {
   ownerId: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ApproxLocation {
+  lat: number;
+  lng: number;
+  radius_m: number;
 }
 
 export interface ListingImage {
@@ -68,6 +76,8 @@ export interface Listing {
   updatedAt: string;
   images: ListingImage[];
   property: PropertyRecord | null;
+  /** About 500 m around the property (0.005° grid). Null when no coordinates. */
+  approxLocation?: ApproxLocation | null;
   owner: Pick<User, "id" | "name" | "email" | "role" | "truthIndex"> | null;
   fraudSignals: FraudSignal[];
   reviews?: ReviewStats;
