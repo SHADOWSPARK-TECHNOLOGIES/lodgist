@@ -3,6 +3,7 @@
 import { apiFetch } from "@/lib/api";
 import { ShieldCheck, ShieldAlert, Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { jargon } from "@/lib/copy";
 
 interface TrustBadgeProps {
   userId: number;
@@ -43,7 +44,7 @@ export default function TrustBadge({ userId }: TrustBadgeProps) {
     return (
       <div className="inline-flex items-center gap-2 rounded-full bg-deep-navy/50 px-4 py-2 text-sm text-light-gray">
         <Loader2 className="h-4 w-4 animate-spin text-teal" />
-        Loading trust score…
+        {jargon.trustHint}
       </div>
     );
   }
@@ -66,10 +67,10 @@ export default function TrustBadge({ userId }: TrustBadgeProps) {
       ) : (
         <ShieldAlert className="h-4 w-4" />
       )}
-      <span>Truth Index: {data.trustScore}</span>
+      <span>{jargon.trustScore}: {data.trustScore}</span>
       {data.verified && (
         <span className="ml-1 rounded-full bg-teal/20 px-2 py-0.5 text-xs">
-          Verified
+          {jargon.solid}
         </span>
       )}
     </div>
