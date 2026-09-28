@@ -251,3 +251,57 @@ test("POST /api/bookings: landlords only for their own listings", async () => {
     assert.equal(!!state.created, status === 201);
   }
 });
+
+test("POST /api/bookings by a landlord: server-computed amount, sane dates, existing tenant", async () => {
+  const make = (overrides = {}) => {
+    const state = {};
+    const prisma = bookingPrisma(state);
+    prisma.listing.findUnique = async () => ({ id: 10, ownerId: 6, price: 36500, currency: "NGN" });
+    Object.assign(prisma.user, overrides.user || {});
+    prisma.booking.create = async ({ data }) => { state.data = data; return { id: "bk2", ...data }; };
+    return { state, router: require("../src/routes/bookings")(prisma) };
+  };
+  const post = (router, body) => call(router, "/api/bookings", "/api/bookings", { method: "POST", headers: auth(OWNER), body });
+  const base = { listingId: 10, tenantId: 5, startDate: "2030-01-01", endDate: "2031-01-01" };
+
+  let t = make();
+  let res = await post(t.router, { ...base, totalAmount: 1 });
+  assert.equal(res.status, 201);
+  assert.equal(t.state.data.totalAmount, 36500, "landlord-supplied amount must be ignored");
+
+  t = make();
+  res = await post(t.router, base);
+  assert.equal(res.status, 201, "landlords need not send totalAmount");
+  assert.equal(t.state.data.totalAmount, 36500);
+
+  for (const dates of [{ startDate: "2031-01-01", endDate: "2030-01-01" }, { startDate: "2020-01-01", endDate: "2020-06-01" }, { startDate: "nope", endDate: "2031-01-01" }]) {
+    t = make();
+    res = await post(t.router, { ...base, ...dates, totalAmount: 1 });
+    assert.equal(res.status, 400, JSON.stringify(dates));
+    assert.equal(t.state.data, undefined);
+  }
+
+  t = make({ user: { findUnique: async () => null } });
+  res = await post(t.router, { ...base, totalAmount: 1 });
+  assert.equal(res.status, 404);
+  assert.equal(t.state.data, undefined);
+});
+
+test("POST /api/truth-index/recalculate coerces a string userId", async () => {
+  const truthIndexRouter = require("../src/routes/truthIndex");
+  const seen = [];
+  const prisma = {
+    user: {
+      findUnique: async ({ where }) => { seen.push(where.id); return { id: where.id, isVerified: true, reviews: [], listings: [], profile: null }; },
+      update: async () => ({}),
+    },
+    truthIndexScore: { create: async ({ data }) => ({ ...data, createdAt: new Date() }) },
+  };
+  const post = (u, body) => call(truthIndexRouter(prisma), "/api/truth-index", "/api/truth-index/recalculate", { method: "POST", headers: auth(u), body });
+
+  assert.equal((await post({ id: 3, role: "USER" }, { userId: "3" })).status, 200, "self with a string id");
+  assert.equal((await post({ id: 4, role: "USER" }, { userId: "3" })).status, 403, "someone else");
+  assert.equal((await post(ADMIN, { userId: "3" })).status, 200, "admin with a string id");
+  assert.equal((await post(ADMIN, { userId: "abc" })).status, 400, "admin with a junk id");
+  assert.deepEqual(seen, [3, 3]);
+});

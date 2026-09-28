@@ -135,7 +135,7 @@ export interface TruthIndexScore {
 }
 
 export interface TruthIndexResponse {
-  score: number;
+  truthIndex: number | null;
   components?: Record<string, unknown>;
   latestRecord?: TruthIndexScore | null;
 }

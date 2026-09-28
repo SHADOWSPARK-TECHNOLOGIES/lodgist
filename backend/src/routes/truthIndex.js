@@ -66,7 +66,10 @@ module.exports = (prisma) => {
       const requestingUserRole = req.user.role;
 
       // Determine which user to recalculate for
-      const targetUserId = userId || requestingUserId;
+      const targetUserId = userId == null || userId === "" ? requestingUserId : Number(userId);
+      if (!Number.isInteger(targetUserId)) {
+        return res.status(400).json({ success: false, error: "Invalid user ID" });
+      }
 
       // Permission check: only self or STUDIO_ADMIN
       if (targetUserId !== requestingUserId && requestingUserRole !== "STUDIO_ADMIN") {
