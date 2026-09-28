@@ -1,6 +1,32 @@
 const express = require("express");
 const { analyzeListing } = require("../services/listingScamDetection");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
+const logger = require("../utils/logger");
+
+// Columns that exist in the baseline migration. riskState and truthIndex are
+// selected only after 20260928130000 is applied; omitting them here keeps
+// browse working on a database that has not been migrated yet.
+const LISTING_PUBLIC_SELECT = {
+  id: true,
+  propertyId: true,
+  ownerId: true,
+  title: true,
+  description: true,
+  price: true,
+  currency: true,
+  category: true,
+  status: true,
+  isFeatured: true,
+  views: true,
+  isFlaggedForFraud: true,
+  fraudReason: true,
+  totalMoveInCost: true,
+  availableFrom: true,
+  furnished: true,
+  serviceCharge: true,
+  createdAt: true,
+  updatedAt: true,
+};
 
 module.exports = (prisma) => {
   const router = express.Router();
@@ -38,24 +64,22 @@ module.exports = (prisma) => {
 
   // ─── GET /api/listings — Public, paginated listing browse ──────────────────
   router.get("/", optionalAuth, async (req, res) => {
-    const { q, category, status, minPrice, maxPrice, page: pageQuery } = req.query;
+    const { q, search, category, status, minPrice, maxPrice, page: pageQuery } = req.query;
+    const queryText = (typeof q === "string" && q) || (typeof search === "string" && search) || "";
     const pageSize = 12;
-    const page = Math.max(1, parseInt(pageQuery || "1", 10));
+    const page = Math.max(1, parseInt(pageQuery || "1", 10) || 1);
     const skip = (page - 1) * pageSize;
 
     try {
-      // Build where clause
       const where = {};
 
-      // Text search
-      if (q) {
+      if (queryText) {
         where.OR = [
-          { title: { contains: q, mode: "insensitive" } },
-          { description: { contains: q, mode: "insensitive" } },
+          { title: { contains: queryText, mode: "insensitive" } },
+          { description: { contains: queryText, mode: "insensitive" } },
         ];
       }
 
-      // Filters
       if (category) where.category = category;
       if (status) where.status = status;
       if (minPrice || maxPrice) {
@@ -64,12 +88,12 @@ module.exports = (prisma) => {
         if (maxPrice) where.price.lte = parseFloat(maxPrice);
       }
 
-      // Get total count for pagination
       const total = await prisma.listing.count({ where });
 
       const listings = await prisma.listing.findMany({
         where,
-        include: {
+        select: {
+          ...LISTING_PUBLIC_SELECT,
           images: {
             where: { isPrimary: true },
             take: 1,
@@ -109,7 +133,6 @@ module.exports = (prisma) => {
         orderBy: { createdAt: "desc" },
       });
 
-      // Compute averageRating via aggregation
       const listingIds = listings.map((l) => l.id);
       const ratingAggs = listingIds.length > 0
         ? await prisma.review.groupBy({
@@ -124,7 +147,6 @@ module.exports = (prisma) => {
         ratingMap[agg.listingId] = agg._avg.rating;
       }
 
-      // Map ratings into response
       const data = listings.map((listing) => {
         const { fraudSignals, _count, ...rest } = listing;
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
@@ -143,13 +165,19 @@ module.exports = (prisma) => {
         pagination: {
           total,
           page,
-          pages: Math.ceil(total / pageSize),
+          pages: total === 0 ? 0 : Math.ceil(total / pageSize),
           pageSize,
         },
       });
     } catch (error) {
-      console.error("Error fetching listings:", error);
-      res.status(500).json({ success: false, error: "Internal server error" });
+      logger.error("Error fetching listings", {
+        code: error.code || error.name,
+        message: error.message,
+      });
+      res.status(500).json({
+        success: false,
+        error: "We could not load listings. Try again.",
+      });
     }
   });
 
@@ -163,7 +191,8 @@ module.exports = (prisma) => {
 
       const listing = await prisma.listing.findUnique({
         where: { id: listingId },
-        include: {
+        select: {
+          ...LISTING_PUBLIC_SELECT,
           images: {
             orderBy: { order: "asc" },
             select: { url: true, altText: true, isPrimary: true },
@@ -231,8 +260,12 @@ module.exports = (prisma) => {
         },
       });
     } catch (error) {
-      console.error("Error fetching single listing:", error);
-      res.status(500).json({ error: "Internal server error" });
+      logger.error("Error fetching single listing", {
+        code: error.code || error.name,
+        message: error.message,
+        listingId: req.params.id,
+      });
+      res.status(500).json({ success: false, error: "We could not load this listing. Try again." });
     }
   });
 

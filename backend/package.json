@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "echo 'No automated tests configured yet' && exit 0"
+    "test": "node --test __tests__/listings.test.js"
   },
   "keywords": [],
   "author": "",
