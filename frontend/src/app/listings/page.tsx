@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
+import { formatYearlyRent, listings as copy, supportWhatsApp } from '@/lib/copy';
 import type { Listing } from '@/lib/types';
 
 export default function ListingsPage() {
@@ -22,25 +23,15 @@ export default function ListingsPage() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-navy)' }}>
       <div className="container py-8">
-        {/* Header */}
         <div className="mb-8">
-          <h1 className="font-poppins font-bold text-2xl text-white mb-2">Verified Listings</h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
-            Every property on Lodgist is verified and truth-index scored
-          </p>
+          <h1 className="font-poppins font-bold text-2xl text-white mb-2">{copy.title}</h1>
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{copy.subtitle}</p>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
-          <input
-            className="input max-w-sm"
-            placeholder="Search by title or location..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+          <input className="input max-w-sm" placeholder={copy.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
 
-        {/* Grid */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1,2,3,4,5,6].map(i => (
@@ -53,25 +44,22 @@ export default function ListingsPage() {
           </div>
         ) : listings.length === 0 ? (
           <div className="text-center py-16">
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🏠</div>
-            <h2 className="font-poppins font-semibold text-white text-lg mb-2">No properties found</h2>
-            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              Try a different search or check back later for new listings.
-            </p>
-            <Link href="/" className="btn btn-primary">Go home</Link>
+            <h2 className="font-poppins font-semibold text-white text-lg mb-2">{copy.emptyTitle}</h2>
+            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>{copy.emptyBody}</p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <a href={supportWhatsApp} className="btn btn-primary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>
+              <Link href="/" className="btn btn-secondary">{copy.homeCta}</Link>
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map(listing => (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
-                {/* Image placeholder */}
-                <div className="h-48 rounded-xl mb-4 flex items-center justify-center"
-                     style={{ background: 'var(--color-surface-2)' }}>
+                <div className="h-48 rounded-xl mb-4 flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
                   {listing.images?.[0]?.url ? (
-                    <img src={listing.images[0].url} alt={listing.title}
-                      className="w-full h-full object-cover rounded-xl" />
+                    <img src={listing.images[0].url} alt={listing.title} className="w-full h-full object-cover rounded-xl" />
                   ) : (
-                    <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>🏠</span>
+                    <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>Home</span>
                   )}
                 </div>
                 <div className="flex items-start justify-between gap-2">
@@ -80,9 +68,9 @@ export default function ListingsPage() {
                     <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       {listing.property?.city ?? listing.property?.state ?? ''}
                     </p>
-                    {listing.price && (
+                    {listing.price != null && (
                       <p className="font-poppins font-bold text-sm mt-2" style={{ color: 'var(--color-orange)' }}>
-                        ₦{listing.price.toLocaleString()}
+                        {formatYearlyRent(listing.price)}
                       </p>
                     )}
                   </div>
