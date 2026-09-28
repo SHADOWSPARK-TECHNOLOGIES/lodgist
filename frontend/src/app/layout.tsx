@@ -19,9 +19,13 @@ const openSans = Open_Sans({
   display: "swap",
 });
 
-const siteUrl = process.env.NEXT_PUBLIC_APP_URL || "https://lodgist.shadowspark-tech.site";
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  process.env.NEXT_PUBLIC_APP_URL ??
+  "https://lodgist.shadowspark-tech.site";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: { default: 'Lodgist — places in Nigeria you can check', template: '%s | Lodgist' },
   description: "Search houses in Nigeria. See what we checked on the landlord and the listing before you pay.",
   keywords: ['property Nigeria', 'rent Imo State', 'verified listings', 'Lagos apartments', 'no agent fee', 'Owerri property'],
