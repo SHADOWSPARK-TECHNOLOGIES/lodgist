@@ -100,6 +100,23 @@ export const home = {
   ],
 };
 
+export const detail = {
+  back: "All homes",
+  rent: "Annual rent",
+  moveIn: "What you pay to move in",
+  noMoveIn: "Move-in costs are not listed for this home yet. Ask before you pay.",
+  checked: "What we can say",
+  unchecked: "Still check in person",
+  uncheckedBody: "A Trust Score is not a reason to send rent. Walk the house first.",
+  updated: "Listing updated",
+  missing: "This home is not on Lodgist.",
+  loadError: "We could not load this home.",
+  retry: "Try again",
+  whatsApp: "Ask on WhatsApp",
+  report: "Report this listing",
+  noScore: "No Trust Score yet",
+};
+
 export const listings = {
   title: "Find a place",
   subtitle: "Annual rent is shown first. A Trust Score appears only when we have one.",
