@@ -173,3 +173,112 @@ test("GET /api/listings/:id does not expose owner email or phone", async () => {
     server.close();
   }
 });
+
+function detailPrisma(property, seen = {}) {
+  return {
+    listing: {
+      findUnique: async (args) => {
+        seen.select = args.select;
+        return {
+          id: 1,
+          title: "Two bedroom in Owerri",
+          price: 1200000,
+          images: [],
+          property,
+          owner: { id: 1, name: "Ada", truthIndex: 80, isVerified: false },
+          fraudSignals: [],
+          _count: { reviews: 0, bookings: 0 },
+        };
+      },
+    },
+    review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+  };
+}
+
+const EXACT_KEYS = ["address", "landmark", "latitude", "longitude"];
+
+test("GET /api/listings/:id returns a 500 m approxLocation, never the exact pin", async () => {
+  const seen = {};
+  const prisma = detailPrisma({
+    id: 9, city: "Owerri", state: "Imo", lga: "Owerri Municipal",
+    latitude: 5.497123, longitude: 7.033812, propertyType: "Apartment",
+  }, seen);
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings/1`);
+    const text = await res.text();
+    const body = JSON.parse(text);
+    assert.equal(res.status, 200);
+    assert.equal(seen.select.property.select.address, undefined);
+    assert.equal(seen.select.property.select.landmark, undefined);
+    for (const key of EXACT_KEYS) {
+      assert.equal(text.includes(`"${key}"`), false, `${key} must not be in the response`);
+    }
+    assert.equal(text.includes("5.497123"), false);
+    assert.equal(text.includes("7.033812"), false);
+    assert.deepEqual(body.data.approxLocation, { lat: 5.495, lng: 7.035, radius_m: 500 });
+    assert.equal(body.data.property.city, "Owerri");
+    assert.equal(body.data.property.lga, "Owerri Municipal");
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings/:id returns approxLocation null without coordinates", async () => {
+  const prisma = detailPrisma({ id: 1, city: "Owerri", state: "Imo", lga: "Owerri Municipal", latitude: null, longitude: null });
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings/1`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.data.approxLocation, null);
+    assert.equal(body.data.property.city, "Owerri");
+    for (const key of EXACT_KEYS) assert.equal(key in body.data.property, false);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings/:id handles a listing without a property", async () => {
+  const server = await listen(buildApp(detailPrisma(null)));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings/1`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.data.property, null);
+    assert.equal(body.data.approxLocation, null);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings never selects exact location fields", async () => {
+  let seen;
+  const prisma = {
+    listing: { count: async () => 0, findMany: async (args) => { seen = args; return []; } },
+    review: { groupBy: async () => [] },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    await fetch(`http://127.0.0.1:${port}/api/listings`);
+    for (const key of EXACT_KEYS) assert.equal(seen.select.property.select[key], undefined);
+  } finally {
+    server.close();
+  }
+});
+
+test("approxLocation snaps to a 0.005° grid and rejects bad input", () => {
+  const { approxLocation } = listingsRouter;
+  assert.deepEqual(approxLocation(5.4836, 7.0333), { lat: 5.485, lng: 7.035, radius_m: 500 });
+  assert.deepEqual(approxLocation(5.4824, 7.0324), { lat: 5.48, lng: 7.03, radius_m: 500 });
+  assert.equal(approxLocation(null, 7.03), null);
+  assert.equal(approxLocation(5.48, undefined), null);
+  assert.equal(approxLocation("5.48", "7.03"), null);
+  assert.equal(approxLocation(NaN, 7.03), null);
+  assert.equal(approxLocation(91, 7.03), null);
+  assert.equal(approxLocation(5.48, 181), null);
+});

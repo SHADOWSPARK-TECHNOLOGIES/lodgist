@@ -83,7 +83,7 @@ export default function ListingDetailPage() {
     );
   }
 
-  const place = [listing.property?.city, listing.property?.state].filter(Boolean).join(', ');
+  const place = [listing.property?.lga, listing.property?.city, listing.property?.state].filter(Boolean).join(', ');
   const moveIn = asMoveIn((listing as Listing & { totalMoveInCost?: unknown }).totalMoveInCost);
   const example = isExampleListing(listing);
   const score = listing.owner?.truthIndex;

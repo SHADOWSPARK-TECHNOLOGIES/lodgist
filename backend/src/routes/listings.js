@@ -29,6 +29,19 @@ const LISTING_PUBLIC_SELECT = {
   updatedAt: true,
 };
 
+// Public location is a 500 m area, never the exact pin: coordinates are
+// snapped to a 0.005° grid (about 550 m at Owerri's latitude).
+const APPROX_GRID_DEG = 0.005;
+const APPROX_RADIUS_M = 500;
+
+function approxLocation(lat, lng) {
+  if (typeof lat !== "number" || typeof lng !== "number") return null;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  const snap = (v) => Number((Math.round(v / APPROX_GRID_DEG) * APPROX_GRID_DEG).toFixed(3));
+  return { lat: snap(lat), lng: snap(lng), radius_m: APPROX_RADIUS_M };
+}
+
 const SORTS = {
   newest: { createdAt: "desc" },
   oldest: { createdAt: "asc" },
@@ -36,7 +49,7 @@ const SORTS = {
   price_desc: { price: "desc" },
 };
 
-module.exports = (prisma) => {
+function listingsRouter(prisma) {
   const router = express.Router();
 
   // ─── POST /api/listings/analyze-scam — MUST come before POST / ────────────
@@ -224,11 +237,10 @@ module.exports = (prisma) => {
           property: {
             select: {
               id: true,
-              address: true,
               city: true,
               state: true,
               lga: true,
-              landmark: true,
+              // Read for approxLocation only; stripped before the response.
               latitude: true,
               longitude: true,
               propertyType: true,
@@ -268,13 +280,22 @@ module.exports = (prisma) => {
         _count: true,
       });
 
-      const { _count, fraudSignals, ...listingData } = listing;
+      const { _count, fraudSignals, property, ...listingData } = listing;
       const latestFraudSignal = fraudSignals?.[0] ?? null;
+      let publicProperty = null;
+      let approx = null;
+      if (property) {
+        const { latitude, longitude, ...rest } = property;
+        publicProperty = rest;
+        approx = approxLocation(latitude, longitude);
+      }
 
       res.json({
         success: true,
         data: {
           ...listingData,
+          property: publicProperty,
+          approxLocation: approx,
           averageRating: ratingAgg._avg.rating,
           reviewCount: ratingAgg._count,
           bookingCount: _count.bookings,
@@ -404,4 +425,7 @@ module.exports = (prisma) => {
   });
 
   return router;
-};
+}
+
+module.exports = listingsRouter;
+module.exports.approxLocation = approxLocation;
