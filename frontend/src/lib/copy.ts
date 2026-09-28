@@ -328,6 +328,7 @@ export const trustCenter = {
   limitBody: "Lodgist does not replace a physical inspection. Never send rent only because a listing has a high Trust Score. A score is not a promise that the house, the landlord, or the payment is safe.",
   reportTitle: "If something looks wrong",
   reportBody: "Message Lodgist Support on WhatsApp with the listing and what concerned you. We review the report and can change how the listing is shown. We do not claim every problem is caught.",
+  analytics: "We use Google Analytics to see anonymous, aggregated usage of the site.",
   browse: "Browse homes",
 };
 

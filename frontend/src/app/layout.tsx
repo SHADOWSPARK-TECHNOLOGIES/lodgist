@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import Script from 'next/script';
 import { Poppins, Open_Sans } from "next/font/google";
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
@@ -39,6 +40,8 @@ export const metadata: Metadata = {
   icons: { icon: '/favicon.ico', apple: '/icons/icon-192.png' },
 };
 
+const gaId = process.env.NEXT_PUBLIC_GA_ID;
+
 export const viewport: Viewport = {
   themeColor: '#FF6F3C',
   width: 'device-width',
@@ -64,6 +67,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </a>
           </ToastProvider>
         </AuthProvider>
+        {gaId && (
+          <>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} strategy="afterInteractive" />
+            <Script id="ga4" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag('js',new Date());gtag('config','${gaId}');`}
+            </Script>
+          </>
+        )}
       </body>
     </html>
   );
