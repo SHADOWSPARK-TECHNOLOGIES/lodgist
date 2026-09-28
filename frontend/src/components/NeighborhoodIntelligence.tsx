@@ -12,6 +12,7 @@ import {
   ChevronUp,
   Star,
 } from "lucide-react";
+import { area } from "@/lib/copy";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -48,7 +49,7 @@ export default function NeighborhoodIntelligence({
       <div className="rounded-xl border border-white/10 bg-deep-navy/60 p-5 backdrop-blur-sm">
         <div className="flex items-center gap-3 text-light-gray">
           <MapPin className="h-5 w-5 text-vibrant-orange" />
-          <span className="text-sm">Neighborhood intelligence not available</span>
+          <span className="text-sm">{area.unavailable}</span>
         </div>
       </div>
     );
@@ -126,13 +127,13 @@ export default function NeighborhoodIntelligence({
           className={`flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs ${safetyColor(data.safety_index)}`}
         >
           <Star className="h-3 w-3" />
-          <span>Safety: {data.safety_index}</span>
+          <span>{area.safety}: {data.safety_index}</span>
         </div>
         <div
           className={`flex items-center gap-1 rounded-full bg-white/5 px-3 py-1 text-xs ${floodColor(data.flood_risk)}`}
         >
           <AlertTriangle className="h-3 w-3" />
-          <span>Flood: {data.flood_risk}</span>
+          <span>{area.flood}: {data.flood_risk}</span>
         </div>
       </div>
 
@@ -149,7 +150,7 @@ export default function NeighborhoodIntelligence({
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-lg bg-white/5 p-3">
               <p className="text-[10px] uppercase tracking-wider text-light-gray">
-                Avg Rent
+                {area.avgRent}
               </p>
               <p className="font-mono text-sm font-semibold text-off-white">
                 {data.currency} {data.avg_rent.toLocaleString()}
@@ -157,7 +158,7 @@ export default function NeighborhoodIntelligence({
             </div>
             <div className="rounded-lg bg-white/5 p-3">
               <p className="text-[10px] uppercase tracking-wider text-light-gray">
-                Occupancy
+                {area.occupancy}
               </p>
               <p className="font-mono text-sm font-semibold text-off-white">
                 {data.occupancy_rate}%
@@ -165,7 +166,7 @@ export default function NeighborhoodIntelligence({
             </div>
             <div className="rounded-lg bg-white/5 p-3">
               <p className="text-[10px] uppercase tracking-wider text-light-gray">
-                Amenities
+                {area.amenities}
               </p>
               <p className="font-mono text-sm font-semibold text-off-white">
                 {data.amenities_count}

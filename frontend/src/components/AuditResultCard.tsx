@@ -3,6 +3,7 @@
 import { apiUrl } from "@/lib/api";
 import { ShieldCheck, AlertTriangle, Info, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { audit } from "@/lib/copy";
 
 interface AuditResult {
   risk_level: string;
@@ -37,11 +38,11 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
           },
         }),
       });
-      if (!res.ok) throw new Error("Audit request failed");
+      if (!res.ok) throw new Error(audit.failed);
       const data = await res.json();
       setResult(data.assessment ?? data);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unknown error");
+      setError(err instanceof Error ? err.message : audit.unknown);
     } finally {
       setLoading(false);
     }
@@ -67,7 +68,7 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
       <div className="mb-4 flex items-center justify-between">
         <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-off-white">
           <ShieldCheck className="h-5 w-5 text-teal" />
-          Trust Audit
+          {audit.title}
         </h3>
         <button
           onClick={runAudit}
@@ -77,10 +78,10 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
           {loading ? (
             <span className="flex items-center gap-2">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Scanning…
+              {audit.running}
             </span>
           ) : (
-            "Run Audit"
+            audit.run
           )}
         </button>
       </div>
@@ -96,7 +97,7 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
         <div className="space-y-4">
           {/* Overall Score */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-light-gray">Risk Level</span>
+            <span className="text-sm text-light-gray">{audit.risk}</span>
             <span
               className={`rounded-full border px-3 py-1 text-xs font-semibold ${levelColor(result.risk_level)}`}
             >
@@ -107,7 +108,7 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
           {/* Score Bar */}
           <div>
             <div className="mb-1 flex justify-between text-xs text-light-gray">
-              <span>Overall Score</span>
+              <span>{audit.score}</span>
               <span>{result.overall_score}/100</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-deep-navy/50">
@@ -126,7 +127,7 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
           {Object.keys(result.components).length > 0 && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-light-gray">
-                Component Breakdown
+                {audit.breakdown}
               </p>
               <div className="space-y-1.5">
                 {Object.entries(result.components).map(([key, val]) => (
@@ -144,12 +145,12 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
             </div>
           )}
 
-          {/* Recommendations */}
+          {/* {audit.recommendations} */}
           {result.recommendations.length > 0 && (
             <div>
               <p className="mb-2 flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-light-gray">
                 <Info className="h-3 w-3" />
-                Recommendations
+                {audit.recommendations}
               </p>
               <ul className="space-y-1">
                 {result.recommendations.map((rec, i) => (
@@ -168,7 +169,7 @@ export default function AuditResultCard({ listingId }: AuditResultCardProps) {
           {result.requires_review && (
             <div className="flex items-center gap-2 rounded-lg bg-orange-400/10 p-3 text-sm text-orange-400">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              This listing requires manual review
+              {audit.needsLook}
             </div>
           )}
         </div>

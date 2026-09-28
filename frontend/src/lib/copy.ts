@@ -1,0 +1,262 @@
+export const supportWhatsApp = "https://wa.me/2349136094315";
+
+export function formatYearlyRent(price?: number | null) {
+  if (price == null || Number.isNaN(price)) return "";
+  return `\u20a6${Number(price).toLocaleString("en-NG")} / year`;
+}
+
+export const nav = {
+  browse: "Browse",
+  dashboard: "Dashboard",
+  signOut: "Sign out",
+  signIn: "Sign in",
+  getStarted: "Get started",
+  getStartedFree: "Get started free",
+};
+
+export const auth = {
+  loginTitle: "Welcome back",
+  loginSubtitle: "Use the email you signed up with",
+  email: "Email",
+  password: "Password",
+  passwordPlaceholder: "At least 8 characters",
+  namePlaceholder: "Chioma Okonkwo",
+  emailPlaceholder: "you@example.com",
+  phonePlaceholder: "080...",
+  signIn: "Sign in",
+  noAccount: "No account?",
+  createOne: "Create one",
+  welcomeBack: "Welcome back.",
+  loginFailed: "We could not sign you in. Check your email and password, or create an account.",
+  getStarted: "Create your Lodgist account",
+  createAccountSubtitle: "Takes a minute. You can browse listings right after.",
+  fullName: "Full name",
+  phoneOptional: "WhatsApp number (optional)",
+  createAccount: "Create account",
+  alreadyHaveAccount: "Already have an account?",
+  registrationSuccess: "You are in. Let's look at places.",
+  registrationFailure: "We could not create the account. Try again, or use a different email.",
+  registerFailed: "We could not finish that. Try again.",
+  notAvailable: "Not ready yet",
+};
+
+export const home = {
+  metaTitle: "Find a place in Nigeria you can actually trust",
+  badge: "Imo first. Port Harcourt when the site is up.",
+  titleLead: "Find a place in Nigeria",
+  titleAccent: "you can actually trust",
+  subtitle: "See the checks on the landlord and the listing before you pay.",
+  browseCta: "See places we have checked",
+  listCta: "List a house (free)",
+  whyTitle: "Why people use Lodgist",
+  whySub: "Most ads look fine until money leaves your account. We slow that part down.",
+  storiesTitle: "Example stories",
+  storiesNote: "These are examples, not live reviews.",
+  closeTitle: "Ready to look?",
+  closeSub: "Create a free account. Browse first. Pay only when you are ready.",
+  closeCta: "Create a free account",
+  footer: "Lodgist is built by ShadowSpark in Nigeria",
+  features: [
+    { icon: "\u{1f6e1}\ufe0f", title: "Trust score", desc: "Each listing shows the checks we actually ran: identity, photos, price against nearby homes, and complaint history." },
+    { icon: "\u{1f4b0}", title: "Pay after you look", desc: "Do not send rent until you have seen the house and said it is real." },
+    { icon: "\u{1f4f1}", title: "WhatsApp if that is easier", desc: "Search, ask questions, and book a viewing on WhatsApp." },
+    { icon: "\u{1f511}", title: "Sign in with this phone", desc: "Fingerprint or Face ID. No password sitting on a stolen phone." },
+  ],
+  stats: [
+    { value: "Checks", label: "On every listing", sub: "Only what we can show" },
+    { value: "Up front", label: "Rent and fees", sub: "Shown before you pay" },
+    { value: "ID", label: "When the score says so", sub: "Not a blanket claim" },
+    { value: "WhatsApp", label: "Help while we are open", sub: "Hours shown in the chat" },
+  ],
+  examples: [
+    { name: "Example", city: "Owerri", score: "Solid", text: "A renter finds a flat, sees the landlord checks, and moves in without paying an agent first." },
+    { name: "Example", city: "Port Harcourt", score: "Solid", text: "The renter looks at the house before any rent leaves their account." },
+    { name: "Example", city: "Lagos", score: "Solid", text: "A landlord lists a house and only hears from people who created an account." },
+  ],
+};
+
+export const listings = {
+  title: "Places we have checked",
+  subtitle: "The score on each card is the trust score for that landlord.",
+  searchPlaceholder: "Try \"2 bedroom Owerri\" or \"World Bank\"",
+  emptyTitle: "Nothing matches that yet",
+  emptyBody: "Try another area, or message us on WhatsApp and we will look.",
+  emptyCta: "Message us on WhatsApp",
+  homeCta: "Back to home",
+};
+
+export const search = {
+  title: "Find a place",
+  button: "Search",
+  placeholder: "New Owerri, Irete, World Bank",
+  startTitle: "Type an area",
+  startBody: "Example: New Owerri, Irete, or World Bank.",
+  noTitle: "Nothing for that search",
+  noBody: "Try a different area, or see every place we have checked.",
+  browseAll: "See all places",
+  fetchError: "Listings did not load. Check your network and try again.",
+};
+
+export const jargon = {
+  trustScore: "Trust score",
+  trustHint: "Higher means more checks passed.",
+  weak: "Weak",
+  average: "Average",
+  solid: "Solid",
+  strong: "Strong",
+};
+
+export const dashboard = {
+  title: "Dashboard",
+  loading: "Loading your dashboard",
+  sessionTitle: "Sign in to continue",
+  sessionBody: "Your dashboard is behind your account.",
+  goToLogin: "Sign in",
+  logout: "Sign out",
+  extraChecks: "Extra checks on",
+  tabs: {
+    overview: "Overview",
+    listings: "Your houses",
+    reviews: "Reviews",
+    passkeys: "Phone sign-in",
+    hnw: "Extra checks",
+  },
+  overview: {
+    truthScore: "Trust score",
+    hnwStatus: "Higher-value checks",
+    accountType: "Account type",
+    passkey: "Phone sign-in",
+  },
+  hnw: {
+    verified: "Extra checks on",
+    standard: "Standard",
+    verifiedDesc: "Extra identity checks are on for this account.",
+    standardDesc: "Standard account. Extra checks are not required yet.",
+  },
+};
+
+export const passkeys = {
+  title: "Phone sign-in",
+  subtitle: "Use this phone instead of a password.",
+  add: "Add this phone",
+  adding: "Adding...",
+  loadFailed: "We could not load your phones. Try again.",
+  registerFailed: "We could not add this phone. Try again.",
+  deleteFailed: "We could not remove that phone. Try again.",
+  unsupported: "This browser cannot use phone sign-in. Try Chrome or Safari.",
+  emptyTitle: "No phone sign-in yet",
+  emptyBody: "Add this phone so you can sign in without a password.",
+  synced: "Synced",
+  thisPhone: "This phone",
+  otherDevice: "Another device",
+  created: "Added",
+  lastUsed: "Last used",
+  remove: "Remove",
+  removing: "Removing...",
+};
+
+export const reviews = {
+  signInError: "Sign in before you leave a review.",
+  signInBody: "Sign in to say how the house was.",
+  rating: "How was it?",
+  comment: "What should the next person know?",
+  optional: "(optional)",
+  placeholder: "Was the house as described? Was the landlord easy to reach?",
+  updateFailed: "We could not update your review. Try again.",
+  submitFailed: "We could not send your review. Try again.",
+  submitting: "Sending...",
+  update: "Update your review",
+  submit: "Send review",
+  sending: "Sending your review...",
+  stars: "Rate",
+};
+
+export const neighborhood = {
+  unavailable: "We do not have area details for this house yet.",
+  safety: "Area check",
+  flood: "Flood note",
+  amenities: "Nearby",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
+
+export const listingCard = {
+  noPhoto: "No photo yet",
+  listedBy: "Listed by",
+  trust: "Trust score",
+  view: "View house",
+  markRented: "Mark as taken",
+  beds: "beds",
+  baths: "baths",
+  status: {
+    available: "Open",
+    rented: "Taken",
+    sold: "Sold",
+    withdrawn: "Taken down",
+  } as Record<string, string>,
+};
+
+export const overview = {
+  registering: "Adding...",
+  registerPasskey: "Add this phone",
+  passkeyUnavailable: "Phone sign-in is not available on this device",
+  quick: "What you can do",
+  browse: "See places",
+  newListing: "List a house",
+  recalculate: "Refresh the score",
+};
+
+export const audit = {
+  title: "What we checked",
+  running: "Checking...",
+  run: "Check this listing",
+  failed: "We could not run the check. Try again.",
+  unknown: "Something went wrong. Try again.",
+  risk: "How it looks",
+  score: "Score",
+  breakdown: "What went into the score",
+  recommendations: "What to do next",
+  needsLook: "This listing needs a second look before you pay.",
+};
+
+export const moveIn = {
+  unavailable: "We do not have move-in costs for this house yet.",
+  title: "What you pay to move in",
+  total: "Total",
+  notDeclared: "Total not listed",
+  errors: "Numbers that do not add up",
+  warnings: "Check these",
+  note: "Note",
+  structure: "How the money is split",
+  baseRent: "Rent",
+  agency: "Agent fee",
+  legal: "Legal fee",
+  caution: "Caution deposit",
+  inspection: "Inspection fee",
+  service: "Service charge",
+};
+
+export const payment = {
+  title: "Payment status",
+  empty: "No payment on this listing yet.",
+  completed: "Paid",
+  support: "Message us on WhatsApp",
+  ref: "Reference",
+};
+
+export const milestones = {
+  title: "Payments along the way",
+  empty: "No staged payments on this listing.",
+  noneYet: "Nothing paid yet",
+  complete: "Finish this on WhatsApp",
+};
+
+export const area = {
+  unavailable: "We do not have area notes for this house yet.",
+  safety: "Area check",
+  flood: "Flood note",
+  avgRent: "Typical rent nearby",
+  occupancy: "How full the area is",
+  amenities: "Nearby",
+};

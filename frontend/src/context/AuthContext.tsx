@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginFn = useCallback(async (email: string, password: string) => {
     const res = await authApi.login({ email, password });
     if (!res.success || !res.data || !res.data.token) {
-      throw new Error(res.message || "Login failed");
+      throw new Error(res.message || "We could not sign you in. Check your email and password, or create an account.");
     }
     setToken(res.data.token);
     setStoredUser(res.data.user);
