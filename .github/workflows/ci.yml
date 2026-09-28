@@ -54,15 +54,3 @@ jobs:
       - name: Build
         working-directory: lodgist
         run: npx next build
-
-  deploy:
-    name: Deploy to Vercel
-    needs: ci
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy to Vercel Production
-        run: cd lodgist && npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
