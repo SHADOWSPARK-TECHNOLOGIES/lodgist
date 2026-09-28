@@ -26,6 +26,7 @@ export default function TrustPage() {
 
         <h2 className="font-poppins font-semibold text-white text-xl mb-3">{trustCenter.reportTitle}</h2>
         <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.7 }}>{trustCenter.reportBody}</p>
+        <p className="text-sm mb-6" style={{ color: "rgba(255,255,255,0.65)", lineHeight: 1.7 }}>{trustCenter.analytics}</p>
         <Link href="/listings" className="btn btn-primary">{trustCenter.browse}</Link>
       </article>
     </div>

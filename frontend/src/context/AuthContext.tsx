@@ -21,6 +21,7 @@ import {
   logout as doLogout,
 } from "@/lib/auth";
 import { authApi } from "@/lib/api";
+import { track } from "@/lib/gtag";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -75,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(res.token);
       setStoredUser(res.user);
       setState({ isLoaded: true, user: res.user, token: res.token });
+      track("sign_up", { method: "email", ...(res.user?.role && { role: res.user.role }) });
     },
     []
   );
@@ -87,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setToken(res.data.token);
     setStoredUser(res.data.user);
     setState({ isLoaded: true, user: res.data.user, token: res.data.token });
+    track("login", { method: "email" });
   }, []);
 
   const logout = useCallback(() => {
