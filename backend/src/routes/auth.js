@@ -2,6 +2,7 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const webauthnService = require("../services/webauthnService");
+const { notifySignup } = require("../utils/notifySignup");
 
 module.exports = (prisma) => {
   const router = express.Router();
@@ -77,6 +78,8 @@ module.exports = (prisma) => {
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d" }
       );
+
+      notifySignup({ role: user.role, method: "password" });
 
       res.status(201).json({
         success: true,
