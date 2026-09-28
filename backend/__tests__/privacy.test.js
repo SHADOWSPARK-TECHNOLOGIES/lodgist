@@ -175,3 +175,79 @@ test("the Express app trusts the Railway proxy for client IPs", () => {
   const src = require("node:fs").readFileSync(require.resolve("../src/index.js"), "utf8");
   assert.match(src, /app\.set\(\s*["']trust proxy["']\s*,\s*1\s*\)/);
 });
+
+// Booking bk1 is on listing 10 (owned by landlord 6), tenant 5.
+function bookingPrisma(state = {}) {
+  const booking = {
+    id: "bk1", tenantId: 5, listingId: 10, status: "PENDING_VERIFICATION", adminNotes: "internal note",
+    listing: { id: 10, title: "Flat", price: 1, ownerId: 6 },
+  };
+  return {
+    booking: {
+      count: async () => 1,
+      findMany: async () => [{ ...booking }],
+      findUnique: async () => ({ ...booking, status: state.status || booking.status }),
+      update: async ({ data }) => { state.updated = true; return { ...booking, ...data }; },
+      create: async ({ data }) => { state.created = true; return { id: "bk2", ...data }; },
+    },
+    listing: { findUnique: async () => ({ id: 10, ownerId: 6 }) },
+    user: { findUnique: async () => ({ id: 5 }) },
+  };
+}
+const ADMIN = { id: 1, role: "STUDIO_ADMIN" };
+const OWNER = { id: 6, role: "LANDLORD" };
+const OTHER_LANDLORD = { id: 7, role: "LANDLORD" };
+const TENANT = { id: 5, role: "USER" };
+const auth = (u) => ({ Authorization: token(u) });
+
+test("GET /api/bookings/:id: admin, tenant and owning landlord only; adminNotes admin-only", async () => {
+  const router = require("../src/routes/bookings")(bookingPrisma());
+  const get = (u) => call(router, "/api/bookings", "/api/bookings/bk1", { headers: auth(u) });
+  assert.equal((await get(OTHER_LANDLORD)).status, 403);
+  assert.equal((await get({ id: 8, role: "USER" })).status, 403);
+  for (const u of [OWNER, TENANT]) {
+    const res = await get(u);
+    assert.equal(res.status, 200);
+    assert.equal(res.text.includes("internal note"), false);
+  }
+  const admin = await get(ADMIN);
+  assert.equal(admin.status, 200);
+  assert.equal(admin.text.includes("internal note"), true);
+});
+
+test("GET /api/bookings list hides adminNotes from landlords", async () => {
+  const router = require("../src/routes/bookings")(bookingPrisma());
+  const res = await call(router, "/api/bookings", "/api/bookings", { headers: auth(OWNER) });
+  assert.equal(res.status, 200);
+  assert.equal(res.text.includes("adminNotes"), false);
+});
+
+test("booking verify-payment and admin-notes are STUDIO_ADMIN only", async () => {
+  for (const [path, body] of [["/api/bookings/bk1/verify-payment", { action: "approve" }], ["/api/bookings/bk1/admin-notes", { adminNotes: "x" }]]) {
+    for (const u of [OWNER, OTHER_LANDLORD, TENANT]) {
+      const state = {};
+      const res = await call(require("../src/routes/bookings")(bookingPrisma(state)), "/api/bookings", path, { method: "PATCH", headers: auth(u), body });
+      assert.equal(res.status, 403, `${path} ${u.id}`);
+      assert.equal(state.updated, undefined);
+    }
+    const res = await call(require("../src/routes/bookings")(bookingPrisma()), "/api/bookings", path, { method: "PATCH", headers: auth(ADMIN), body });
+    assert.equal(res.status, 200, `${path} admin`);
+  }
+});
+
+test("booking cancel: tenant and admin only, not landlords", async () => {
+  for (const [u, status] of [[OWNER, 403], [OTHER_LANDLORD, 403], [TENANT, 200], [ADMIN, 200]]) {
+    const res = await call(require("../src/routes/bookings")(bookingPrisma({ status: "PENDING" })), "/api/bookings", "/api/bookings/bk1/cancel", { method: "PATCH", headers: auth(u) });
+    assert.equal(res.status, status, `cancel as ${u.id}`);
+  }
+});
+
+test("POST /api/bookings: landlords only for their own listings", async () => {
+  const body = { listingId: 10, tenantId: 5, startDate: "2026-10-01", endDate: "2026-11-01", totalAmount: 1 };
+  for (const [u, status] of [[OTHER_LANDLORD, 403], [TENANT, 403], [OWNER, 201], [ADMIN, 201]]) {
+    const state = {};
+    const res = await call(require("../src/routes/bookings")(bookingPrisma(state)), "/api/bookings", "/api/bookings", { method: "POST", headers: auth(u), body });
+    assert.equal(res.status, status, `create as ${u.id}`);
+    assert.equal(!!state.created, status === 201);
+  }
+});

@@ -7,7 +7,7 @@ const logger = require("../utils/logger");
 // route them away from EscrowTransaction lookups without touching paystackService.js.
 const BOOKING_REF_PREFIX = "LODG-ESC-BK-";
 
-const ADMIN_ROLES = ["STUDIO_ADMIN", "LANDLORD"];
+const ADMIN_ROLES = ["STUDIO_ADMIN"];
 
 function isAdmin(user) {
   return ADMIN_ROLES.includes(user.role);
@@ -22,7 +22,7 @@ function createBookingsRouter(prisma) {
   // This is the concierge operations queue — support staff use this to see
   // pending payment verifications and manage the pipeline.
   router.get("/", requireAuth, async (req, res) => {
-    if (!isAdmin(req.user)) {
+    if (!isAdmin(req.user) && req.user.role !== "LANDLORD") {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
@@ -57,7 +57,7 @@ function createBookingsRouter(prisma) {
 
       return res.json({
         success: true,
-        data: bookings,
+        data: landlord ? bookings.map(({ adminNotes, ...b }) => b) : bookings,
         pagination: { total, page, pageSize, pages: Math.ceil(total / pageSize) },
       });
     } catch (error) {
@@ -85,12 +85,12 @@ function createBookingsRouter(prisma) {
   });
 
   // ── POST /api/bookings ────────────────────────────────────────────────────
-  // Admin or LANDLORD creates a booking on behalf of a tenant.
+  // Admin, or a LANDLORD for their own listing, creates a booking on behalf of a tenant.
   // Used in the manual concierge flow: lead arrives via social/chatbot,
   // admin creates the booking, tenant then submits payment reference via
   // PATCH /manual-payment, admin verifies via PATCH /verify-payment.
   router.post("/", requireAuth, async (req, res) => {
-    if (!isAdmin(req.user)) {
+    if (!isAdmin(req.user) && req.user.role !== "LANDLORD") {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
@@ -111,6 +111,9 @@ function createBookingsRouter(prisma) {
 
       if (!listing) return res.status(404).json({ success: false, error: "Listing not found" });
       if (!tenant)  return res.status(404).json({ success: false, error: "Tenant not found" });
+      if (!isAdmin(req.user) && listing.ownerId !== req.user.id) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
 
       const booking = await prisma.booking.create({
         data: {
@@ -219,25 +222,26 @@ function createBookingsRouter(prisma) {
   });
 
   // ── GET /api/bookings/:id ─────────────────────────────────────────────────
-  // Tenant reads their own booking; admin reads any.
-  // adminNotes are excluded from tenant responses.
+  // Tenant reads their own booking; the listing's landlord reads it; admin reads any.
+  // adminNotes are excluded from non-admin responses.
   router.get("/:id", requireAuth, async (req, res) => {
     try {
       const booking = await prisma.booking.findUnique({
         where: { id: req.params.id },
         include: {
-          listing: { select: { id: true, title: true, price: true } },
+          listing: { select: { id: true, title: true, price: true, ownerId: true } },
           verifier: { select: { id: true, name: true } },
         },
       });
       if (!booking) return res.status(404).json({ success: false, error: "Booking not found" });
 
       const admin = isAdmin(req.user);
-      if (!admin && booking.tenantId !== req.user.id) {
+      const owner = req.user.role === "LANDLORD" && booking.listing?.ownerId === req.user.id;
+      if (!admin && !owner && booking.tenantId !== req.user.id) {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
-      // Hide internal admin notes from tenants
+      // Hide internal admin notes from tenants and landlords
       const response = admin ? booking : { ...booking, adminNotes: undefined };
       return res.json({ success: true, booking: response });
     } catch (error) {
