@@ -1,4 +1,20 @@
 export const supportWhatsApp = "https://wa.me/2349136094315";
+export const supportWhatsAppAsk =
+  "https://wa.me/2349136094315?text=" + encodeURIComponent("I need a home. Area: ");
+
+export const brand = {
+  endorsement: "A platform curated by ShadowSpark Technologies",
+  tagline: "Rent with more confidence.",
+  productLabel: "Product",
+  companyLabel: "Company",
+  browse: "Browse homes",
+  list: "List a property",
+  trust: "Trust and safety",
+  about: "About Lodgist",
+  privacy: "How we handle trust",
+  support: "Lodgist Support · ShadowSpark Technologies",
+  authLine: "A ShadowSpark Technologies platform",
+};
 
 export function formatYearlyRent(price?: number | null) {
   if (price == null || Number.isNaN(price)) return "";
@@ -17,6 +33,7 @@ export const nav = {
 export const auth = {
   loginTitle: "Welcome back",
   loginSubtitle: "Use the email you signed up with",
+  curatorLine: brand.authLine,
   email: "Email",
   password: "Password",
   passwordPlaceholder: "At least 8 characters",
@@ -42,12 +59,20 @@ export const auth = {
 
 export const home = {
   metaTitle: "Find a place in Nigeria you can actually trust",
-  badge: "Imo first. Port Harcourt when the site is up.",
+  badge: "Starting in Imo. More cities after homes are reviewed.",
   titleLead: "Find a place in Nigeria",
   titleAccent: "you can actually trust",
   subtitle: "See the checks on the landlord and the listing before you pay.",
   browseCta: "See places we have checked",
   listCta: "List a house (free)",
+  stepsTitle: "How it works",
+  steps: [
+    { n: "1", title: "Find a place", body: "Search homes in your area." },
+    { n: "2", title: "Check before you trust", body: "See what Lodgist checked and what still needs a look." },
+    { n: "3", title: "Look before you pay", body: "Inspect the property before sending rent." },
+  ],
+  nigeriaTitle: "Built for renting in Nigeria",
+  nigeria: ["Annual rent", "Move-in costs", "Area notes", "Trust checks", "WhatsApp assistance"],
   whyTitle: "Why people use Lodgist",
   whySub: "Most ads look fine until money leaves your account. We slow that part down.",
   storiesTitle: "Example stories",
@@ -55,7 +80,7 @@ export const home = {
   closeTitle: "Ready to look?",
   closeSub: "Create a free account. Browse first. Pay only when you are ready.",
   closeCta: "Create a free account",
-  footer: "Lodgist is built by ShadowSpark in Nigeria",
+  footer: brand.endorsement,
   features: [
     { icon: "\u{1f6e1}\ufe0f", title: "Trust score", desc: "Each listing shows the checks we actually ran: identity, photos, price against nearby homes, and complaint history." },
     { icon: "\u{1f4b0}", title: "Pay after you look", desc: "Do not send rent until you have seen the house and said it is real." },
@@ -76,13 +101,22 @@ export const home = {
 };
 
 export const listings = {
-  title: "Places we have checked",
-  subtitle: "The score on each card is the trust score for that landlord.",
+  title: "Find a place",
+  subtitle: "Annual rent is shown first. A Trust Score appears only when we have one.",
   searchPlaceholder: "Try \"2 bedroom Owerri\" or \"World Bank\"",
-  emptyTitle: "Nothing matches that yet",
-  emptyBody: "Try another area, or message us on WhatsApp and we will look.",
-  emptyCta: "Message us on WhatsApp",
-  homeCta: "Back to home",
+  maxRent: "Highest annual rent",
+  count: (n: number) => (n === 1 ? "1 home" : `${n} homes`),
+  emptyTitle: "No checked homes here yet",
+  emptyBody: "We're starting with Imo and adding more homes as they're reviewed.",
+  emptyCta: "Ask us on WhatsApp",
+  listCta: "List your property",
+  elsewhere: "Looking somewhere else? Tell us the area you want.",
+  searchEmptyTitle: "Nothing matches that search",
+  searchEmptyBody: "Try another area or a higher rent, or tell us on WhatsApp.",
+  loadErrorTitle: "Homes did not load",
+  loadErrorBody: "Check your connection and try again, or message us on WhatsApp.",
+  retry: "Try again",
+  noScore: "No Trust Score yet",
 };
 
 export const search = {
@@ -250,6 +284,31 @@ export const milestones = {
   empty: "No staged payments on this listing.",
   noneYet: "Nothing paid yet",
   complete: "Finish this on WhatsApp",
+};
+
+export const about = {
+  metaTitle: "About Lodgist",
+  lead: "Lodgist is a Nigerian rental-trust platform curated by ShadowSpark Technologies.",
+  parent: "ShadowSpark builds technology focused on practical automation, trust, and digital services for African markets.",
+};
+
+export const trustCenter = {
+  metaTitle: "Trust and safety",
+  title: "How Lodgist checks listings",
+  intro: "Lodgist is curated by ShadowSpark Technologies. We combine listing checks, property information, rent context, and human review so you can see what was looked at before you pay.",
+  checkedTitle: "What we checked",
+  checked: [
+    "Listing information",
+    "Contact consistency",
+    "Property and location information",
+    "Rent context",
+    "Available evidence",
+  ],
+  limitTitle: "Still check in person",
+  limitBody: "Lodgist does not replace a physical inspection. Never send rent only because a listing has a high Trust Score. A score is not a promise that the house, the landlord, or the payment is safe.",
+  reportTitle: "If something looks wrong",
+  reportBody: "Message Lodgist Support on WhatsApp with the listing and what concerned you. We review the report and can change how the listing is shown. We do not claim every problem is caught.",
+  browse: "Browse homes",
 };
 
 export const area = {

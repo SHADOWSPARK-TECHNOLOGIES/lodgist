@@ -36,6 +36,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <h1 className="font-poppins font-bold text-2xl text-white mb-2">{auth.loginTitle}</h1>
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{auth.loginSubtitle}</p>
+          <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.35)' }}>{auth.curatorLine}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-5">

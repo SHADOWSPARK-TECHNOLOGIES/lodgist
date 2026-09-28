@@ -4,6 +4,7 @@ import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { NavBar } from '@/components/ui/NavBar';
+import { SiteFooter } from '@/components/SiteFooter';
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -27,7 +28,7 @@ const siteUrl =
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: { default: 'Lodgist — places in Nigeria you can check', template: '%s | Lodgist' },
-  description: "Search houses in Nigeria. See what we checked on the landlord and the listing before you pay.",
+  description: "Search houses in Nigeria. See what Lodgist checked before you pay. Curated by ShadowSpark Technologies.",
   keywords: ['property Nigeria', 'rent Imo State', 'verified listings', 'Lagos apartments', 'no agent fee', 'Owerri property'],
   authors: [{ name: 'ShadowSpark Technologies' }],
   openGraph: {
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ToastProvider>
             <NavBar />
             <main>{children}</main>
+            <SiteFooter />
             <a href={`https://wa.me/${process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace('+','') || '2349136094315'}`}
                target="_blank" rel="noopener noreferrer"
                className="wa-float" aria-label="Chat on WhatsApp">
