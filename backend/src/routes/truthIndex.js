@@ -20,7 +20,6 @@ module.exports = (prisma) => {
           name: true,
           truthIndex: true,
           isVerified: true,
-          isHNW: true,
         },
       });
 
@@ -41,7 +40,6 @@ module.exports = (prisma) => {
           name: user.name,
           truthIndex: user.truthIndex,
           isVerified: user.isVerified,
-          isHNW: user.isHNW,
           breakdown: latestScore
             ? {
                 score: latestScore.score,
