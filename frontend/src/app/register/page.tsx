@@ -38,6 +38,7 @@ export default function RegisterPage() {
         <div className="text-center mb-8">
           <h1 className="font-poppins font-bold text-2xl text-white mb-2">{auth.getStarted}</h1>
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{auth.createAccountSubtitle}</p>
+          <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.35)' }}>{auth.curatorLine}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4">

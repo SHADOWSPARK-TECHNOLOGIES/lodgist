@@ -46,6 +46,30 @@ export default function HomePage() {
         </div>
       </section>
 
+      <section className="container pb-8">
+        <h2 className="font-poppins font-bold text-white text-center mb-6"
+            style={{ fontSize: 'clamp(1.125rem, 1rem + 0.75vw, 1.5rem)' }}>{home.stepsTitle}</h2>
+        <ol className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {home.steps.map((step) => (
+            <li key={step.n} className="card">
+              <p className="font-poppins font-bold mb-2" style={{ color: 'var(--color-orange)' }}>{step.n}</p>
+              <h3 className="font-poppins font-semibold text-white mb-2">{step.title}</h3>
+              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>{step.body}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="container pb-8">
+        <h2 className="font-poppins font-bold text-white text-center mb-4"
+            style={{ fontSize: 'clamp(1.125rem, 1rem + 0.75vw, 1.5rem)' }}>{home.nigeriaTitle}</h2>
+        <ul className="flex flex-wrap justify-center gap-2">
+          {home.nigeria.map((item) => (
+            <li key={item} className="px-3 py-1 rounded-full text-xs text-white border" style={{ borderColor: 'rgba(255,255,255,0.12)' }}>{item}</li>
+          ))}
+        </ul>
+      </section>
+
       <section className="section container">
         <div className="text-center mb-12">
           <h2 className="font-poppins font-bold text-white mb-3"
@@ -96,18 +120,6 @@ export default function HomePage() {
           <Link href="/register" className="btn btn-primary btn-lg">{home.closeCta}</Link>
         </div>
       </section>
-
-      <footer className="border-t py-8" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-        <div className="container flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="font-poppins font-bold text-white">Lodgist</span>
-          <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.75rem' }}>{home.footer}</span>
-          <div className="flex gap-6">
-            {[['Browse', '/listings'], ['Sign in', '/login'], ['Register', '/register']].map(([l, h]) => (
-              <Link key={h} href={h} className="nav-link" style={{ fontSize: '0.75rem' }}>{l}</Link>
-            ))}
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }
