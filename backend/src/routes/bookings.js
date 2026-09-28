@@ -35,6 +35,9 @@ function createBookingsRouter(prisma) {
     if (status) where.status = status;
     if (tenantId) where.tenantId = parseInt(tenantId, 10);
     if (listingId) where.listingId = parseInt(listingId, 10);
+    // Landlords only see bookings on their own listings, without tenant contact details.
+    const landlord = req.user.role !== "STUDIO_ADMIN";
+    if (landlord) where.listing = { ownerId: req.user.id };
 
     try {
       const [total, bookings] = await Promise.all([
@@ -42,7 +45,7 @@ function createBookingsRouter(prisma) {
         prisma.booking.findMany({
           where,
           include: {
-            tenant: { select: { id: true, name: true, email: true, phone: true } },
+            tenant: { select: { id: true, name: true, email: !landlord, phone: !landlord } },
             listing: { select: { id: true, title: true, price: true } },
             verifier: { select: { id: true, name: true } },
           },

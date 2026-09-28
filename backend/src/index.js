@@ -30,6 +30,8 @@ const bookingsRouter = createBookingsRouter(prisma);
 const healthRouter = require("./routes/health")(prisma);
 
 const app = express();
+// Railway sits behind one proxy; trust it so rate limiting keys on the client IP.
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || "0.0.0.0";
 const NODE_ENV = process.env.NODE_ENV || "development";

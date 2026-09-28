@@ -139,3 +139,39 @@ test("passkey registration requires sign-in and only for your own account", asyn
   }
   assert.equal(touched, false, "the database must not be queried for someone else's account");
 });
+
+test("GET /api/bookings: admins see all bookings, landlords only their own listings without tenant contact", async () => {
+  const createBookingsRouter = require("../src/routes/bookings");
+  let args;
+  const prisma = { booking: { count: async () => 0, findMany: async (a) => { args = a; return []; } } };
+  const router = createBookingsRouter(prisma);
+
+  const admin = await call(router, "/api/bookings", "/api/bookings", { headers: { Authorization: token({ id: 1, role: "STUDIO_ADMIN" }) } });
+  assert.equal(admin.status, 200);
+  assert.equal("listing" in args.where, false);
+  assert.equal(args.include.tenant.select.email, true);
+
+  const landlord = await call(router, "/api/bookings", "/api/bookings", { headers: { Authorization: token({ id: 6, role: "LANDLORD" }) } });
+  assert.equal(landlord.status, 200);
+  assert.deepEqual(args.where.listing, { ownerId: 6 });
+  assert.ok(!args.include.tenant.select.email && !args.include.tenant.select.phone, "landlords must not get tenant contact details");
+
+  const user = await call(router, "/api/bookings", "/api/bookings", { headers: { Authorization: token({ id: 5, role: "USER" }) } });
+  assert.equal(user.status, 403);
+});
+
+test("GET /api/truth-index/:userId does not expose isHNW", async () => {
+  const truthIndexRouter = require("../src/routes/truthIndex");
+  const prisma = {
+    user: { findUnique: async ({ select }) => { const out = {}; for (const k of Object.keys(select)) out[k] = FULL_USER[k]; return out; } },
+    truthIndexScore: { findFirst: async () => null },
+  };
+  const res = await call(truthIndexRouter(prisma), "/api/truth-index", "/api/truth-index/3");
+  assert.equal(res.status, 200);
+  assert.equal(res.text.includes("isHNW"), false);
+});
+
+test("the Express app trusts the Railway proxy for client IPs", () => {
+  const src = require("node:fs").readFileSync(require.resolve("../src/index.js"), "utf8");
+  assert.match(src, /app\.set\(\s*["']trust proxy["']\s*,\s*1\s*\)/);
+});
