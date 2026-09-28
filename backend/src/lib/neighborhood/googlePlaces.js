@@ -1,5 +1,9 @@
 // N4: Google Places API (New) Nearby Search adapter. Plain fetch, server-side key only.
 const ENDPOINT = "https://places.googleapis.com/v1/places:searchNearby";
+// Every field here is billed at the "Nearby Search Pro" SKU, the lowest tier for
+// Nearby Search. rating, userRatingCount and currentOpeningHours would bump the
+// request to "Nearby Search Enterprise"; don't add them back.
+// https://developers.google.com/maps/documentation/places/web-service/data-fields
 const FIELD_MASK = [
   "places.id",
   "places.displayName",
@@ -7,9 +11,6 @@ const FIELD_MASK = [
   "places.location",
   "places.primaryType",
   "places.types",
-  "places.rating",
-  "places.userRatingCount",
-  "places.currentOpeningHours.openNow",
 ].join(",");
 const MAX_RESULTS = 20;
 const DEFAULT_TIMEOUT_MS = 5000;

@@ -2,8 +2,8 @@
 const { isCategory, CATEGORIES } = require("./categories");
 
 const RADIUS_DEFAULT_M = 1500;
-const RADIUS_MIN_M = 250;
-const RADIUS_MAX_M = 3000;
+// Presets only, so each listing has at most 4 × 10 distinct Google queries.
+const RADIUS_PRESETS_M = Object.freeze([500, 1000, 1500, 3000]);
 // Callers may only name a listing; the server owns the coordinates.
 const FORBIDDEN_PARAMS = ["lat", "lng", "lon", "long", "latitude", "longitude", "location"];
 
@@ -22,13 +22,10 @@ function parseNearbyQuery(query = {}) {
 
   let radiusM = RADIUS_DEFAULT_M;
   if (query.radiusM !== undefined) {
-    if (typeof query.radiusM !== "string" || !/^\d{1,5}$/.test(query.radiusM)) {
-      return fail(`radiusM must be a whole number between ${RADIUS_MIN_M} and ${RADIUS_MAX_M}.`);
+    if (typeof query.radiusM !== "string" || !RADIUS_PRESETS_M.map(String).includes(query.radiusM)) {
+      return fail(`radiusM must be one of: ${RADIUS_PRESETS_M.join(", ")}.`);
     }
     radiusM = Number(query.radiusM);
-    if (radiusM < RADIUS_MIN_M || radiusM > RADIUS_MAX_M) {
-      return fail(`radiusM must be between ${RADIUS_MIN_M} and ${RADIUS_MAX_M}.`);
-    }
   }
 
   let category = null;
@@ -51,8 +48,7 @@ function isUsableCoordinate(lat, lng) {
 
 module.exports = {
   RADIUS_DEFAULT_M,
-  RADIUS_MIN_M,
-  RADIUS_MAX_M,
+  RADIUS_PRESETS_M,
   FORBIDDEN_PARAMS,
   parseNearbyQuery,
   isUsableCoordinate,

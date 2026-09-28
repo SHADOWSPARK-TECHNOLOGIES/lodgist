@@ -11,11 +11,25 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
   return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
-// Under 1 km: nearest 100 m. From 1 km: nearest 0.1 km, which is also 100 m, so
-// both rules reduce to one integer step (avoids float noise like 1100.0000000000002).
+const NEAR_THRESHOLD_M = 200;
+
+// Coarse public distances measured from the snapped point:
+//   under 200 m -> 200 (labelled "under 200 m")
+//   under 1 km  -> nearest 100 m
+//   1 km and up -> nearest 0.5 km
 function roundDistanceMeters(m) {
   if (!Number.isFinite(m) || m < 0) return null;
-  return Math.round(m / 100) * 100;
+  if (m < NEAR_THRESHOLD_M) return NEAR_THRESHOLD_M;
+  if (m < 1000) return Math.round(m / 100) * 100;
+  return Math.round(m / 500) * 500;
+}
+
+function distanceLabel(m) {
+  if (!Number.isFinite(m) || m < 0) return null;
+  if (m < NEAR_THRESHOLD_M) return "under 200 m";
+  const rounded = roundDistanceMeters(m);
+  if (rounded < 1000) return `${rounded} m`;
+  return `${rounded / 1000} km`;
 }
 
 // Same 0.005° grid as PR #18's public approxLocation. Returns null when unusable.
@@ -23,4 +37,4 @@ function snapToApproxGrid(lat, lng) {
   return approxLocation(lat, lng);
 }
 
-module.exports = { haversineMeters, roundDistanceMeters, snapToApproxGrid };
+module.exports = { haversineMeters, roundDistanceMeters, distanceLabel, snapToApproxGrid };

@@ -1,6 +1,6 @@
 // N5: turn raw Google places into the Lodgist DTO. Nothing else from Google passes through.
 const { categoryForTypes } = require("./categories");
-const { haversineMeters, roundDistanceMeters } = require("./distance");
+const { haversineMeters, roundDistanceMeters, distanceLabel } = require("./distance");
 const { isUsableCoordinate } = require("./validation");
 
 const MAX_RESULTS = 20;
@@ -17,12 +17,16 @@ function normalizePlace(place, origin, requestedCategory) {
   if (!category) return null;
 
   const rawDistance = haversineMeters(origin.lat, origin.lng, lat, lng);
-  const dto = { id, name, category, distanceMeters: roundDistanceMeters(rawDistance), lat, lng };
+  const dto = {
+    id,
+    name,
+    category,
+    distanceMeters: roundDistanceMeters(rawDistance),
+    distanceLabel: distanceLabel(rawDistance),
+    lat,
+    lng,
+  };
   if (typeof place.formattedAddress === "string" && place.formattedAddress) dto.address = place.formattedAddress;
-  if (typeof place.rating === "number" && Number.isFinite(place.rating)) dto.rating = place.rating;
-  if (Number.isInteger(place.userRatingCount)) dto.reviewCount = place.userRatingCount;
-  const openNow = place.currentOpeningHours && place.currentOpeningHours.openNow;
-  if (typeof openNow === "boolean") dto.openNow = openNow;
   return { dto, rawDistance };
 }
 
