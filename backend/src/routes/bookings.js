@@ -95,8 +95,10 @@ function createBookingsRouter(prisma) {
     }
 
     const { listingId, tenantId, startDate, endDate, totalAmount, currency, notes, sourceChannel } = req.body;
+    const admin = isAdmin(req.user);
 
-    if (!listingId || !tenantId || !startDate || !endDate || totalAmount == null) {
+    // Landlords don't set the amount; it is computed from the listing price below.
+    if (!listingId || !tenantId || !startDate || !endDate || (admin && totalAmount == null)) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields: listingId, tenantId, startDate, endDate, totalAmount",
@@ -111,8 +113,22 @@ function createBookingsRouter(prisma) {
 
       if (!listing) return res.status(404).json({ success: false, error: "Listing not found" });
       if (!tenant)  return res.status(404).json({ success: false, error: "Tenant not found" });
-      if (!isAdmin(req.user) && listing.ownerId !== req.user.id) {
+      if (!admin && listing.ownerId !== req.user.id) {
         return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+
+      // Landlord bookings: sane dates, and the amount is the listing's yearly
+      // price pro-rated by days (listing.price is yearly rent in the frontend).
+      let amount = parseFloat(totalAmount);
+      if (!admin) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        if (isNaN(start) || isNaN(end) || end <= start || start < today) {
+          return res.status(400).json({ success: false, error: "Invalid dates: end must be after start, and start cannot be in the past" });
+        }
+        amount = Math.round(((listing.price * (end - start)) / (365 * 24 * 60 * 60 * 1000)) * 100) / 100;
       }
 
       const booking = await prisma.booking.create({
@@ -121,8 +137,8 @@ function createBookingsRouter(prisma) {
           tenantId:      tenant.id,
           startDate:     new Date(startDate),
           endDate:       new Date(endDate),
-          totalAmount:   parseFloat(totalAmount),
-          currency:      currency || "NGN",
+          totalAmount:   amount,
+          currency:      admin ? currency || "NGN" : listing.currency || "NGN",
           notes:         notes || null,
           sourceChannel: sourceChannel || null,
           status:        "PENDING",

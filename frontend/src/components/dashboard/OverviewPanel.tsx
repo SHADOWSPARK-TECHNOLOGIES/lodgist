@@ -51,7 +51,7 @@ export default function OverviewPanel() {
 
   if (!user) return null;
 
-  const truthScore = truthIndex?.score;
+  const truthScore = truthIndex?.truthIndex;
 
   return (
     <div className="space-y-6">
