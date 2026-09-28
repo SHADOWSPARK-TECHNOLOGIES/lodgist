@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { moveIn } from "@/lib/copy";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -46,15 +47,15 @@ type ValidationEntry = {
 };
 
 const RESIDENTIAL_FIELDS: ValidationEntry[] = [
-  { label: "Base Rent", key: "base_rent", required: true },
-  { label: "Agency Fee", key: "agency_fee", required: true },
-  { label: "Legal Fee", key: "legal_fee", required: true },
-  { label: "Caution Fee", key: "caution_fee", required: true },
+  { label: moveIn.baseRent, key: "base_rent", required: true },
+  { label: moveIn.agency, key: "agency_fee", required: true },
+  { label: moveIn.legal, key: "legal_fee", required: true },
+  { label: moveIn.caution, key: "caution_fee", required: true },
 ];
 
 const COMMERCIAL_FIELDS: ValidationEntry[] = [
   ...RESIDENTIAL_FIELDS,
-  { label: "Inspection Fee", key: "inspection_fee", required: true },
+  { label: moveIn.inspection, key: "inspection_fee", required: true },
 ];
 
 function getFields(category: string): ValidationEntry[] {
@@ -63,9 +64,9 @@ function getFields(category: string): ValidationEntry[] {
       return COMMERCIAL_FIELDS;
     case "short-let":
       return [
-        { label: "Base Rent", key: "base_rent", required: true },
-        { label: "Service Charge", key: "service_charge", required: false },
-        { label: "Caution Fee", key: "caution_fee", required: false },
+        { label: moveIn.baseRent, key: "base_rent", required: true },
+        { label: moveIn.service, key: "service_charge", required: false },
+        { label: moveIn.caution, key: "caution_fee", required: false },
       ];
     default:
       return RESIDENTIAL_FIELDS;
@@ -116,7 +117,7 @@ export default function FeeLedger({ metadata, category }: FeeLedgerProps) {
       <div className="rounded-xl border border-white/10 bg-deep-navy/60 p-5 backdrop-blur-sm">
         <div className="flex items-center gap-3 text-light-gray">
           <DollarSign className="h-5 w-5 text-vibrant-orange" />
-          <span className="text-sm">Move-in cost data not available</span>
+          <span className="text-sm">{moveIn.unavailable}</span>
         </div>
       </div>
     );
@@ -144,13 +145,13 @@ export default function FeeLedger({ metadata, category }: FeeLedgerProps) {
           </div>
           <div className="text-left">
             <h3 className="font-heading text-base font-semibold text-off-white">
-              Move-In Cost Ledger
+              {moveIn.title}
             </h3>
             <p className="text-xs text-light-gray">
               {(category ?? "").charAt(0).toUpperCase() + (category ?? "").slice(1)} ·{" "}
               {metadata.total
                 ? `${currency} ${metadata.total.toLocaleString()}`
-                : "Total not declared"}
+                : moveIn.notDeclared}
             </p>
           </div>
         </div>
@@ -215,19 +216,19 @@ export default function FeeLedger({ metadata, category }: FeeLedgerProps) {
           {/* Total */}
           {metadata.total !== undefined && metadata.total !== null && (
             <div className="flex items-center justify-between rounded-lg bg-teal/10 px-3 py-2">
-              <span className="text-sm font-semibold text-teal">Total</span>
+              <span className="text-sm font-semibold text-teal">{moveIn.total}</span>
               <span className="font-mono text-base font-bold text-teal">
                 {formatAmount(metadata.total)}
               </span>
             </div>
           )}
 
-          {/* Validation Errors */}
+          {/* {moveIn.errors} */}
           {errors.length > 0 && (
             <div className="rounded-lg bg-red-400/10 p-3">
               <p className="mb-1 flex items-center gap-1 text-xs font-semibold text-red-400">
                 <AlertTriangle className="h-3 w-3" />
-                Validation Errors
+                {moveIn.errors}
               </p>
               <ul className="space-y-0.5">
                 {errors.map((e, i) => (
@@ -239,12 +240,12 @@ export default function FeeLedger({ metadata, category }: FeeLedgerProps) {
             </div>
           )}
 
-          {/* Warnings */}
+          {/* {moveIn.warnings} */}
           {warnings.length > 0 && (
             <div className="rounded-lg bg-yellow-400/10 p-3">
               <p className="mb-1 flex items-center gap-1 text-xs font-semibold text-yellow-400">
                 <AlertTriangle className="h-3 w-3" />
-                Warnings
+                {moveIn.warnings}
               </p>
               <ul className="space-y-0.5">
                 {warnings.map((w, i) => (
@@ -259,14 +260,14 @@ export default function FeeLedger({ metadata, category }: FeeLedgerProps) {
           {/* Notes */}
           {metadata.notes && (
             <p className="text-xs italic text-light-gray">
-              Note: {metadata.notes}
+              {moveIn.note}: {metadata.notes}
             </p>
           )}
 
           {/* Payment Structure */}
           {metadata.payment_structure && (
             <div className="rounded-lg bg-white/5 px-3 py-2">
-              <span className="text-xs text-light-gray">Payment Structure</span>
+              <span className="text-xs text-light-gray">{moveIn.structure}</span>
               <p className="text-sm text-off-white">
                 {metadata.payment_structure}
               </p>

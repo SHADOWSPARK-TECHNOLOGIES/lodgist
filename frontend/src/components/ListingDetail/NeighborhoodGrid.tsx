@@ -1,20 +1,9 @@
 "use client";
 
 import {
-  MapPin,
-  Train,
-  ShoppingBag,
-  School,
-  Hospital,
-  ShieldCheck,
-  Star,
-  Wifi,
-  Utensils,
+  MapPin, Train, ShoppingBag, School, Hospital, ShieldCheck, Star, Wifi, Utensils,
 } from "lucide-react";
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
+import { neighborhood } from "@/lib/copy";
 
 interface Amenity {
   type: string;
@@ -27,7 +16,7 @@ interface NeighborhoodData {
   name: string;
   city: string;
   state: string;
-  safety_rating?: number; // 0-100
+  safety_rating?: number;
   amenities: Amenity[];
   flood_risk?: "low" | "medium" | "high";
   description?: string;
@@ -36,10 +25,6 @@ interface NeighborhoodData {
 interface NeighborhoodGridProps {
   data: NeighborhoodData | null;
 }
-
-/* ------------------------------------------------------------------ */
-/*  Helpers                                                            */
-/* ------------------------------------------------------------------ */
 
 const amenityIcon = (type: string) => {
   switch (type) {
@@ -93,19 +78,20 @@ const floodColor = (risk: string) => {
   }
 };
 
-/* ------------------------------------------------------------------ */
-/*  Component                                                          */
-/* ------------------------------------------------------------------ */
+const floodLabel = (risk: string) => {
+  if (risk === "low") return neighborhood.low;
+  if (risk === "medium") return neighborhood.medium;
+  if (risk === "high") return neighborhood.high;
+  return risk;
+};
 
-export default function NeighborhoodGrid({
-  data,
-}: NeighborhoodGridProps) {
+export default function NeighborhoodGrid({ data }: NeighborhoodGridProps) {
   if (!data) {
     return (
       <div className="rounded-xl border border-white/10 bg-deep-navy/60 p-5 backdrop-blur-sm">
         <div className="flex items-center gap-3 text-light-gray">
           <MapPin className="h-5 w-5 text-vibrant-orange" />
-          <span className="text-sm">Neighborhood data not available</span>
+          <span className="text-sm">{neighborhood.unavailable}</span>
         </div>
       </div>
     );
@@ -113,68 +99,36 @@ export default function NeighborhoodGrid({
 
   return (
     <div className="rounded-xl border border-white/10 bg-deep-navy/60 p-5 backdrop-blur-sm">
-      {/* Header */}
       <div className="mb-4 flex items-start justify-between">
         <div>
           <h3 className="flex items-center gap-2 font-heading text-lg font-semibold text-off-white">
             <MapPin className="h-5 w-5 text-teal" />
             {data.name}
           </h3>
-          <p className="text-sm text-light-gray">
-            {data.city}, {data.state}
-          </p>
+          <p className="text-sm text-light-gray">{data.city}, {data.state}</p>
         </div>
-
-        {/* Safety Rating Badge */}
         {data.safety_rating !== undefined && (
-          <div
-            className={`flex flex-col items-center rounded-lg px-3 py-2 ${safetyBg(data.safety_rating)}`}
-          >
-            <span
-              className={`text-lg font-bold ${safetyColor(data.safety_rating)}`}
-            >
-              {data.safety_rating}
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-light-gray">
-              Safety
-            </span>
+          <div className={`flex flex-col items-center rounded-lg px-3 py-2 ${safetyBg(data.safety_rating)}`}>
+            <span className={`text-lg font-bold ${safetyColor(data.safety_rating)}`}>{data.safety_rating}</span>
+            <span className="text-[10px] uppercase tracking-wider text-light-gray">{neighborhood.safety}</span>
           </div>
         )}
       </div>
-
-      {/* Description */}
-      {data.description && (
-        <p className="mb-4 text-sm leading-relaxed text-light-gray">
-          {data.description}
-        </p>
-      )}
-
-      {/* Flood Risk */}
+      {data.description && <p className="mb-4 text-sm leading-relaxed text-light-gray">{data.description}</p>}
       {data.flood_risk && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2">
-          <span className="text-xs text-light-gray">Flood Risk:</span>
-          <span
-            className={`text-xs font-semibold uppercase ${floodColor(data.flood_risk)}`}
-          >
-            {data.flood_risk}
-          </span>
+          <span className="text-xs text-light-gray">{neighborhood.flood}</span>
+          <span className={`text-xs font-semibold uppercase ${floodColor(data.flood_risk)}`}>{floodLabel(data.flood_risk)}</span>
         </div>
       )}
-
-      {/* Amenities Grid */}
       {data.amenities.length > 0 && (
         <div>
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-light-gray">
-            Nearby Amenities
-          </p>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-light-gray">{neighborhood.amenities}</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {data.amenities.map((a, i) => {
               const Icon = amenityIcon(a.type);
               return (
-                <div
-                  key={i}
-                  className="flex items-start gap-2 rounded-lg bg-white/5 p-2.5 transition-colors hover:bg-white/10"
-                >
+                <div key={i} className="flex items-start gap-2 rounded-lg bg-white/5 p-2.5 transition-colors hover:bg-white/10">
                   <Icon className="mt-0.5 h-4 w-4 shrink-0 text-teal" />
                   <div className="min-w-0">
                     <p className="truncate text-sm text-off-white">{a.name}</p>

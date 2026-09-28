@@ -1,6 +1,40 @@
 const express = require("express");
 const { analyzeListing } = require("../services/listingScamDetection");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
+const logger = require("../utils/logger");
+
+// Public listing columns. riskState and truthIndex come from migration
+// 20260928130000; the lodgist-api pre-deploy step fails if they are missing.
+const LISTING_PUBLIC_SELECT = {
+  id: true,
+  propertyId: true,
+  ownerId: true,
+  title: true,
+  description: true,
+  price: true,
+  currency: true,
+  category: true,
+  status: true,
+  isFeatured: true,
+  views: true,
+  isFlaggedForFraud: true,
+  fraudReason: true,
+  totalMoveInCost: true,
+  availableFrom: true,
+  furnished: true,
+  serviceCharge: true,
+  riskState: true,
+  truthIndex: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
+const SORTS = {
+  newest: { createdAt: "desc" },
+  oldest: { createdAt: "asc" },
+  price_asc: { price: "asc" },
+  price_desc: { price: "desc" },
+};
 
 module.exports = (prisma) => {
   const router = express.Router();
@@ -38,24 +72,37 @@ module.exports = (prisma) => {
 
   // ─── GET /api/listings — Public, paginated listing browse ──────────────────
   router.get("/", optionalAuth, async (req, res) => {
-    const { q, category, status, minPrice, maxPrice, page: pageQuery } = req.query;
-    const pageSize = 12;
-    const page = Math.max(1, parseInt(pageQuery || "1", 10));
+    const { q, search, category, status, minPrice, maxPrice, state, area, sort, page: pageQuery } = req.query;
+    const queryText = (typeof q === "string" && q) || (typeof search === "string" && search) || "";
+    const limitQuery = req.query.limit ?? req.query.pageSize;
+    const pageSize = Math.min(50, Math.max(1, parseInt(limitQuery || "12", 10) || 12));
+    const page = Math.max(1, parseInt(pageQuery || "1", 10) || 1);
+    const orderBy = SORTS[sort] || SORTS.newest;
     const skip = (page - 1) * pageSize;
 
     try {
-      // Build where clause
       const where = {};
 
-      // Text search
-      if (q) {
+      if (queryText) {
         where.OR = [
-          { title: { contains: q, mode: "insensitive" } },
-          { description: { contains: q, mode: "insensitive" } },
+          { title: { contains: queryText, mode: "insensitive" } },
+          { description: { contains: queryText, mode: "insensitive" } },
         ];
       }
 
-      // Filters
+      const propertyWhere = {};
+      if (typeof state === "string" && state) {
+        propertyWhere.state = { equals: state, mode: "insensitive" };
+      }
+      if (typeof area === "string" && area) {
+        propertyWhere.OR = [
+          { city: { contains: area, mode: "insensitive" } },
+          { lga: { contains: area, mode: "insensitive" } },
+          { address: { contains: area, mode: "insensitive" } },
+        ];
+      }
+      if (Object.keys(propertyWhere).length) where.property = { is: propertyWhere };
+
       if (category) where.category = category;
       if (status) where.status = status;
       if (minPrice || maxPrice) {
@@ -64,12 +111,12 @@ module.exports = (prisma) => {
         if (maxPrice) where.price.lte = parseFloat(maxPrice);
       }
 
-      // Get total count for pagination
       const total = await prisma.listing.count({ where });
 
       const listings = await prisma.listing.findMany({
         where,
-        include: {
+        select: {
+          ...LISTING_PUBLIC_SELECT,
           images: {
             where: { isPrimary: true },
             take: 1,
@@ -90,7 +137,6 @@ module.exports = (prisma) => {
             select: {
               id: true,
               name: true,
-              email: true,
               truthIndex: true,
               isVerified: true,
             },
@@ -106,10 +152,9 @@ module.exports = (prisma) => {
         },
         take: pageSize,
         skip,
-        orderBy: { createdAt: "desc" },
+        orderBy,
       });
 
-      // Compute averageRating via aggregation
       const listingIds = listings.map((l) => l.id);
       const ratingAggs = listingIds.length > 0
         ? await prisma.review.groupBy({
@@ -124,7 +169,6 @@ module.exports = (prisma) => {
         ratingMap[agg.listingId] = agg._avg.rating;
       }
 
-      // Map ratings into response
       const data = listings.map((listing) => {
         const { fraudSignals, _count, ...rest } = listing;
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
@@ -143,13 +187,21 @@ module.exports = (prisma) => {
         pagination: {
           total,
           page,
-          pages: Math.ceil(total / pageSize),
+          pages: total === 0 ? 0 : Math.ceil(total / pageSize),
+          totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+          limit: pageSize,
           pageSize,
         },
       });
     } catch (error) {
-      console.error("Error fetching listings:", error);
-      res.status(500).json({ success: false, error: "Internal server error" });
+      logger.error("Error fetching listings", {
+        code: error.code || error.name,
+        message: error.message,
+      });
+      res.status(500).json({
+        success: false,
+        error: "We could not load listings. Try again.",
+      });
     }
   });
 
@@ -163,7 +215,8 @@ module.exports = (prisma) => {
 
       const listing = await prisma.listing.findUnique({
         where: { id: listingId },
-        include: {
+        select: {
+          ...LISTING_PUBLIC_SELECT,
           images: {
             orderBy: { order: "asc" },
             select: { url: true, altText: true, isPrimary: true },
@@ -188,8 +241,6 @@ module.exports = (prisma) => {
             select: {
               id: true,
               name: true,
-              email: true,
-              phone: true,
               truthIndex: true,
               isVerified: true,
               createdAt: true,
@@ -231,8 +282,12 @@ module.exports = (prisma) => {
         },
       });
     } catch (error) {
-      console.error("Error fetching single listing:", error);
-      res.status(500).json({ error: "Internal server error" });
+      logger.error("Error fetching single listing", {
+        code: error.code || error.name,
+        message: error.message,
+        listingId: req.params.id,
+      });
+      res.status(500).json({ success: false, error: "We could not load this listing. Try again." });
     }
   });
 
