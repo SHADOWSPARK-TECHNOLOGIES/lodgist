@@ -44,8 +44,9 @@ test("GET /api/listings returns a listing without database internals", async () 
     listing: {
       count: async () => 1,
       findMany: async (args) => {
-        assert.equal(args.select.riskState, undefined);
-        assert.equal(args.select.truthIndex, undefined);
+        assert.equal(args.select.riskState, true);
+        assert.equal(args.select.truthIndex, true);
+        assert.equal(args.select.owner.select.email, undefined);
         return [{
           id: 7,
           title: "Two bedroom in Owerri",
@@ -99,6 +100,52 @@ test("GET /api/listings hides database failures", async () => {
     assert.equal(body.error, "We could not load listings. Try again.");
     assert.equal(JSON.stringify(body).includes("riskState"), false);
     assert.equal(body.stack, undefined);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings honours limit, state, area and sort", async () => {
+  let seen;
+  const prisma = {
+    listing: {
+      count: async () => 30,
+      findMany: async (args) => { seen = args; return []; },
+    },
+    review: { groupBy: async () => [] },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings?limit=5&page=2&state=Imo&area=Owerri&sort=price_asc`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(seen.take, 5);
+    assert.equal(seen.skip, 5);
+    assert.deepEqual(seen.orderBy, { price: "asc" });
+    assert.deepEqual(seen.where.property.is.state, { equals: "Imo", mode: "insensitive" });
+    assert.equal(seen.where.property.is.OR.length, 3);
+    assert.deepEqual(body.pagination, { total: 30, page: 2, pages: 6, totalPages: 6, limit: 5, pageSize: 5 });
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings clamps limit and ignores unknown sort", async () => {
+  let seen;
+  const prisma = {
+    listing: {
+      count: async () => 0,
+      findMany: async (args) => { seen = args; return []; },
+    },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings?limit=999&sort=drop_table`);
+    assert.equal(res.status, 200);
+    assert.equal(seen.take, 50);
+    assert.deepEqual(seen.orderBy, { createdAt: "desc" });
   } finally {
     server.close();
   }
