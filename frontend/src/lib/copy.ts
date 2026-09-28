@@ -115,6 +115,8 @@ export const detail = {
   whatsApp: "Ask on WhatsApp",
   report: "Report this listing",
   noScore: "No Trust Score yet",
+  sampleTitle: "Example only",
+  sampleBody: "This home is not for rent and has not been checked. The fees below are an example, not a bill.",
 };
 
 export const listings = {
@@ -134,6 +136,7 @@ export const listings = {
   loadErrorBody: "Check your connection and try again, or message us on WhatsApp.",
   retry: "Try again",
   noScore: "No Trust Score yet",
+  sampleBadge: "Example, not for rent",
 };
 
 export const search = {
