@@ -196,3 +196,67 @@ export const listingCard = {
     withdrawn: "Taken down",
   } as Record<string, string>,
 };
+
+export const overview = {
+  registering: "Adding...",
+  registerPasskey: "Add this phone",
+  passkeyUnavailable: "Phone sign-in is not available on this device",
+  quick: "What you can do",
+  browse: "See places",
+  newListing: "List a house",
+  recalculate: "Refresh the score",
+};
+
+export const audit = {
+  title: "What we checked",
+  running: "Checking...",
+  run: "Check this listing",
+  failed: "We could not run the check. Try again.",
+  unknown: "Something went wrong. Try again.",
+  risk: "How it looks",
+  score: "Score",
+  breakdown: "What went into the score",
+  recommendations: "What to do next",
+  needsLook: "This listing needs a second look before you pay.",
+};
+
+export const moveIn = {
+  unavailable: "We do not have move-in costs for this house yet.",
+  title: "What you pay to move in",
+  total: "Total",
+  notDeclared: "Total not listed",
+  errors: "Numbers that do not add up",
+  warnings: "Check these",
+  note: "Note",
+  structure: "How the money is split",
+  baseRent: "Rent",
+  agency: "Agent fee",
+  legal: "Legal fee",
+  caution: "Caution deposit",
+  inspection: "Inspection fee",
+  service: "Service charge",
+};
+
+export const payment = {
+  title: "Payment status",
+  empty: "No payment on this listing yet.",
+  completed: "Paid",
+  support: "Message us on WhatsApp",
+  ref: "Reference",
+};
+
+export const milestones = {
+  title: "Payments along the way",
+  empty: "No staged payments on this listing.",
+  noneYet: "Nothing paid yet",
+  complete: "Finish this on WhatsApp",
+};
+
+export const area = {
+  unavailable: "We do not have area notes for this house yet.",
+  safety: "Area check",
+  flood: "Flood note",
+  avgRent: "Typical rent nearby",
+  occupancy: "How full the area is",
+  amenities: "Nearby",
+};

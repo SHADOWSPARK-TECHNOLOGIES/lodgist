@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { payment } from "@/lib/copy";
 
 const SUPPORT_WA =
   process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2349136094315";
@@ -49,7 +50,7 @@ const statusConfig: Record<
   completed: {
     icon: CheckCircle,
     color: "text-teal",
-    label: "Completed",
+    label: payment.completed,
   },
   pending: {
     icon: Clock,
@@ -103,7 +104,7 @@ export default function PaymentStatusCard({
       <div className="rounded-xl border border-white/10 bg-deep-navy/60 p-5 backdrop-blur-sm">
         <div className="flex items-center gap-3 text-light-gray">
           <CreditCard className="h-5 w-5 text-vibrant-orange" />
-          <span className="text-sm">No payment records</span>
+          <span className="text-sm">{payment.empty}</span>
         </div>
       </div>
     );
@@ -122,7 +123,7 @@ export default function PaymentStatusCard({
           </div>
           <div className="text-left">
             <h3 className="font-heading text-base font-semibold text-off-white">
-              Payment Status
+              {payment.title}
             </h3>
             <p className="text-xs text-light-gray">
               {payments.length} transaction{payments.length > 1 ? "s" : ""} ·{" "}
@@ -166,7 +167,7 @@ export default function PaymentStatusCard({
                         {p.description}
                       </p>
                       <p className="text-[10px] text-light-gray">
-                        Ref: {p.reference}
+                        {payment.ref}: {p.reference}
                       </p>
                       <p className="text-[10px] text-light-gray">
                         {new Date(p.created_at).toLocaleDateString()}
@@ -191,7 +192,7 @@ export default function PaymentStatusCard({
                         className="ml-2 inline-flex items-center gap-1 rounded bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white transition-all hover:bg-green-700"
                       >
                         <MessageCircle className="h-3 w-3" />
-                        Contact Support
+                        {payment.support}
                       </a>
                     )}
                   </div>

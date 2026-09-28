@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { milestones as milestoneCopy } from "@/lib/copy";
 
 const SUPPORT_WA =
   process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2349136094315";
@@ -82,7 +83,7 @@ export default function MilestonePayment({
       <div className="rounded-xl border border-white/10 bg-deep-navy/60 p-5 backdrop-blur-sm">
         <div className="flex items-center gap-3 text-light-gray">
           <Wallet className="h-5 w-5 text-vibrant-orange" />
-          <span className="text-sm">No milestone payments configured</span>
+          <span className="text-sm">{milestoneCopy.empty}</span>
         </div>
       </div>
     );
@@ -101,13 +102,13 @@ export default function MilestonePayment({
           </div>
           <div className="text-left">
             <h3 className="font-heading text-base font-semibold text-off-white">
-              Milestone Payments
+              {milestoneCopy.title}
             </h3>
             <p className="text-xs text-light-gray">
               {milestones.length} milestone{milestones.length > 1 ? "s" : ""} ·{" "}
               {totalPaid > 0
                 ? `${currency} ${totalPaid.toLocaleString()} paid`
-                : "No payments yet"}
+                : milestoneCopy.noneYet}
             </p>
           </div>
         </div>
@@ -170,7 +171,7 @@ export default function MilestonePayment({
                       className="mt-1 inline-flex items-center gap-1 rounded bg-green-600 px-3 py-1 text-xs font-medium text-white transition-all hover:bg-green-700"
                     >
                       <MessageCircle className="h-3 w-3" />
-                      Complete via Support
+                      {milestoneCopy.complete}
                     </a>
                   )}
                   {m.status === "completed" && m.completed_at && (
