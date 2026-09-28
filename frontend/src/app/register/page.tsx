@@ -43,22 +43,22 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="card space-y-4">
           <div>
             <label className="label">{auth.fullName}</label>
-            <input type="text" className="input" placeholder="Chioma Okonkwo"
+            <input type="text" className="input" placeholder={auth.namePlaceholder}
               value={name} onChange={e => setName(e.target.value)} required />
           </div>
           <div>
             <label className="label">{auth.email}</label>
-            <input type="email" className="input" placeholder="you@example.com"
+            <input type="email" className="input" placeholder={auth.emailPlaceholder}
               value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div>
             <label className="label">{auth.phoneOptional}</label>
-            <input type="tel" className="input" placeholder="080..."
+            <input type="tel" className="input" placeholder={auth.phonePlaceholder}
               value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
           <div>
             <label className="label">{auth.password}</label>
-            <input type="password" className="input" placeholder="At least 8 characters"
+            <input type="password" className="input" placeholder={auth.passwordPlaceholder}
               value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
           </div>
           <button type="submit" disabled={loading} className="btn btn-primary w-full justify-center">

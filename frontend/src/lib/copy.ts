@@ -2,7 +2,7 @@ export const supportWhatsApp = "https://wa.me/2349136094315";
 
 export function formatYearlyRent(price?: number | null) {
   if (price == null || Number.isNaN(price)) return "";
-  return `\u20A6${price.toLocaleString("en-NG")} / year`;
+  return `\u20a6${Number(price).toLocaleString("en-NG")} / year`;
 }
 
 export const nav = {
@@ -19,6 +19,10 @@ export const auth = {
   loginSubtitle: "Use the email you signed up with",
   email: "Email",
   password: "Password",
+  passwordPlaceholder: "At least 8 characters",
+  namePlaceholder: "Chioma Okonkwo",
+  emailPlaceholder: "you@example.com",
+  phonePlaceholder: "080...",
   signIn: "Sign in",
   noAccount: "No account?",
   createOne: "Create one",
@@ -38,10 +42,10 @@ export const auth = {
 
 export const home = {
   metaTitle: "Find a place in Nigeria you can actually trust",
-  badge: "Open now in Imo. Port Harcourt next.",
+  badge: "Imo first. Port Harcourt when the site is up.",
   titleLead: "Find a place in Nigeria",
   titleAccent: "you can actually trust",
-  subtitle: "We check the landlord and the listing before you pay. Your rent sits with Lodgist until you see the house.",
+  subtitle: "See the checks on the landlord and the listing before you pay.",
   browseCta: "See places we have checked",
   listCta: "List a house (free)",
   whyTitle: "Why people use Lodgist",
@@ -53,20 +57,20 @@ export const home = {
   closeCta: "Create a free account",
   footer: "Lodgist is built by ShadowSpark in Nigeria",
   features: [
-    { icon: "\u{1F6E1}\uFE0F", title: "Trust score", desc: "Each listing shows the checks we actually ran: identity, photos, price against nearby homes, and complaint history." },
-    { icon: "\u{1F4B0}", title: "Rent held until you see it", desc: "Pay into Lodgist first. We release the money after you inspect and say the house is real." },
-    { icon: "\u{1F4F1}", title: "WhatsApp if that is easier", desc: "Search, ask questions, and book a viewing on WhatsApp." },
-    { icon: "\u{1F511}", title: "Sign in with this phone", desc: "Fingerprint or Face ID. No password sitting on a stolen phone." },
+    { icon: "\u{1f6e1}\ufe0f", title: "Trust score", desc: "Each listing shows the checks we actually ran: identity, photos, price against nearby homes, and complaint history." },
+    { icon: "\u{1f4b0}", title: "Pay after you look", desc: "Do not send rent until you have seen the house and said it is real." },
+    { icon: "\u{1f4f1}", title: "WhatsApp if that is easier", desc: "Search, ask questions, and book a viewing on WhatsApp." },
+    { icon: "\u{1f511}", title: "Sign in with this phone", desc: "Fingerprint or Face ID. No password sitting on a stolen phone." },
   ],
   stats: [
     { value: "Checks", label: "On every listing", sub: "Only what we can show" },
-    { value: "\u20A60", label: "Hidden fees", sub: "Rent and fees shown up front" },
-    { value: "ID", label: "When the score says so", sub: "Not a blanket 100%" },
+    { value: "Up front", label: "Rent and fees", sub: "Shown before you pay" },
+    { value: "ID", label: "When the score says so", sub: "Not a blanket claim" },
     { value: "WhatsApp", label: "Help while we are open", sub: "Hours shown in the chat" },
   ],
   examples: [
     { name: "Example", city: "Owerri", score: "Solid", text: "A renter finds a flat, sees the landlord checks, and moves in without paying an agent first." },
-    { name: "Example", city: "Port Harcourt", score: "Solid", text: "Money stays with Lodgist until the viewing confirms the house." },
+    { name: "Example", city: "Port Harcourt", score: "Solid", text: "The renter looks at the house before any rent leaves their account." },
     { name: "Example", city: "Lagos", score: "Solid", text: "A landlord lists a house and only hears from people who created an account." },
   ],
 };
@@ -103,6 +107,20 @@ export const jargon = {
 };
 
 export const dashboard = {
+  title: "Dashboard",
+  loading: "Loading your dashboard",
+  sessionTitle: "Sign in to continue",
+  sessionBody: "Your dashboard is behind your account.",
+  goToLogin: "Sign in",
+  logout: "Sign out",
+  extraChecks: "Extra checks on",
+  tabs: {
+    overview: "Overview",
+    listings: "Your houses",
+    reviews: "Reviews",
+    passkeys: "Phone sign-in",
+    hnw: "Extra checks",
+  },
   overview: {
     truthScore: "Trust score",
     hnwStatus: "Higher-value checks",
@@ -115,4 +133,66 @@ export const dashboard = {
     verifiedDesc: "Extra identity checks are on for this account.",
     standardDesc: "Standard account. Extra checks are not required yet.",
   },
+};
+
+export const passkeys = {
+  title: "Phone sign-in",
+  subtitle: "Use this phone instead of a password.",
+  add: "Add this phone",
+  adding: "Adding...",
+  loadFailed: "We could not load your phones. Try again.",
+  registerFailed: "We could not add this phone. Try again.",
+  deleteFailed: "We could not remove that phone. Try again.",
+  unsupported: "This browser cannot use phone sign-in. Try Chrome or Safari.",
+  emptyTitle: "No phone sign-in yet",
+  emptyBody: "Add this phone so you can sign in without a password.",
+  synced: "Synced",
+  thisPhone: "This phone",
+  otherDevice: "Another device",
+  created: "Added",
+  lastUsed: "Last used",
+  remove: "Remove",
+  removing: "Removing...",
+};
+
+export const reviews = {
+  signInError: "Sign in before you leave a review.",
+  signInBody: "Sign in to say how the house was.",
+  rating: "How was it?",
+  comment: "What should the next person know?",
+  optional: "(optional)",
+  placeholder: "Was the house as described? Was the landlord easy to reach?",
+  updateFailed: "We could not update your review. Try again.",
+  submitFailed: "We could not send your review. Try again.",
+  submitting: "Sending...",
+  update: "Update your review",
+  submit: "Send review",
+  sending: "Sending your review...",
+  stars: "Rate",
+};
+
+export const neighborhood = {
+  unavailable: "We do not have area details for this house yet.",
+  safety: "Area check",
+  flood: "Flood note",
+  amenities: "Nearby",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+};
+
+export const listingCard = {
+  noPhoto: "No photo yet",
+  listedBy: "Listed by",
+  trust: "Trust score",
+  view: "View house",
+  markRented: "Mark as taken",
+  beds: "beds",
+  baths: "baths",
+  status: {
+    available: "Open",
+    rented: "Taken",
+    sold: "Sold",
+    withdrawn: "Taken down",
+  } as Record<string, string>,
 };
