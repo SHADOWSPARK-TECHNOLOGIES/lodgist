@@ -322,6 +322,15 @@ function createEscrowRouter(prisma, paystackService) {
         });
       }
 
+      // Only the tenant, the landlord or a STUDIO_ADMIN may read it (it
+      // carries both parties' emails).
+      const isParty =
+        escrowTransaction.tenantId === req.user.id ||
+        escrowTransaction.landlordId === req.user.id;
+      if (!isParty && req.user.role !== "STUDIO_ADMIN") {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+
       res.json({ success: true, data: escrowTransaction });
     } catch (error) {
       console.error("Error fetching escrow transaction:", error);
