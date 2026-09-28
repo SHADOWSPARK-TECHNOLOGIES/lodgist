@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
 import { formatYearlyRent, listings as copy, supportWhatsAppAsk } from '@/lib/copy';
+import { hasTrustScore, isExampleListing } from '@/lib/listingHonesty';
 import type { Listing } from '@/lib/types';
 
 export default function ListingsPage() {
@@ -77,7 +78,9 @@ export default function ListingsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {listings.map(listing => (
+            {listings.map(listing => {
+              const score = listing.owner?.truthIndex;
+              return (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
                 <div className="h-48 rounded-xl mb-4 flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
                   {listing.images?.[0]?.url ? (
@@ -97,15 +100,19 @@ export default function ListingsPage() {
                         {formatYearlyRent(listing.price)}
                       </p>
                     )}
+                    {isExampleListing(listing) && (
+                      <p className="text-xs mt-2" style={{ color: 'var(--color-teal)' }}>{copy.sampleBadge}</p>
+                    )}
                   </div>
-                  {typeof listing.owner?.truthIndex === 'number' ? (
-                    <TruthScore score={listing.owner.truthIndex} size="sm" />
+                  {typeof score === "number" && hasTrustScore(score) ? (
+                    <TruthScore score={score} size="sm" />
                   ) : (
                     <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{copy.noScore}</span>
                   )}
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

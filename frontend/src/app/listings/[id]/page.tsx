@@ -7,6 +7,7 @@ import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import { detail, formatYearlyRent, trustCenter } from '@/lib/copy';
+import { hasTrustScore, isExampleListing } from '@/lib/listingHonesty';
 import type { Listing } from '@/lib/types';
 
 type MoveIn = {
@@ -18,7 +19,7 @@ type MoveIn = {
   service_charge?: number;
   total?: number;
   currency?: string;
-  notes?: string;
+  sample?: boolean;
 };
 
 function asMoveIn(value: unknown): MoveIn | null {
@@ -84,6 +85,7 @@ export default function ListingDetailPage() {
 
   const place = [listing.property?.city, listing.property?.state].filter(Boolean).join(', ');
   const moveIn = asMoveIn((listing as Listing & { totalMoveInCost?: unknown }).totalMoveInCost);
+  const example = isExampleListing(listing);
   const score = listing.owner?.truthIndex;
   const waText = encodeURIComponent(`Home: ${listing.title}${place ? ` (${place})` : ''}`);
   const wa = `https://wa.me/2349136094315?text=${waText}`;
@@ -106,7 +108,7 @@ export default function ListingDetailPage() {
         <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.rent}</p>
         <p className="font-poppins font-bold text-xl mt-1" style={{ color: 'var(--color-orange)' }}>{formatYearlyRent(listing.price) || 'Rent not listed'}</p>
         <div className="mt-4">
-          {typeof score === 'number' ? <TruthScore score={score} /> : <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.noScore}</p>}
+          {hasTrustScore(score) ? <TruthScore score={score as number} /> : <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.noScore}</p>}
         </div>
         {listing.updatedAt && (
           <p className="text-xs mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{detail.updated} {new Date(listing.updatedAt).toLocaleDateString('en-NG')}</p>
@@ -114,12 +116,18 @@ export default function ListingDetailPage() {
       </section>
 
       <section className="mb-4">
-        <h2 className="font-poppins font-semibold text-white mb-2">{detail.moveIn}</h2>
-        {moveIn ? <FeeLedger metadata={moveIn} category={feeCategory(listing.property && 'propertyType' in listing.property ? String((listing.property as { propertyType?: string }).propertyType) : '')} /> : (
+        <h2 className="font-poppins font-semibold text-white mb-2">{example ? detail.sampleTitle : detail.moveIn}</h2>
+        {example && <p className="text-sm mb-3" style={{ color: 'rgba(255,255,255,0.65)' }}>{detail.sampleBody}</p>}
+        {moveIn && !example ? <FeeLedger metadata={moveIn} category={feeCategory(listing.property && 'propertyType' in listing.property ? String((listing.property as { propertyType?: string }).propertyType) : '')} /> : moveIn && example ? (
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
+            {formatYearlyRent(listing.price)} rent in this example. Move-in example {moveIn.total != null ? `₦${Number(moveIn.total).toLocaleString('en-NG')}` : 'not listed'}.
+          </p>
+        ) : (
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.noMoveIn}</p>
         )}
       </section>
 
+      {!example && (
       <section className="card mb-4">
         <h2 className="font-poppins font-semibold text-white mb-2">{detail.checked}</h2>
         <ul className="space-y-1 mb-4">
@@ -130,6 +138,7 @@ export default function ListingDetailPage() {
         <h3 className="font-poppins font-semibold text-white text-sm mb-1">{detail.unchecked}</h3>
         <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.uncheckedBody}</p>
       </section>
+      )}
 
       {listing.description && (
         <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.7 }}>{listing.description}</p>
