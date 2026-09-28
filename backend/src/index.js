@@ -28,6 +28,7 @@ const paymentsRouter = createPaymentsRouter(prisma);
 const createBookingsRouter = require("./routes/bookings");
 const bookingsRouter = createBookingsRouter(prisma);
 const healthRouter = require("./routes/health")(prisma);
+const neighborhoodRouter = require("./routes/neighborhood")(prisma);
 
 const app = express();
 // Railway sits behind one proxy; trust it so rate limiting keys on the client IP.
@@ -133,6 +134,7 @@ app.use("/api/health", healthRouter);
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/listings", listingsRouter);
+app.use("/api/neighborhood", neighborhoodRouter);
 app.use("/api/reviews", reviewsRouter);
 app.use("/api/truth-index", truthIndexRouter);
 app.use("/api/verification", verificationRouter);
@@ -160,6 +162,7 @@ app.listen(PORT, HOST, () => {
   logger.info(`  /api/auth (register, login, passkey)`);
   logger.info(`  /api/users`);
   logger.info(`  /api/listings`);
+  logger.info(`  GET  /api/neighborhood/nearby`);
   logger.info(`  /api/reviews`);
   logger.info(`  /api/truth-index`);
   logger.info(`  /api/verification`);
