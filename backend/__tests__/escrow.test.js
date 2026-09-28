@@ -1,492 +1,197 @@
-/**
- * Unit tests for the Lodgist escrow endpoints.
- *
- * Tests cover:
- *   POST /api/escrow/initiate  — Initiate escrow payment
- *   POST /api/escrow/hold      — Confirm payment, funds held
- *   POST /api/escrow/release   — Release funds to landlord
- *   GET  /api/escrow/:id       — Fetch single transaction
- *   GET  /api/escrow           — List transactions
- */
+// Escrow routes (src/routes/escrow.js): auth + liveness gate, PENDING → HELD →
+// RELEASED, LODG-ESC- references, Paystack balance check, 5% commission and
+// party-scoped reads. Prisma and Paystack are plain in-memory fakes.
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import express from "express";
-import request from "supertest";
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const createEscrowRouter = require("../src/routes/escrow");
 
-// ─── Mocks ────────────────────────────────────────────────────────────────────
+const TENANT = { id: 1, role: "USER" };
+const LANDLORD = { id: 2, role: "LANDLORD" };
+const auth = (u) => ({ Authorization: `Bearer ${jwt.sign(u, process.env.JWT_SECRET)}` });
 
-const mockPrisma = {
-  escrowTransaction: {
-    create: vi.fn(),
-    findUnique: vi.fn(),
-    findMany: vi.fn(),
-    update: vi.fn(),
-  },
+const HELD_TX = {
+  id: "esc1", reference: "LODG-ESC-1712345678901-abc", tenantId: 1, landlordId: 2,
+  listingId: 10, amount: 100000, currency: "NGN", status: "HELD", description: "Rent",
 };
+const BANK = { name: "Landlord", accountNumber: "0123456789", bankCode: "058" };
 
-const mockPaystackService = {
-  initializePayment: vi.fn(),
-  verifyPayment: vi.fn(),
-  createTransferRecipient: vi.fn(),
-  transferToLandlord: vi.fn(),
-  getBalance: vi.fn(),
-};
-
-// ─── Helper: create a test Express app with the escrow router ─────────────────
-
-function createTestApp() {
-  const app = express();
-  app.use(express.json());
-  // Use the factory pattern — pass mock prisma and mock paystackService directly
-  const createEscrowRouter = require("../src/routes/escrow");
-  const router = createEscrowRouter(mockPrisma, mockPaystackService);
-  app.use("/api/escrow", router);
-  return app;
+function fakes({ tx = HELD_TX, verifyStatus = "success", balances = [{ currency: "NGN", balance: 1_000_000 }], balanceError, initError } = {}) {
+  const calls = { created: [], updated: [], init: [], transfers: [], findMany: [] };
+  const prisma = {
+    escrowTransaction: {
+      create: async ({ data }) => { calls.created.push(data); return { id: "esc1", ...data }; },
+      update: async (args) => { calls.updated.push(args); return { ...tx, ...args.data }; },
+      findFirst: async () => (tx ? { ...tx } : null),
+      findUnique: async () => (tx ? { ...tx } : null),
+      findMany: async (args) => { calls.findMany.push(args); return []; },
+    },
+  };
+  const paystack = {
+    initializePayment: async (args) => {
+      calls.init.push(args);
+      if (initError) throw new Error(initError);
+      return { authorization_url: "https://checkout.paystack.com/x", reference: args.reference };
+    },
+    verifyPayment: async (reference) => ({ status: verifyStatus, reference, amount: 100000, currency: "NGN", paidAt: "2026-09-28T00:00:00Z", channel: "card" }),
+    getBalance: async () => { if (balanceError) throw new Error("down"); return balances; },
+    createTransferRecipient: async () => ({ recipientCode: "RCP_1" }),
+    transferToLandlord: async (args) => { calls.transfers.push(args); return { transferCode: "TRF_1", status: "success", amount: args.amount }; },
+  };
+  return { prisma, paystack, calls };
 }
 
-// ─── Fixtures ─────────────────────────────────────────────────────────────────
-
-const mockEscrowTransaction = {
-  id: "escrow-1",
-  reference: "ESCROW-1712345678901-abc123",
-  tenantId: 1,
-  landlordId: 2,
-  listingId: 10,
-  amount: 500000,
-  currency: "NGN",
-  status: "HELD",
-  description: "Rent escrow payment",
-  paystackAuthorizationUrl: null,
-  paystackReference: null,
-  releaseDate: null,
-  createdAt: new Date("2025-01-01"),
-  updatedAt: new Date("2025-01-01"),
-};
-
-const mockPaystackInitResponse = {
-  authorization_url: "https://checkout.paystack.com/abc123",
-  reference: "ESCROW-1712345678901-abc123",
-  access_code: "abc123",
-};
-
-const mockPaystackVerifyResponse = {
-  status: "success",
-  reference: "ESCROW-1712345678901-abc123",
-  amount: 500000,
-  currency: "NGN",
-  paidAt: "2025-01-01T12:00:00.000Z",
-  channel: "card",
-  customer: { email: "tenant@example.com", phone: "+2348012345678" },
-  metadata: { escrowTransactionId: "escrow-1" },
-};
-
-const mockRecipientResponse = {
-  recipientCode: "RCP_abc123",
-  recipientId: 12345,
-};
-
-const mockTransferResponse = {
-  transferCode: "TRF_abc123",
-  status: "success",
-  amount: 500000,
-};
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
-
-describe("POST /api/escrow/initiate", () => {
-  let app;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    app = createTestApp();
-  });
-
-  it("should return 400 when required fields are missing", async () => {
-    const res = await request(app)
-      .post("/api/escrow/initiate")
-      .send({ tenantId: 1 });
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("Missing required fields");
-  });
-
-  it("should return 400 when tenantEmail is missing", async () => {
-    const res = await request(app)
-      .post("/api/escrow/initiate")
-      .send({ tenantId: 1, landlordId: 2, amount: 500000, currency: "NGN" });
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("tenantEmail");
-  });
-
-  it("should create an escrow transaction and return payment URL", async () => {
-    mockPrisma.escrowTransaction.create.mockResolvedValue(mockEscrowTransaction);
-    mockPaystackService.initializePayment.mockResolvedValue(mockPaystackInitResponse);
-    mockPrisma.escrowTransaction.update.mockResolvedValue({
-      ...mockEscrowTransaction,
-      paystackAuthorizationUrl: mockPaystackInitResponse.authorization_url,
-      paystackReference: mockPaystackInitResponse.reference,
+async function call(f, path, { method = "GET", headers = {}, body } = {}) {
+  const app = express();
+  app.use(express.json());
+  app.use("/api/escrow", createEscrowRouter(f.prisma, f.paystack));
+  const server = await new Promise((r) => { const s = app.listen(0, "127.0.0.1", () => r(s)); });
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json", ...headers },
+      body: body ? JSON.stringify(body) : undefined,
     });
+    return { status: res.status, body: await res.json() };
+  } finally {
+    server.close();
+  }
+}
+const post = (f, path, user, body) => call(f, path, { method: "POST", headers: user ? auth(user) : {}, body });
 
-    const res = await request(app)
-      .post("/api/escrow/initiate")
-      .send({
-        tenantId: 1,
-        landlordId: 2,
-        listingId: 10,
-        amount: 500000,
-        currency: "NGN",
-        tenantEmail: "tenant@example.com",
-        description: "Rent for 3-bedroom apartment",
-      });
+test("every escrow route requires a bearer token", async () => {
+  const f = fakes();
+  for (const [method, path] of [["POST", "/api/escrow/initiate"], ["POST", "/api/escrow/hold"], ["POST", "/api/escrow/release"], ["GET", "/api/escrow/esc1"], ["GET", "/api/escrow"]]) {
+    const res = await call(f, path, { method, body: method === "POST" ? {} : undefined });
+    assert.equal(res.status, 401, `${method} ${path}`);
+  }
+});
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.escrowTransactionId).toBe("escrow-1");
-    expect(res.body.paymentAuthorizationUrl).toBe(mockPaystackInitResponse.authorization_url);
-    expect(res.body.paystackReference).toBe(mockPaystackInitResponse.reference);
+test("POST /initiate validates input and gates HNW amounts behind liveness", async () => {
+  const f = fakes();
+  assert.equal((await post(f, "/api/escrow/initiate", TENANT, { landlordId: 2, currency: "NGN" })).status, 400, "amount missing");
+  let res = await post(f, "/api/escrow/initiate", TENANT, { amount: 1000, currency: "NGN" });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /Missing required fields/);
+  res = await post(f, "/api/escrow/initiate", TENANT, { landlordId: 2, amount: 1000, currency: "NGN" });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /tenantEmail/);
 
-    expect(mockPrisma.escrowTransaction.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        tenantId: 1,
-        landlordId: 2,
-        amount: 500000,
-        currency: "NGN",
-        status: "HELD",
-      }),
-    });
+  res = await post(f, "/api/escrow/initiate", TENANT, { landlordId: 2, amount: 10_000_000, currency: "NGN", tenantEmail: "t@example.com" });
+  assert.equal(res.status, 403);
+  assert.equal(res.body.code, "LIVENESS_REQUIRED");
+  assert.equal(f.calls.created.length, 0);
 
-    expect(mockPaystackService.initializePayment).toHaveBeenCalledWith({
-      email: "tenant@example.com",
-      amount: 500000,
-      reference: mockEscrowTransaction.reference,
-      metadata: expect.objectContaining({
-        escrowTransactionId: "escrow-1",
-        tenantId: 1,
-        landlordId: 2,
-      }),
-    });
-  });
+  res = await post(f, "/api/escrow/initiate", { ...TENANT, isHNW: true }, { landlordId: 2, amount: 10_000_000, currency: "NGN", tenantEmail: "t@example.com" });
+  assert.equal(res.status, 200, "verified HNW users pass the gate");
+});
 
-  it("should return 500 when Paystack initialization fails", async () => {
-    mockPrisma.escrowTransaction.create.mockResolvedValue(mockEscrowTransaction);
-    mockPaystackService.initializePayment.mockRejectedValue(
-      new Error("Paystack API error")
-    );
+test("POST /initiate creates a PENDING LODG-ESC- transaction for the signed-in tenant", async () => {
+  const f = fakes();
+  const res = await post(f, "/api/escrow/initiate", TENANT, { tenantId: 99, landlordId: 2, listingId: 10, amount: 100000, currency: "NGN", tenantEmail: "t@example.com" });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.success, true);
+  assert.equal(res.body.escrowTransactionId, "esc1");
+  assert.equal(res.body.paymentAuthorizationUrl, "https://checkout.paystack.com/x");
 
-    const res = await request(app)
-      .post("/api/escrow/initiate")
-      .send({
-        tenantId: 1,
-        landlordId: 2,
-        amount: 500000,
-        currency: "NGN",
-        tenantEmail: "tenant@example.com",
-      });
+  const data = f.calls.created[0];
+  assert.equal(data.tenantId, 1, "tenantId comes from the token, not the body");
+  assert.equal(data.status, "PENDING");
+  assert.match(data.reference, /^LODG-ESC-\d+-[a-z0-9]+$/);
 
-    expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toBe("Paystack API error");
+  const init = f.calls.init[0];
+  assert.equal(init.email, "t@example.com");
+  assert.equal(init.reference, data.reference);
+  assert.equal(init.idempotencyKey, "escrow-init-esc1");
+  assert.deepEqual(f.calls.updated[0], {
+    where: { id: "esc1" },
+    data: { paystackAuthorizationUrl: "https://checkout.paystack.com/x", paystackReference: data.reference },
   });
 });
 
-describe("POST /api/escrow/hold", () => {
-  let app;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    app = createTestApp();
-  });
-
-  it("should return 400 when reference is missing", async () => {
-    const res = await request(app).post("/api/escrow/hold").send({});
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("reference");
-  });
-
-  it("should return 400 when Paystack verification fails", async () => {
-    mockPaystackService.verifyPayment.mockResolvedValue({
-      ...mockPaystackVerifyResponse,
-      status: "failed",
-    });
-
-    const res = await request(app)
-      .post("/api/escrow/hold")
-      .send({ reference: "invalid-ref" });
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("not successful");
-  });
-
-  it("should return 404 when escrow transaction not found", async () => {
-    mockPaystackService.verifyPayment.mockResolvedValue(mockPaystackVerifyResponse);
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue(null);
-
-    const res = await request(app)
-      .post("/api/escrow/hold")
-      .send({ reference: "ESCROW-1712345678901-abc123" });
-
-    expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("not found");
-  });
-
-  it("should return 409 when transaction is already released", async () => {
-    mockPaystackService.verifyPayment.mockResolvedValue(mockPaystackVerifyResponse);
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue({
-      ...mockEscrowTransaction,
-      status: "RELEASED",
-    });
-
-    const res = await request(app)
-      .post("/api/escrow/hold")
-      .send({ reference: "ESCROW-1712345678901-abc123" });
-
-    expect(res.status).toBe(409);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("already");
-  });
-
-  it("should confirm payment and return success", async () => {
-    mockPaystackService.verifyPayment.mockResolvedValue(mockPaystackVerifyResponse);
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue(mockEscrowTransaction);
-    mockPrisma.escrowTransaction.update.mockResolvedValue(mockEscrowTransaction);
-
-    const res = await request(app)
-      .post("/api/escrow/hold")
-      .send({ reference: "ESCROW-1712345678901-abc123" });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.message).toContain("held in escrow");
-    expect(res.body.escrowTransactionId).toBe("escrow-1");
-    expect(res.body.amount).toBe(500000);
-
-    expect(mockPrisma.escrowTransaction.update).toHaveBeenCalledWith({
-      where: { id: "escrow-1" },
-      data: expect.objectContaining({
-        paystackReference: mockPaystackVerifyResponse.reference,
-        status: "HELD",
-      }),
-    });
-  });
+test("POST /initiate returns 500 when Paystack fails", async () => {
+  const f = fakes({ initError: "Paystack API error" });
+  const res = await post(f, "/api/escrow/initiate", TENANT, { landlordId: 2, amount: 1000, currency: "NGN", tenantEmail: "t@example.com" });
+  assert.equal(res.status, 500);
+  assert.equal(res.body.error, "Paystack API error");
 });
 
-describe("POST /api/escrow/release", () => {
-  let app;
+test("POST /hold verifies with Paystack and moves PENDING to HELD", async () => {
+  assert.equal((await post(fakes(), "/api/escrow/hold", TENANT, {})).status, 400);
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    app = createTestApp();
-  });
+  let res = await post(fakes({ verifyStatus: "failed" }), "/api/escrow/hold", TENANT, { reference: "LODG-ESC-x" });
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /not successful/);
 
-  it("should return 400 when required fields are missing", async () => {
-    const res = await request(app)
-      .post("/api/escrow/release")
-      .send({ landlordId: 2 });
+  assert.equal((await post(fakes({ tx: null }), "/api/escrow/hold", TENANT, { reference: "LODG-ESC-x" })).status, 404);
 
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("Missing required fields");
-  });
+  res = await post(fakes({ tx: { ...HELD_TX, status: "RELEASED" } }), "/api/escrow/hold", TENANT, { reference: "LODG-ESC-x" });
+  assert.equal(res.status, 409);
 
-  it("should return 404 when escrow transaction not found", async () => {
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue(null);
-
-    const res = await request(app)
-      .post("/api/escrow/release")
-      .send({ escrowTransactionId: "nonexistent", landlordId: 2 });
-
-    expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("not found");
-  });
-
-  it("should return 403 when landlord is not the recipient", async () => {
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue({
-      ...mockEscrowTransaction,
-      landlordId: 999,
-    });
-
-    const res = await request(app)
-      .post("/api/escrow/release")
-      .send({ escrowTransactionId: "escrow-1", landlordId: 2 });
-
-    expect(res.status).toBe(403);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("not authorized");
-  });
-
-  it("should return 409 when transaction is not in HELD status", async () => {
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue({
-      ...mockEscrowTransaction,
-      status: "RELEASED",
-    });
-
-    const res = await request(app)
-      .post("/api/escrow/release")
-      .send({ escrowTransactionId: "escrow-1", landlordId: 2 });
-
-    expect(res.status).toBe(409);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("already");
-  });
-
-  it("should return 400 when landlordBankDetails are missing", async () => {
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue(mockEscrowTransaction);
-
-    const res = await request(app)
-      .post("/api/escrow/release")
-      .send({ escrowTransactionId: "escrow-1", landlordId: 2 });
-
-    expect(res.status).toBe(400);
-    expect(res.body.success).toBe(false);
-    expect(res.body.error).toContain("landlordBankDetails");
-  });
-
-  it("should release funds to landlord successfully", async () => {
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue(mockEscrowTransaction);
-    mockPaystackService.createTransferRecipient.mockResolvedValue(mockRecipientResponse);
-    mockPaystackService.transferToLandlord.mockResolvedValue(mockTransferResponse);
-    mockPrisma.escrowTransaction.update.mockResolvedValue({
-      ...mockEscrowTransaction,
-      status: "RELEASED",
-      releaseDate: new Date(),
-    });
-
-    const res = await request(app)
-      .post("/api/escrow/release")
-      .send({
-        escrowTransactionId: "escrow-1",
-        landlordId: 2,
-        landlordBankDetails: {
-          name: "John Doe",
-          accountNumber: "0123456789",
-          bankCode: "011",
-        },
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.message).toContain("released to landlord");
-    expect(res.body.transferCode).toBe("TRF_abc123");
-    expect(res.body.transferStatus).toBe("success");
-    expect(res.body.amountReleased).toBe(500000);
-
-    expect(mockPaystackService.createTransferRecipient).toHaveBeenCalledWith({
-      name: "John Doe",
-      accountNumber: "0123456789",
-      bankCode: "011",
-    });
-
-    expect(mockPaystackService.transferToLandlord).toHaveBeenCalledWith({
-      amount: 500000,
-      recipientCode: "RCP_abc123",
-      reference: expect.stringContaining("ESCROW-RELEASE-"),
-      reason: expect.stringContaining("Rent escrow release"),
-    });
-
-    expect(mockPrisma.escrowTransaction.update).toHaveBeenCalledWith({
-      where: { id: "escrow-1" },
-      data: expect.objectContaining({
-        status: "RELEASED",
-        releaseDate: expect.any(Date),
-      }),
-    });
-  });
+  const f = fakes({ tx: { ...HELD_TX, status: "PENDING" } });
+  res = await post(f, "/api/escrow/hold", TENANT, { reference: HELD_TX.reference });
+  assert.equal(res.status, 200);
+  assert.match(res.body.message, /held in escrow/);
+  assert.deepEqual(f.calls.updated[0], { where: { id: "esc1" }, data: { paystackReference: HELD_TX.reference, status: "HELD" } });
 });
 
-describe("GET /api/escrow/:id", () => {
-  let app;
+test("POST /release: only the landlord, only from HELD", async () => {
+  assert.equal((await post(fakes(), "/api/escrow/release", LANDLORD, {})).status, 400);
+  assert.equal((await post(fakes({ tx: null }), "/api/escrow/release", LANDLORD, { escrowTransactionId: "esc1", landlordBankDetails: BANK })).status, 404);
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    app = createTestApp();
-  });
+  let f = fakes();
+  let res = await post(f, "/api/escrow/release", { id: 999, role: "LANDLORD" }, { escrowTransactionId: "esc1", landlordId: 2, landlordBankDetails: BANK });
+  assert.equal(res.status, 403, "landlordId in the body is ignored");
+  assert.equal(f.calls.transfers.length, 0);
 
-  it("should return 404 when transaction not found", async () => {
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue(null);
-
-    const res = await request(app).get("/api/escrow/nonexistent");
-
-    expect(res.status).toBe(404);
-    expect(res.body.success).toBe(false);
-  });
-
-  it("should return the escrow transaction with relations", async () => {
-    const transactionWithRelations = {
-      ...mockEscrowTransaction,
-      tenant: { id: 1, name: "Tenant", email: "tenant@example.com" },
-      landlord: { id: 2, name: "Landlord", email: "landlord@example.com" },
-      listing: { id: 10, title: "3-Bedroom Apartment", price: 500000 },
-    };
-
-    mockPrisma.escrowTransaction.findUnique.mockResolvedValue(transactionWithRelations);
-
-    const res = await request(app).get("/api/escrow/escrow-1");
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.id).toBe("escrow-1");
-    expect(res.body.data.tenant.name).toBe("Tenant");
-    expect(res.body.data.landlord.name).toBe("Landlord");
-    expect(res.body.data.listing.title).toBe("3-Bedroom Apartment");
-  });
+  res = await post(fakes({ tx: { ...HELD_TX, status: "PENDING" } }), "/api/escrow/release", LANDLORD, { escrowTransactionId: "esc1", landlordBankDetails: BANK });
+  assert.equal(res.status, 409);
 });
 
-describe("GET /api/escrow", () => {
-  let app;
+test("POST /release checks the Paystack balance first", async () => {
+  for (const [opts, status, code] of [
+    [{ balances: [] }, 402, "INSUFFICIENT_BALANCE"],
+    [{ balances: [{ currency: "NGN", balance: 50000 }] }, 402, "INSUFFICIENT_BALANCE"],
+    [{ balanceError: true }, 503, "BALANCE_CHECK_UNAVAILABLE"],
+  ]) {
+    const f = fakes(opts);
+    const res = await post(f, "/api/escrow/release", LANDLORD, { escrowTransactionId: "esc1", landlordBankDetails: BANK });
+    assert.equal(res.status, status);
+    assert.equal(res.body.code, code);
+    assert.equal(f.calls.transfers.length, 0);
+    assert.equal(f.calls.updated.length, 0);
+  }
+  const res = await post(fakes(), "/api/escrow/release", LANDLORD, { escrowTransactionId: "esc1" });
+  assert.equal(res.status, 400, "bank details required");
+});
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    app = createTestApp();
-  });
+test("POST /release transfers the amount minus 5% commission and marks RELEASED", async () => {
+  const f = fakes();
+  const res = await post(f, "/api/escrow/release", LANDLORD, { escrowTransactionId: "esc1", landlordBankDetails: BANK });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.amountReleased, 95000);
+  const transfer = f.calls.transfers[0];
+  assert.equal(transfer.amount, 95000);
+  assert.equal(transfer.recipientCode, "RCP_1");
+  assert.match(transfer.reference, /^LODG-REL-1712345678901-abc-\d+$/);
+  const { where, data } = f.calls.updated[0];
+  assert.deepEqual(where, { id: "esc1" });
+  assert.equal(data.status, "RELEASED");
+  assert.equal(data.commissionAmount, 5000);
+  assert.ok(data.releaseDate instanceof Date);
+});
 
-  it("should return all escrow transactions", async () => {
-    const transactions = [
-      { ...mockEscrowTransaction, id: "escrow-1" },
-      { ...mockEscrowTransaction, id: "escrow-2", amount: 300000 },
-    ];
+test("GET /api/escrow lists only the caller's own transactions", async () => {
+  const f = fakes();
+  const res = await call(f, "/api/escrow?status=HELD", { headers: auth(TENANT) });
+  assert.equal(res.status, 200);
+  assert.deepEqual(f.calls.findMany[0].where, { OR: [{ tenantId: 1 }, { landlordId: 1 }], status: "HELD" });
+});
 
-    mockPrisma.escrowTransaction.findMany.mockResolvedValue(transactions);
-
-    const res = await request(app).get("/api/escrow");
-
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data).toHaveLength(2);
-    expect(res.body.data[0].id).toBe("escrow-1");
-    expect(res.body.data[1].id).toBe("escrow-2");
-  });
-
-  it("should filter by tenantId", async () => {
-    mockPrisma.escrowTransaction.findMany.mockResolvedValue([mockEscrowTransaction]);
-
-    const res = await request(app).get("/api/escrow?tenantId=1");
-
-    expect(res.status).toBe(200);
-    expect(mockPrisma.escrowTransaction.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ tenantId: 1 }),
-      })
-    );
-  });
-
-  it("should filter by status", async () => {
-    mockPrisma.escrowTransaction.findMany.mockResolvedValue([mockEscrowTransaction]);
-
-    const res = await request(app).get("/api/escrow?status=HELD");
-
-    expect(res.status).toBe(200);
-    expect(mockPrisma.escrowTransaction.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ status: "HELD" }),
-      })
-    );
-  });
+test("GET /api/escrow/:id returns 404 for an unknown transaction", async () => {
+  const res = await call(fakes({ tx: null }), "/api/escrow/nope", { headers: auth(TENANT) });
+  assert.equal(res.status, 404);
 });

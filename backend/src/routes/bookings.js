@@ -85,7 +85,8 @@ function createBookingsRouter(prisma) {
   });
 
   // ── POST /api/bookings ────────────────────────────────────────────────────
-  // Admin, or a LANDLORD for their own listing, creates a booking on behalf of a tenant.
+  // Admin, or a LANDLORD for their own listing (tenant must be a USER who has a
+  // viewing request on that listing), creates a booking on behalf of a tenant.
   // Used in the manual concierge flow: lead arrives via social/chatbot,
   // admin creates the booking, tenant then submits payment reference via
   // PATCH /manual-payment, admin verifies via PATCH /verify-payment.
@@ -117,17 +118,36 @@ function createBookingsRouter(prisma) {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
-      // Landlord bookings: sane dates, and the amount is the listing's yearly
-      // price pro-rated by days (listing.price is yearly rent in the frontend).
+      // Sane dates for everyone (admin and landlord).
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      if (isNaN(start) || isNaN(end) || end <= start || start < today) {
+        return res.status(400).json({ success: false, error: "Invalid dates: end must be after start, and start cannot be in the past" });
+      }
+
       let amount = parseFloat(totalAmount);
       if (!admin) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
-        if (isNaN(start) || isNaN(end) || end <= start || start < today) {
-          return res.status(400).json({ success: false, error: "Invalid dates: end must be after start, and start cannot be in the past" });
+        // Landlords may only book a regular USER account that has already asked
+        // to view this listing (a non-cancelled ViewingRequest), so they can't
+        // attach bookings to arbitrary accounts.
+        if (tenant.role !== "USER") {
+          return res.status(400).json({ success: false, error: "Tenant must be a regular user account" });
         }
+        const viewing = await prisma.viewingRequest.findFirst({
+          where: {
+            listingId: listing.id,
+            requesterId: tenant.id,
+            status: { in: ["REQUESTED", "SCHEDULED", "COMPLETED"] },
+          },
+          select: { id: true },
+        });
+        if (!viewing) {
+          return res.status(403).json({ success: false, error: "Tenant has no viewing request for this listing" });
+        }
+        // Amount is the listing's yearly price pro-rated by days
+        // (listing.price is yearly rent in the frontend).
         amount = Math.round(((listing.price * (end - start)) / (365 * 24 * 60 * 60 * 1000)) * 100) / 100;
       }
 
@@ -135,8 +155,8 @@ function createBookingsRouter(prisma) {
         data: {
           listingId:     listing.id,
           tenantId:      tenant.id,
-          startDate:     new Date(startDate),
-          endDate:       new Date(endDate),
+          startDate:     start,
+          endDate:       end,
           totalAmount:   amount,
           currency:      admin ? currency || "NGN" : listing.currency || "NGN",
           notes:         notes || null,
