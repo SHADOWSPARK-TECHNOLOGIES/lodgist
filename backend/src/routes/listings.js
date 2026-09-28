@@ -3,9 +3,8 @@ const { analyzeListing } = require("../services/listingScamDetection");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const logger = require("../utils/logger");
 
-// Columns that exist in the baseline migration. riskState and truthIndex are
-// selected only after 20260928130000 is applied; omitting them here keeps
-// browse working on a database that has not been migrated yet.
+// Public listing columns. riskState and truthIndex come from migration
+// 20260928130000; the lodgist-api pre-deploy step fails if they are missing.
 const LISTING_PUBLIC_SELECT = {
   id: true,
   propertyId: true,
@@ -24,8 +23,17 @@ const LISTING_PUBLIC_SELECT = {
   availableFrom: true,
   furnished: true,
   serviceCharge: true,
+  riskState: true,
+  truthIndex: true,
   createdAt: true,
   updatedAt: true,
+};
+
+const SORTS = {
+  newest: { createdAt: "desc" },
+  oldest: { createdAt: "asc" },
+  price_asc: { price: "asc" },
+  price_desc: { price: "desc" },
 };
 
 module.exports = (prisma) => {
@@ -64,10 +72,12 @@ module.exports = (prisma) => {
 
   // ─── GET /api/listings — Public, paginated listing browse ──────────────────
   router.get("/", optionalAuth, async (req, res) => {
-    const { q, search, category, status, minPrice, maxPrice, page: pageQuery } = req.query;
+    const { q, search, category, status, minPrice, maxPrice, state, area, sort, page: pageQuery } = req.query;
     const queryText = (typeof q === "string" && q) || (typeof search === "string" && search) || "";
-    const pageSize = 12;
+    const limitQuery = req.query.limit ?? req.query.pageSize;
+    const pageSize = Math.min(50, Math.max(1, parseInt(limitQuery || "12", 10) || 12));
     const page = Math.max(1, parseInt(pageQuery || "1", 10) || 1);
+    const orderBy = SORTS[sort] || SORTS.newest;
     const skip = (page - 1) * pageSize;
 
     try {
@@ -79,6 +89,19 @@ module.exports = (prisma) => {
           { description: { contains: queryText, mode: "insensitive" } },
         ];
       }
+
+      const propertyWhere = {};
+      if (typeof state === "string" && state) {
+        propertyWhere.state = { equals: state, mode: "insensitive" };
+      }
+      if (typeof area === "string" && area) {
+        propertyWhere.OR = [
+          { city: { contains: area, mode: "insensitive" } },
+          { lga: { contains: area, mode: "insensitive" } },
+          { address: { contains: area, mode: "insensitive" } },
+        ];
+      }
+      if (Object.keys(propertyWhere).length) where.property = { is: propertyWhere };
 
       if (category) where.category = category;
       if (status) where.status = status;
@@ -114,7 +137,6 @@ module.exports = (prisma) => {
             select: {
               id: true,
               name: true,
-              email: true,
               truthIndex: true,
               isVerified: true,
             },
@@ -130,7 +152,7 @@ module.exports = (prisma) => {
         },
         take: pageSize,
         skip,
-        orderBy: { createdAt: "desc" },
+        orderBy,
       });
 
       const listingIds = listings.map((l) => l.id);
@@ -166,6 +188,8 @@ module.exports = (prisma) => {
           total,
           page,
           pages: total === 0 ? 0 : Math.ceil(total / pageSize),
+          totalPages: total === 0 ? 0 : Math.ceil(total / pageSize),
+          limit: pageSize,
           pageSize,
         },
       });
