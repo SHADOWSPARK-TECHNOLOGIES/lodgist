@@ -150,3 +150,26 @@ test("GET /api/listings clamps limit and ignores unknown sort", async () => {
     server.close();
   }
 });
+
+test("GET /api/listings/:id does not expose owner email or phone", async () => {
+  let ownerSelect;
+  const prisma = new Proxy({}, {
+    get: () => new Proxy({}, {
+      get: (_, fn) => async (args) => {
+        if (args?.select?.owner) ownerSelect = args.select.owner.select;
+        if (args?.include?.owner) ownerSelect = args.include.owner.select;
+        return fn === "findMany" || fn === "groupBy" ? [] : fn === "count" ? 0 : null;
+      },
+    }),
+  });
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    await fetch(`http://127.0.0.1:${port}/api/listings/1`);
+    assert.ok(ownerSelect, "owner select captured");
+    assert.equal(ownerSelect.email, undefined);
+    assert.equal(ownerSelect.phone, undefined);
+  } finally {
+    server.close();
+  }
+});
