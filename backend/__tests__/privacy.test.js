@@ -191,7 +191,8 @@ function bookingPrisma(state = {}) {
       create: async ({ data }) => { state.created = true; return { id: "bk2", ...data }; },
     },
     listing: { findUnique: async () => ({ id: 10, ownerId: 6 }) },
-    user: { findUnique: async () => ({ id: 5 }) },
+    user: { findUnique: async () => ({ id: 5, role: "USER" }) },
+    viewingRequest: { findFirst: async () => (state.noViewing ? null : { id: 1 }) },
   };
 }
 const ADMIN = { id: 1, role: "STUDIO_ADMIN" };
@@ -285,6 +286,54 @@ test("POST /api/bookings by a landlord: server-computed amount, sane dates, exis
   res = await post(t.router, { ...base, totalAmount: 1 });
   assert.equal(res.status, 404);
   assert.equal(t.state.data, undefined);
+});
+
+test("POST /api/bookings by a landlord: tenant must be a USER with a viewing request on the listing", async () => {
+  const body = { listingId: 10, tenantId: 5, startDate: "2030-01-01", endDate: "2031-01-01" };
+  const post = (prisma) => call(require("../src/routes/bookings")(prisma), "/api/bookings", "/api/bookings", { method: "POST", headers: auth(OWNER), body });
+
+  let state = { noViewing: true };
+  let res = await post(bookingPrisma(state));
+  assert.equal(res.status, 403, "no viewing request");
+  assert.equal(state.created, undefined);
+
+  for (const role of ["LANDLORD", "STUDIO_ADMIN", "AGENT"]) {
+    state = {};
+    const prisma = bookingPrisma(state);
+    prisma.user.findUnique = async () => ({ id: 5, role });
+    res = await post(prisma);
+    assert.equal(res.status, 400, `tenant role ${role}`);
+    assert.equal(state.created, undefined);
+  }
+
+  state = {};
+  let seen;
+  const prisma = bookingPrisma(state);
+  prisma.viewingRequest.findFirst = async (args) => { seen = args; return { id: 1 }; };
+  res = await post(prisma);
+  assert.equal(res.status, 201);
+  assert.equal(seen.where.listingId, 10);
+  assert.equal(seen.where.requesterId, 5);
+  assert.ok(!seen.where.status.in.includes("CANCELLED"));
+
+  // Admins are not subject to the viewing-request rule.
+  state = { noViewing: true };
+  res = await call(require("../src/routes/bookings")(bookingPrisma(state)), "/api/bookings", "/api/bookings", { method: "POST", headers: auth(ADMIN), body: { ...body, totalAmount: 1 } });
+  assert.equal(res.status, 201);
+});
+
+test("POST /api/bookings by an admin: same date validation as landlords", async () => {
+  const base = { listingId: 10, tenantId: 5, totalAmount: 1000 };
+  for (const dates of [{ startDate: "2031-01-01", endDate: "2030-01-01" }, { startDate: "2030-01-01", endDate: "2030-01-01" }, { startDate: "2020-01-01", endDate: "2020-06-01" }, { startDate: "nope", endDate: "2031-01-01" }]) {
+    const state = {};
+    const res = await call(require("../src/routes/bookings")(bookingPrisma(state)), "/api/bookings", "/api/bookings", { method: "POST", headers: auth(ADMIN), body: { ...base, ...dates } });
+    assert.equal(res.status, 400, JSON.stringify(dates));
+    assert.equal(state.created, undefined);
+  }
+  const state = {};
+  const res = await call(require("../src/routes/bookings")(bookingPrisma(state)), "/api/bookings", "/api/bookings", { method: "POST", headers: auth(ADMIN), body: { ...base, startDate: "2030-01-01", endDate: "2031-01-01" } });
+  assert.equal(res.status, 201);
+  assert.equal(JSON.parse(res.text).booking.totalAmount, 1000, "admin keeps the supplied amount");
 });
 
 test("POST /api/truth-index/recalculate coerces a string userId", async () => {
