@@ -7,7 +7,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { truthIndexApi } from "@/lib/api";
-import { dashboard, overview } from "@/lib/copy";
+import { auth, dashboard, overview } from "@/lib/copy";
 import type { TruthIndexResponse } from "@/lib/types";
 
 export default function OverviewPanel() {
