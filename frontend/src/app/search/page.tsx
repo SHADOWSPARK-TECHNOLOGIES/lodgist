@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { listingsApi } from "@/lib/api";
 import { TruthScore } from "@/components/ui/TruthScore";
-import { formatYearlyRent, search as copy } from "@/lib/copy";
+import { formatYearlyRent, listings as listingCopy, search as copy } from "@/lib/copy";
+import { hasTrustScore, listingBadge, publicInventory } from "@/lib/listingHonesty";
 import type { Listing } from "@/lib/types";
 
 function SearchContent() {
@@ -20,7 +21,7 @@ function SearchContent() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
+    listingsApi.list({ search: searchTerm || undefined, status: "VERIFIED", page: 1, limit: 12 })
       .then(res => { if (!cancelled) setListings(res.data); })
       .catch(() => { if (!cancelled) setError(copy.fetchError); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -54,9 +55,9 @@ function SearchContent() {
               </div>
             ))}
           </div>
-        ) : listings.length > 0 ? (
+        ) : publicInventory(listings).length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map(listing => (
+            {publicInventory(listings).map(listing => (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
                 <div className="h-48 rounded-xl mb-4 flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
                   {listing.images?.[0]?.url ? (
@@ -74,8 +75,18 @@ function SearchContent() {
                     <p className="font-poppins font-bold text-sm mt-2" style={{ color: 'var(--color-orange)' }}>
                       {formatYearlyRent(listing.price)}
                     </p>
+                    {listingBadge(listing) === "sample" && (
+                      <p className="badge badge-sample mt-2">{listingCopy.sampleBadge}</p>
+                    )}
+                    {listingBadge(listing) === "unavailable" && (
+                      <p className="badge badge-sample mt-2">{listingCopy.unavailableBadge}</p>
+                    )}
                   </div>
-                  {listing.owner && <TruthScore score={listing.owner.truthIndex ?? 75} size="sm" />}
+                  {hasTrustScore(listing.owner?.truthIndex) ? (
+                    <TruthScore score={listing.owner?.truthIndex as number} size="sm" />
+                  ) : (
+                    <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{listingCopy.noScore}</span>
+                  )}
                 </div>
               </Link>
             ))}

@@ -1,6 +1,9 @@
-export const supportWhatsApp = "https://wa.me/2349136094315";
-export const supportWhatsAppAsk =
-  "https://wa.me/2349136094315?text=" + encodeURIComponent("I need a home. Area: ");
+import { supportWhatsAppUrl } from "./supportWhatsApp";
+
+/** WhatsApp link from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when unset — no hardcoded number. */
+export function supportWhatsAppLink(text?: string): string | null {
+  return supportWhatsAppUrl(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP, text);
+}
 
 export const brand = {
   endorsement: "A platform curated by ShadowSpark Technologies",
@@ -85,7 +88,7 @@ export const home = {
     { icon: "\u{1f6e1}\ufe0f", title: "Trust score", desc: "Each listing shows the checks we actually ran: identity, photos, price against nearby homes, and complaint history." },
     { icon: "\u{1f4b0}", title: "Pay after you look", desc: "Do not send rent until you have seen the house and said it is real." },
     { icon: "\u{1f4f1}", title: "WhatsApp if that is easier", desc: "Search, ask questions, and book a viewing on WhatsApp." },
-    { icon: "\u{1f511}", title: "Sign in with this phone", desc: "Fingerprint or Face ID. No password sitting on a stolen phone." },
+    { icon: "\u{1f511}", title: "Email and password", desc: "Sign in with the password you created. Phone and fingerprint sign-in are not turned on." },
   ],
   stats: [
     { value: "Checks", label: "On every listing", sub: "Only what we can show" },
@@ -127,6 +130,7 @@ export const listings = {
   count: (n: number) => (n === 1 ? "1 home" : `${n} homes`),
   emptyTitle: "No checked homes here yet",
   emptyBody: "We're starting with Imo and adding more homes as they're reviewed.",
+  emptySampleNote: "Sample and unverified listings are not shown as homes for rent.",
   emptyCta: "Ask us on WhatsApp",
   listCta: "List your property",
   elsewhere: "Looking somewhere else? Tell us the area you want.",
@@ -136,7 +140,8 @@ export const listings = {
   loadErrorBody: "Check your connection and try again, or message us on WhatsApp.",
   retry: "Try again",
   noScore: "No Trust Score yet",
-  sampleBadge: "Example, not for rent",
+  sampleBadge: "Sample — not for rent",
+  unavailableBadge: "Not available",
 };
 
 export const search = {
@@ -172,14 +177,16 @@ export const dashboard = {
     overview: "Overview",
     listings: "Your houses",
     reviews: "Reviews",
-    passkeys: "Phone sign-in",
+    passkeys: "Sign-in",
     hnw: "Extra checks",
   },
   overview: {
     truthScore: "Trust score",
     hnwStatus: "Higher-value checks",
     accountType: "Account type",
-    passkey: "Phone sign-in",
+    passkey: "Sign-in",
+    signInMethod: "Email and password",
+    signInBody: "Phone and fingerprint sign-in are not turned on.",
   },
   hnw: {
     verified: "Extra checks on",
@@ -190,23 +197,10 @@ export const dashboard = {
 };
 
 export const passkeys = {
-  title: "Phone sign-in",
-  subtitle: "Use this phone instead of a password.",
-  add: "Add this phone",
-  adding: "Adding...",
-  loadFailed: "We could not load your phones. Try again.",
-  registerFailed: "We could not add this phone. Try again.",
-  deleteFailed: "We could not remove that phone. Try again.",
-  unsupported: "This browser cannot use phone sign-in. Try Chrome or Safari.",
-  emptyTitle: "No phone sign-in yet",
-  emptyBody: "Add this phone so you can sign in without a password.",
-  synced: "Synced",
-  thisPhone: "This phone",
-  otherDevice: "Another device",
-  created: "Added",
-  lastUsed: "Last used",
-  remove: "Remove",
-  removing: "Removing...",
+  title: "Sign-in",
+  subtitle: "Lodgist uses the email and password on your account.",
+  passwordTitle: "Password",
+  passwordBody: "Phone, fingerprint, and Face ID sign-in are not available. Use the password you created.",
 };
 
 export const reviews = {
@@ -252,9 +246,6 @@ export const listingCard = {
 };
 
 export const overview = {
-  registering: "Adding...",
-  registerPasskey: "Add this phone",
-  passkeyUnavailable: "Phone sign-in is not available on this device",
   quick: "What you can do",
   browse: "See places",
   newListing: "List a house",

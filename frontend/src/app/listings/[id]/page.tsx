@@ -6,8 +6,8 @@ import { useParams } from 'next/navigation';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
-import { detail, formatYearlyRent, trustCenter } from '@/lib/copy';
-import { hasTrustScore, isExampleListing } from '@/lib/listingHonesty';
+import { detail, formatYearlyRent, listings as listingCopy, supportWhatsAppLink, trustCenter } from '@/lib/copy';
+import { hasTrustScore, isPublicInventory, listingBadge } from '@/lib/listingHonesty';
 import type { Listing } from '@/lib/types';
 
 type MoveIn = {
@@ -85,14 +85,18 @@ export default function ListingDetailPage() {
 
   const place = [listing.property?.lga, listing.property?.city, listing.property?.state].filter(Boolean).join(', ');
   const moveIn = asMoveIn((listing as Listing & { totalMoveInCost?: unknown }).totalMoveInCost);
-  const example = isExampleListing(listing);
+  const example = !isPublicInventory(listing);
+  const badge = listingBadge(listing);
   const score = listing.owner?.truthIndex;
-  const waText = encodeURIComponent(`Home: ${listing.title}${place ? ` (${place})` : ''}`);
-  const wa = `https://wa.me/2349136094315?text=${waText}`;
+  const homeLabel = `Home: ${listing.title}${place ? ` (${place})` : ''}`;
+  const wa = supportWhatsAppLink(homeLabel);
+  const report = supportWhatsAppLink(`${homeLabel}\nReport: this listing needs a second look`);
 
   return (
     <div className="container py-8 max-w-3xl">
       <Link href="/listings" className="nav-link text-sm">{detail.back}</Link>
+      {badge === 'sample' && <p className="badge badge-sample mt-4">{listingCopy.sampleBadge}</p>}
+      {badge === 'unavailable' && <p className="badge badge-sample mt-4">{listingCopy.unavailableBadge}</p>}
       <h1 className="font-poppins font-bold text-white text-2xl mt-4 mb-1">{listing.title}</h1>
       {place && <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.55)' }}>{place}</p>}
 
@@ -108,7 +112,7 @@ export default function ListingDetailPage() {
         <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.rent}</p>
         <p className="font-poppins font-bold text-xl mt-1" style={{ color: 'var(--color-orange)' }}>{formatYearlyRent(listing.price) || 'Rent not listed'}</p>
         <div className="mt-4">
-          {hasTrustScore(score) ? <TruthScore score={score as number} /> : <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.noScore}</p>}
+          {!example && hasTrustScore(score) ? <TruthScore score={score as number} /> : <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.noScore}</p>}
         </div>
         {listing.updatedAt && (
           <p className="text-xs mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{detail.updated} {new Date(listing.updatedAt).toLocaleDateString('en-NG')}</p>
@@ -145,8 +149,8 @@ export default function ListingDetailPage() {
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <a className="btn btn-primary" href={wa} target="_blank" rel="noopener noreferrer">{detail.whatsApp}</a>
-        <a className="btn btn-secondary" href={`${wa}%0AReport:%20this%20listing%20needs%20a%20second%20look`} target="_blank" rel="noopener noreferrer">{detail.report}</a>
+        {wa && <a className="btn btn-primary" href={wa} target="_blank" rel="noopener noreferrer">{detail.whatsApp}</a>}
+        {report && <a className="btn btn-secondary" href={report} target="_blank" rel="noopener noreferrer">{detail.report}</a>}
       </div>
     </div>
   );

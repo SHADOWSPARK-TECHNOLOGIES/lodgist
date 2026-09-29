@@ -11,10 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { payment } from "@/lib/copy";
-
-const SUPPORT_WA =
-  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2349136094315";
+import { payment, supportWhatsAppLink } from "@/lib/copy";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -88,16 +85,14 @@ export default function PaymentStatusCard({
 
   const currency = payments[0]?.currency ?? "NGN";
 
-  const buildWaUrl = (p: Payment) => {
-    const text = encodeURIComponent(
+  const buildWaUrl = (p: Payment) =>
+    supportWhatsAppLink(
       `Hi Lodgist Support, I need help with a payment.\n\n` +
         `Reference: ${p.reference}\n` +
         `Amount: ${p.currency} ${p.amount.toLocaleString()}\n` +
         `Status: ${p.status}\n\n` +
         `Please assist me.`
     );
-    return `https://wa.me/${SUPPORT_WA}?text=${text}`;
-  };
 
   if (payments.length === 0) {
     return (
@@ -184,9 +179,9 @@ export default function PaymentStatusCard({
                     >
                       {cfg.label}
                     </span>
-                    {p.status === "failed" && (
+                    {p.status === "failed" && buildWaUrl(p) && (
                       <a
-                        href={buildWaUrl(p)}
+                        href={buildWaUrl(p) as string}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="ml-2 inline-flex items-center gap-1 rounded bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white transition-all hover:bg-green-700"

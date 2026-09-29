@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
-import { formatYearlyRent, listings as copy, supportWhatsAppAsk } from '@/lib/copy';
-import { hasTrustScore, isExampleListing } from '@/lib/listingHonesty';
+import { formatYearlyRent, listings as copy, supportWhatsAppLink } from '@/lib/copy';
+import { hasTrustScore, listingBadge, publicInventory } from '@/lib/listingHonesty';
 import type { Listing } from '@/lib/types';
 
 export default function ListingsPage() {
@@ -24,12 +24,16 @@ export default function ListingsPage() {
       search,
       page: 1,
       limit: 12,
+      status: 'VERIFIED',
       maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : undefined,
     })
       .then(res => setListings(res.data ?? []))
       .catch(() => { setFailed(true); setListings([]); })
       .finally(() => setLoading(false));
   }, [search, maxRent, reloadKey]);
+
+  const shown = publicInventory(listings);
+  const ask = supportWhatsAppLink('I need a home. Area: ');
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-navy)' }}>
@@ -45,7 +49,7 @@ export default function ListingsPage() {
           <label className="sr-only" htmlFor="max-rent">{copy.maxRent}</label>
           <input id="max-rent" className="input max-w-[12rem]" inputMode="numeric" placeholder={copy.maxRent} value={maxRent} onChange={e => setMaxRent(e.target.value)} />
         </div>
-        {!loading && !failed && <p className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.count(listings.length)}</p>}
+        {!loading && !failed && <p className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.count(shown.length)}</p>}
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -63,22 +67,23 @@ export default function ListingsPage() {
             <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>{copy.loadErrorBody}</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button type="button" className="btn btn-primary" onClick={() => setReloadKey(k => k + 1)}>{copy.retry}</button>
-              <a href={supportWhatsAppAsk} className="btn btn-secondary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>
+              {ask && <a href={ask} className="btn btn-secondary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>}
             </div>
           </div>
-        ) : listings.length === 0 ? (
+        ) : shown.length === 0 ? (
           <div className="text-center py-16">
             <h2 className="font-poppins font-semibold text-white text-lg mb-2">{search || maxRent ? copy.searchEmptyTitle : copy.emptyTitle}</h2>
             <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>{search || maxRent ? copy.searchEmptyBody : copy.emptyBody}</p>
+            {!search && !maxRent && <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.emptySampleNote}</p>}
             {!search && !maxRent && <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.elsewhere}</p>}
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <a href={supportWhatsAppAsk} className="btn btn-primary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>
+              {ask && <a href={ask} className="btn btn-primary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>}
               <Link href="/register" className="btn btn-secondary">{copy.listCta}</Link>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {listings.map(listing => {
+            {shown.map(listing => {
               const score = listing.owner?.truthIndex;
               return (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
@@ -100,8 +105,11 @@ export default function ListingsPage() {
                         {formatYearlyRent(listing.price)}
                       </p>
                     )}
-                    {isExampleListing(listing) && (
-                      <p className="text-xs mt-2" style={{ color: 'var(--color-teal)' }}>{copy.sampleBadge}</p>
+                    {listingBadge(listing) === 'sample' && (
+                      <p className="badge badge-sample mt-2">{copy.sampleBadge}</p>
+                    )}
+                    {listingBadge(listing) === 'unavailable' && (
+                      <p className="badge badge-sample mt-2">{copy.unavailableBadge}</p>
                     )}
                   </div>
                   {typeof score === "number" && hasTrustScore(score) ? (
