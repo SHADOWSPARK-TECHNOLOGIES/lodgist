@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
-import { formatYearlyRent, listings as copy, supportWhatsAppAsk } from '@/lib/copy';
-import { hasTrustScore, isExampleListing } from '@/lib/listingHonesty';
+import { formatYearlyRent, listings as copy, supportWhatsAppLink } from '@/lib/copy';
+import { hasTrustScore, isExampleListing, publicListings } from '@/lib/listingHonesty';
 import type { Listing } from '@/lib/types';
 
 export default function ListingsPage() {
@@ -22,14 +22,17 @@ export default function ListingsPage() {
     const maxPrice = maxRent.trim() === '' ? undefined : Number(maxRent);
     listingsApi.list({
       search,
+      status: 'VERIFIED',
       page: 1,
       limit: 12,
       maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : undefined,
     })
-      .then(res => setListings(res.data ?? []))
+      .then(res => setListings(publicListings(res.data ?? [])))
       .catch(() => { setFailed(true); setListings([]); })
       .finally(() => setLoading(false));
   }, [search, maxRent, reloadKey]);
+
+  const askHref = supportWhatsAppLink("I need a home. Area: ");
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-navy)' }}>
@@ -63,7 +66,7 @@ export default function ListingsPage() {
             <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>{copy.loadErrorBody}</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button type="button" className="btn btn-primary" onClick={() => setReloadKey(k => k + 1)}>{copy.retry}</button>
-              <a href={supportWhatsAppAsk} className="btn btn-secondary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>
+              {askHref && <a href={askHref} className="btn btn-secondary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>}
             </div>
           </div>
         ) : listings.length === 0 ? (
@@ -72,14 +75,14 @@ export default function ListingsPage() {
             <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>{search || maxRent ? copy.searchEmptyBody : copy.emptyBody}</p>
             {!search && !maxRent && <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.elsewhere}</p>}
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <a href={supportWhatsAppAsk} className="btn btn-primary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>
+              {askHref ? <a href={askHref} className="btn btn-primary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a> : <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.whatsAppMissing}</p>}
               <Link href="/register" className="btn btn-secondary">{copy.listCta}</Link>
             </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map(listing => {
-              const score = listing.owner?.truthIndex;
+              const score = listing.truthIndex ?? listing.owner?.truthIndex;
               return (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
                 <div className="h-48 rounded-xl mb-4 flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>

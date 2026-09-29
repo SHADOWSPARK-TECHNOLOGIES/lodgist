@@ -6,8 +6,8 @@ import { useParams } from 'next/navigation';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
-import { detail, formatYearlyRent, trustCenter } from '@/lib/copy';
-import { hasTrustScore, isExampleListing } from '@/lib/listingHonesty';
+import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
+import { decisionFacts, hasTrustScore } from '@/lib/listingHonesty';
 import type { Listing } from '@/lib/types';
 
 type MoveIn = {
@@ -84,19 +84,26 @@ export default function ListingDetailPage() {
   }
 
   const place = [listing.property?.lga, listing.property?.city, listing.property?.state].filter(Boolean).join(', ');
-  const moveIn = asMoveIn((listing as Listing & { totalMoveInCost?: unknown }).totalMoveInCost);
-  const example = isExampleListing(listing);
-  const score = listing.owner?.truthIndex;
-  const waText = encodeURIComponent(`Home: ${listing.title}${place ? ` (${place})` : ''}`);
-  const wa = `https://wa.me/2349136094315?text=${waText}`;
+  const moveIn = asMoveIn(listing.totalMoveInCost);
+  const facts = decisionFacts(listing);
+  const score = listing.truthIndex ?? listing.owner?.truthIndex;
+  const homeLabel = `${listing.title}${place ? ` (${place})` : ''}`;
+  const askHref = supportWhatsAppLink(`Home: ${homeLabel}`);
+  const inspectHref = supportWhatsAppLink(`I want to inspect this home before I pay: ${homeLabel}`);
+  const reportHref = supportWhatsAppLink(`Home: ${homeLabel}. Report: this listing needs a second look.`);
 
   return (
     <div className="container py-8 max-w-3xl">
       <Link href="/listings" className="nav-link text-sm">{detail.back}</Link>
       <h1 className="font-poppins font-bold text-white text-2xl mt-4 mb-1">{listing.title}</h1>
-      {place && <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.55)' }}>{place}</p>}
+      {place && <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.55)' }}>{place}</p>}
+      {(facts.example || !facts.verified) && (
+        <p className="text-sm mt-3" style={{ color: 'var(--color-orange)' }}>
+          {facts.example ? detail.sampleTitle : detail.unverified}
+        </p>
+      )}
 
-      <div className="h-56 rounded-xl mb-6 flex items-center justify-center overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+      <div className="h-56 rounded-xl mt-6 mb-6 flex items-center justify-center overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
         {listing.images?.[0]?.url ? (
           <img src={listing.images[0].url} alt={listing.title} className="w-full h-full object-cover" />
         ) : (
@@ -104,49 +111,64 @@ export default function ListingDetailPage() {
         )}
       </div>
 
-      <section className="card mb-4">
-        <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.rent}</p>
-        <p className="font-poppins font-bold text-xl mt-1" style={{ color: 'var(--color-orange)' }}>{formatYearlyRent(listing.price) || 'Rent not listed'}</p>
+      <section className="card mb-4" aria-labelledby="decision-heading">
+        <h2 id="decision-heading" className="font-poppins font-semibold text-white mb-4">{detail.decisionTitle}</h2>
+        {facts.example && <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.7)' }}>{detail.sampleBody}</p>}
+        <dl className="space-y-3 mb-4">
+          <div>
+            <dt className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.rent}</dt>
+            <dd className="font-poppins font-bold text-xl mt-1" style={{ color: 'var(--color-orange)' }}>{formatYearlyRent(facts.annualRent) || detail.rentMissing}</dd>
+          </div>
+          <div>
+            <dt className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.moveIn}</dt>
+            <dd className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>
+              {facts.example
+                ? `${detail.sampleMoveIn}${facts.moveInTotal != null ? ` · ₦${facts.moveInTotal.toLocaleString('en-NG')}` : ''}`
+                : facts.moveInTotal != null
+                  ? `₦${facts.moveInTotal.toLocaleString('en-NG')}`
+                  : detail.noMoveIn}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.lastVerified}</dt>
+            <dd className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.8)' }}>{facts.lastVerification}</dd>
+          </div>
+        </dl>
+        <h3 className="font-poppins font-semibold text-white text-sm mb-1">{detail.completed}</h3>
+        {facts.completed.length === 0 ? (
+          <p className="text-sm mb-3" style={{ color: 'rgba(255,255,255,0.65)' }}>{detail.noneCompleted}</p>
+        ) : (
+          <ul className="space-y-1 mb-3">
+            {facts.completed.map((item) => <li key={item} className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>{item}</li>)}
+          </ul>
+        )}
+        <h3 className="font-poppins font-semibold text-white text-sm mb-1">{detail.outstanding}</h3>
+        <ul className="space-y-1 mb-3">
+          {facts.outstanding.map((item) => <li key={item} className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>{item}</li>)}
+        </ul>
+        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.inspectionBody}</p>
         <div className="mt-4">
           {hasTrustScore(score) ? <TruthScore score={score as number} /> : <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.noScore}</p>}
         </div>
-        {listing.updatedAt && (
-          <p className="text-xs mt-3" style={{ color: 'rgba(255,255,255,0.4)' }}>{detail.updated} {new Date(listing.updatedAt).toLocaleDateString('en-NG')}</p>
+        {!facts.example && moveIn && (
+          <div className="mt-4">
+            <FeeLedger metadata={moveIn} category={feeCategory(listing.property && 'propertyType' in listing.property ? String((listing.property as { propertyType?: string }).propertyType) : '')} />
+          </div>
         )}
       </section>
-
-      <section className="mb-4">
-        <h2 className="font-poppins font-semibold text-white mb-2">{example ? detail.sampleTitle : detail.moveIn}</h2>
-        {example && <p className="text-sm mb-3" style={{ color: 'rgba(255,255,255,0.65)' }}>{detail.sampleBody}</p>}
-        {moveIn && !example ? <FeeLedger metadata={moveIn} category={feeCategory(listing.property && 'propertyType' in listing.property ? String((listing.property as { propertyType?: string }).propertyType) : '')} /> : moveIn && example ? (
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
-            {formatYearlyRent(listing.price)} rent in this example. Move-in example {moveIn.total != null ? `₦${Number(moveIn.total).toLocaleString('en-NG')}` : 'not listed'}.
-          </p>
-        ) : (
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.noMoveIn}</p>
-        )}
-      </section>
-
-      {!example && (
-      <section className="card mb-4">
-        <h2 className="font-poppins font-semibold text-white mb-2">{detail.checked}</h2>
-        <ul className="space-y-1 mb-4">
-          {trustCenter.checked.map((item) => (
-            <li key={item} className="text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>{item}</li>
-          ))}
-        </ul>
-        <h3 className="font-poppins font-semibold text-white text-sm mb-1">{detail.unchecked}</h3>
-        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.uncheckedBody}</p>
-      </section>
-      )}
 
       {listing.description && (
         <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.7 }}>{listing.description}</p>
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
-        <a className="btn btn-primary" href={wa} target="_blank" rel="noopener noreferrer">{detail.whatsApp}</a>
-        <a className="btn btn-secondary" href={`${wa}%0AReport:%20this%20listing%20needs%20a%20second%20look`} target="_blank" rel="noopener noreferrer">{detail.report}</a>
+        {inspectHref ? (
+          <a className="btn btn-primary" href={inspectHref} target="_blank" rel="noopener noreferrer">{detail.inspection}</a>
+        ) : (
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>{detail.whatsAppMissing}</p>
+        )}
+        {askHref && <a className="btn btn-secondary" href={askHref} target="_blank" rel="noopener noreferrer">{detail.whatsApp}</a>}
+        {reportHref && <a className="btn btn-secondary" href={reportHref} target="_blank" rel="noopener noreferrer">{detail.report}</a>}
       </div>
     </div>
   );

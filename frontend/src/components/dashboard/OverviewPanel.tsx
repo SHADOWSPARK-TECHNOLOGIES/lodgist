@@ -7,23 +7,13 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { truthIndexApi } from "@/lib/api";
-import { isWebAuthnSupported, isPlatformAuthenticatorAvailable } from "@/lib/auth";
-import { dashboard, auth, overview } from "@/lib/copy";
+import { auth, dashboard, overview } from "@/lib/copy";
 import type { TruthIndexResponse } from "@/lib/types";
 
 export default function OverviewPanel() {
-  const { user, registerPasskey } = useAuth();
+  const { user } = useAuth();
   const [truthIndex, setTruthIndex] = useState<TruthIndexResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  // Lazy initialisation — synchronous, no effect needed
-  const [passkeySupported] = useState(() => isWebAuthnSupported());
-  const [passkeyAvailable, setPasskeyAvailable] = useState(false);
-  const [registering, setRegistering] = useState(false);
-
-  useEffect(() => {
-    // Async platform check — must run asynchronously in an effect
-    isPlatformAuthenticatorAvailable().then(setPasskeyAvailable);
-  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -36,18 +26,6 @@ export default function OverviewPanel() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user]);
-
-  const handleRegisterPasskey = async () => {
-    setRegistering(true);
-    try {
-      await registerPasskey();
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : auth.registerFailed;
-      alert(message);
-    } finally {
-      setRegistering(false);
-    }
-  };
 
   if (!user) return null;
 
@@ -112,25 +90,13 @@ export default function OverviewPanel() {
           <p className="mt-1 text-xs text-gray-500">{user.email}</p>
         </div>
 
-        {/* Passkey Card */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-gray-500">{dashboard.overview.passkey}</p>
             <span className="text-2xl">🔑</span>
           </div>
-          {passkeySupported && passkeyAvailable ? (
-            <button
-              onClick={handleRegisterPasskey}
-              disabled={registering}
-              className="mt-2 w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
-            >
-              {registering ? overview.registering : overview.registerPasskey}
-            </button>
-          ) : (
-            <p className="mt-2 text-sm text-gray-500">
-              {overview.passkeyUnavailable}
-            </p>
-          )}
+          <p className="mt-2 text-lg font-bold text-gray-900">{overview.signIn}</p>
+          <p className="mt-1 text-xs text-gray-500">{overview.signInBody}</p>
         </div>
       </div>
 
