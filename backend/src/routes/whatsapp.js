@@ -9,9 +9,30 @@ const { requireAuth } = require("../middleware/auth");
  * @param {object} prisma - Prisma client instance
  * @returns {import("express").Router}
  */
+// Meta WhatsApp Cloud API. Required env names (set in the host, never in code):
+// WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN,
+// WHATSAPP_APP_SECRET, WHATSAPP_PUBLIC_URL
+function sitePath(path) {
+  const base = String(process.env.WHATSAPP_PUBLIC_URL || "").trim().replace(/\/$/, "");
+  if (!base) return "";
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function visit(path, fallback) {
+  const url = sitePath(path);
+  return url ? `Visit ${url}` : fallback;
+}
+
+function listingsReply() {
+  return (
+    "Homes show on Lodgist only after they are checked.\n\n" +
+    `${visit("/listings", "Open Lodgist and browse homes.")}\n\n` +
+    "If that list is empty, there are no verified homes yet."
+  );
+}
+
 module.exports = function (prisma) {
   const router = express.Router();
-  const baseUrl = process.env.WHATSAPP_PUBLIC_URL || "https://lodgist.ng";
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -154,13 +175,13 @@ module.exports = function (prisma) {
   // ─── GET /api/whatsapp/webhook — Meta/Facebook webhook verification ───────
 
   router.get("/webhook", (req, res) => {
-    const VERIFY_TOKEN =
-      process.env.WHATSAPP_VERIFY_TOKEN || "lodgist_verify_2026";
+    const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+    if (!verifyToken) return res.sendStatus(403);
     const mode = req.query["hub.mode"];
     const token = req.query["hub.verify_token"];
     const challenge = req.query["hub.challenge"];
 
-    if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    if (mode === "subscribe" && token === verifyToken) {
       console.log("WhatsApp webhook verified");
       return res.status(200).send(challenge);
     }
@@ -283,22 +304,14 @@ module.exports = function (prisma) {
           msgText === "1" ||
           msgText.toLowerCase().includes("listing")
         ) {
-          replyText =
-            "🏠 *Available Properties*\n\n" +
-            "We have verified properties across Nigeria:\n" +
-            "• Lagos: 12 Admiralty Way, Lekki Phase 1\n" +
-            "• Abuja: 45 Aminu Kano Crescent, Wuse 2\n" +
-            "• Port Harcourt: 8 Woji Road, GRA Phase 2\n" +
-            "• Owerri: 30 Ikenegbu Layout\n\n" +
-            `Visit ${baseUrl}/listings to browse all.\n\n` +
-            "Reply with a city name (e.g., 'Lagos', 'Abuja', 'Owerri') for recommendations.";
+          replyText = listingsReply();
         } else if (
           msgText === "2" ||
           msgText.toLowerCase().includes("booking")
         ) {
           replyText =
-            "📋 *Your Bookings*\n\n" +
-            `Visit ${baseUrl}/dashboard to view and manage your bookings.\n\n` +
+            "Your bookings\n\n" +
+            `${visit("/dashboard", "Open your Lodgist dashboard to see bookings.")}\n\n` +
             "Need help? Reply with your booking reference.";
         } else if (
           msgText === "3" ||
@@ -308,7 +321,7 @@ module.exports = function (prisma) {
             "👨‍💼 *Connect with an Agent*\n\n" +
             "An agent will be with you shortly. Your reference ID is: `" +
             (session?.id || "N/A") + "`\n\n" +
-            `In the meantime, check out our verified listings at ${baseUrl}`;
+            visit("/listings", "Browse homes on Lodgist. Only checked homes are listed.");
         } else if (
           msgText.toLowerCase() === "4" ||
           msgText.toLowerCase().includes("refer")
@@ -318,7 +331,9 @@ module.exports = function (prisma) {
             "Share Lodgist with 3 landlord friends and earn ₦1,000 escrow credit!\n\n" +
             "How it works:\n" +
             "1. Forward this message to 3 landlords\n" +
-            `2. They sign up at ${baseUrl}/register\n` +
+            (sitePath("/register")
+              ? `2. They sign up at ${sitePath("/register")}\n`
+              : "2. They sign up on Lodgist\n") +
             "3. You get ₦1,000 credit when they list their first property\n\n" +
             "Reply CLAIM when you've referred 3 people!";
         } else if (
@@ -354,10 +369,11 @@ module.exports = function (prisma) {
           msgText.toLowerCase().includes("port harcourt")
         ) {
           const city = msgText.trim();
+          const cityPath = `/listings?search=${encodeURIComponent(city)}`;
           replyText =
-            `📍 *Properties in ${city}*\n\n` +
-            `We have verified listings in ${city}. Visit ${baseUrl}/listings?city=${encodeURIComponent(city.toLowerCase())} to see available properties.\n\n` +
-            `All listings include Truth Index scores and escrow-protected payments.`;
+            `Looking in ${city}.\n\n` +
+            `${visit(cityPath, "Open Lodgist and search that area.")}\n\n` +
+            "Homes appear there only after they are checked.";
         }
 
         // Send reply via Meta's WhatsApp API
@@ -479,3 +495,6 @@ module.exports = function (prisma) {
 
   return router;
 };
+
+module.exports.sitePath = sitePath;
+module.exports.listingsReply = listingsReply;

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 
-const SUPPORT_WHATSAPP =
-  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2348000000000";
+function supportWhatsAppUrl(text: string): string | null {
+  const digits = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
 
 // ─── POST /api/payments/verify ───────────────────────────────────────────────
 // Automated Paystack verification is temporarily replaced by a support handoff.
@@ -14,9 +17,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Authentication required." }, { status: 401 });
   }
 
-  const supportUrl = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(
+  const supportUrl = supportWhatsAppUrl(
     "Hi Lodgist Support, I need to verify the status of my payment. Please assist."
-  )}`;
+  );
 
   return NextResponse.json({
     mode: "support",
