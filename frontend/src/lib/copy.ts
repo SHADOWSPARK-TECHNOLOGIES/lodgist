@@ -1,4 +1,4 @@
-/** Digits from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when the env var is unset. */
+/** Meta app WA bake 2026-09-29 (+2349045770572). Digits from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when the env var is unset. */
 export function supportWhatsAppDigits(): string | null {
   const raw = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP;
   if (!raw) return null;
