@@ -1,5 +1,11 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## WhatsApp
+
+Meta WhatsApp is authoritative. The webhook is the Express route `backend/src/routes/whatsapp.js` (`GET` and `POST /api/whatsapp/webhook` on the API service).
+
+`app/api/whatsapp/webhook` in this Next app is a quarantined Twilio path. It returns 410 and does not process messages. Do not point Meta or Twilio at it.
+
 ## Getting Started
 
 First, run the development server:

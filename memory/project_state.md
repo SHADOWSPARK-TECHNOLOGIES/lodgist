@@ -23,7 +23,7 @@ Sprint 1 complete as of 2026-05-16. The following were fixed:
 1. OAuth: GitHub/Google clientId/Secret (currently empty strings, silent failure)
 2. WebAuthn: RP_ID and ORIGIN must be set to prod domain — startup validation needed
 3. Two App Runner deploy paths conflict (apprunner.yaml source-based vs CI ECR-based) — pick one
-4. WhatsApp sessions in-memory in `lodgist/app/api/whatsapp/webhook/route.ts` — move to DB
+4. Twilio WhatsApp in `lodgist/app/api/whatsapp/webhook/route.ts` is quarantined (410). Meta WhatsApp on `backend/src/routes/whatsapp.js` is authoritative.
 5. `PAYSTACK_SECRET_KEY` missing from `lodgist/.env.local` (only `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY` is set)
 
 **Why:** All of these are auth/payment/runtime blockers before launch.
