@@ -10,10 +10,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { milestones as milestoneCopy } from "@/lib/copy";
-
-const SUPPORT_WA =
-  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2349136094315";
+import { milestones as milestoneCopy, supportWhatsAppLink } from "@/lib/copy";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -57,14 +54,13 @@ export default function MilestonePayment({
   const currency = milestones[0]?.currency ?? "NGN";
 
   const buildWaUrl = (milestone: Milestone) => {
-    const text = encodeURIComponent(
+    return supportWhatsAppLink(
       `Hi Lodgist Support, I'd like to complete a milestone payment.\n\n` +
         `Milestone: ${milestone.label}\n` +
         `Amount: ${milestone.currency} ${milestone.amount.toLocaleString()}\n` +
         (bookingId ? `Booking ID: ${bookingId}\n` : "") +
         `\nPlease assist me with next steps.`
     );
-    return `https://wa.me/${SUPPORT_WA}?text=${text}`;
   };
 
   const statusIcon = (status: string) => {
@@ -163,9 +159,9 @@ export default function MilestonePayment({
                   <p className="font-mono text-sm font-semibold text-off-white">
                     {currency} {m.amount.toLocaleString()}
                   </p>
-                  {m.status === "pending" && (
+                  {m.status === "pending" && buildWaUrl(m) && (
                     <a
-                      href={buildWaUrl(m)}
+                      href={buildWaUrl(m) ?? undefined}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-1 inline-flex items-center gap-1 rounded bg-green-600 px-3 py-1 text-xs font-medium text-white transition-all hover:bg-green-700"

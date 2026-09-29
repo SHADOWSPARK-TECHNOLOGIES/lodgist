@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { listingsApi } from "@/lib/api";
 import { TruthScore } from "@/components/ui/TruthScore";
-import { formatYearlyRent, search as copy } from "@/lib/copy";
+import { formatYearlyRent, listings as browse, search as copy } from "@/lib/copy";
+import { hasTrustScore, isExampleListing, publicListings } from "@/lib/listingHonesty";
 import type { Listing } from "@/lib/types";
 
 function SearchContent() {
@@ -20,8 +21,8 @@ function SearchContent() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
-      .then(res => { if (!cancelled) setListings(res.data); })
+    listingsApi.list({ search: searchTerm || undefined, status: "VERIFIED", page: 1, limit: 12 })
+      .then(res => { if (!cancelled) setListings(publicListings(res.data)); })
       .catch(() => { if (!cancelled) setError(copy.fetchError); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -74,8 +75,15 @@ function SearchContent() {
                     <p className="font-poppins font-bold text-sm mt-2" style={{ color: 'var(--color-orange)' }}>
                       {formatYearlyRent(listing.price)}
                     </p>
+                    {isExampleListing(listing) && (
+                      <p className="text-xs mt-2" style={{ color: 'var(--color-teal)' }}>{browse.sampleBadge}</p>
+                    )}
                   </div>
-                  {listing.owner && <TruthScore score={listing.owner.truthIndex ?? 75} size="sm" />}
+                  {hasTrustScore(listing.truthIndex ?? listing.owner?.truthIndex) ? (
+                    <TruthScore score={(listing.truthIndex ?? listing.owner?.truthIndex) as number} size="sm" />
+                  ) : (
+                    <span className="text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>{browse.noScore}</span>
+                  )}
                 </div>
               </Link>
             ))}
@@ -83,10 +91,10 @@ function SearchContent() {
         ) : (
           <div className="text-center py-16">
             <h2 className="font-poppins font-semibold text-white text-lg mb-2">
-              {searchTerm ? copy.noTitle : copy.startTitle}
+              {searchTerm ? copy.noTitle : browse.emptyTitle}
             </h2>
             <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
-              {searchTerm ? copy.noBody : copy.startBody}
+              {searchTerm ? copy.noBody : browse.emptyBody}
             </p>
             <Link href="/listings" className="btn btn-primary mt-6">{copy.browseAll}</Link>
           </div>

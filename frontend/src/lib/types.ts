@@ -67,6 +67,9 @@ export interface Listing {
   price: number;
   currency: string;
   status: string;
+  riskState?: string | null;
+  truthIndex?: number | null;
+  totalMoveInCost?: { total?: number; sample?: boolean } | null;
   beds: number | null;
   baths: number | null;
   sqft: number | null;
