@@ -145,6 +145,7 @@ export default function ListingDetailPage() {
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">
+        <Link href={`/decision?id=${listing.id}`} className="btn btn-secondary">Decide</Link>
         <a className="btn btn-primary" href={wa} target="_blank" rel="noopener noreferrer">{detail.whatsApp}</a>
         <a className="btn btn-secondary" href={`${wa}%0AReport:%20this%20listing%20needs%20a%20second%20look`} target="_blank" rel="noopener noreferrer">{detail.report}</a>
       </div>
