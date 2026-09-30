@@ -1,6 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const { requireAuth } = require("../middleware/auth");
+const { parseWebhookBody } = require("./whatsappParse");
 
 /**
  * Create an Express router for WhatsApp webhook and messaging endpoints.
@@ -33,15 +34,8 @@ function listingsReply() {
 
 module.exports = function (prisma) {
   const router = express.Router();
+  const seenMsgIds = new Set();
 
-  // ─── Helpers ────────────────────────────────────────────────────────────────
-
-  /**
-   * Verify Meta's x-hub-signature-256 header.
-   * @param {string} signature - The signature from the request header
-   * @param {string} body - Raw request body
-   * @returns {boolean}
-   */
   function verifyWebhookSignature(signature, body) {
     if (!signature || !process.env.WHATSAPP_APP_SECRET) return false;
     const rawBody = Buffer.isBuffer(body) ? body.toString("utf8") : JSON.stringify(body);
@@ -54,18 +48,11 @@ module.exports = function (prisma) {
     return crypto.timingSafeEqual(Buffer.from(expectedSig), Buffer.from(signature));
   }
 
-  /**
-   * Analyze message text for fraud indicators.
-   * Returns a score 0–1 and reasoning.
-   * @param {string} text
-   * @returns {{ score: number, reasoning: string }}
-   */
   function analyzeFraud(text) {
     const lower = text.toLowerCase();
     let score = 0;
     const reasons = [];
 
-    // High-risk patterns
     const highRisk = [
       "pay before", "payment before", "inspection fee", "viewing fee",
       "western union", "wire transfer", "crypto", "bitcoin",
@@ -80,7 +67,6 @@ module.exports = function (prisma) {
       }
     }
 
-    // Medium-risk patterns
     const medRisk = [
       "discount", "too good", "below market", "cheap",
       "hurry", "quick", "limited time",
@@ -99,12 +85,6 @@ module.exports = function (prisma) {
     };
   }
 
-  /**
-   * Send a message via Meta's WhatsApp Cloud API.
-   * @param {string} to - Recipient phone number
-   * @param {string} text - Message body
-   * @returns {Promise<object>}
-   */
   async function sendWhatsAppMessage(to, text) {
     const url = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
     const response = await fetch(url, {
@@ -130,22 +110,13 @@ module.exports = function (prisma) {
     return response.json();
   }
 
-  /**
-   * Track a referral from WhatsApp contactId.
-   * "Forward to 3 landlords → ₦1000 escrow credit."
-   * @param {object} prisma
-   * @param {string} contactId - The referring contact's ID
-   * @param {string} referredUserId - The new user who was referred
-   */
   async function trackReferral(prisma, contactId, referredUserId) {
     try {
-      // Check if the referrer exists
       const referrer = await prisma.user.findFirst({
         where: { whatsappId: String(contactId) },
       });
       if (!referrer) return;
 
-      // Create or increment referral count
       const referral = await prisma.referral.upsert({
         where: { referrerId: referrer.id },
         create: {
@@ -158,7 +129,6 @@ module.exports = function (prisma) {
         },
       });
 
-      // If they've referred 3+ people and haven't claimed reward, notify
       if (referral.count >= 3 && !referral.rewardClaimed) {
         await sendWhatsAppMessage(
           contactId,
@@ -171,8 +141,6 @@ module.exports = function (prisma) {
       console.error("Referral tracking error:", err);
     }
   }
-
-  // ─── GET /api/whatsapp/webhook — Meta/Facebook webhook verification ───────
 
   router.get("/webhook", (req, res) => {
     const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
@@ -188,12 +156,9 @@ module.exports = function (prisma) {
     return res.sendStatus(403);
   });
 
-  // ─── POST /api/whatsapp/webhook — Incoming messages from Meta ─────────────
-
   router.post("/webhook", async (req, res) => {
     try {
-      // 1. Verify webhook signature (production only)
-      if (process.env.NODE_ENV === "production") {
+      if (process.env.WHATSAPP_APP_SECRET) {
         const sig = req.headers["x-hub-signature-256"];
         if (!verifyWebhookSignature(sig, req.body)) {
           console.error("Invalid webhook signature");
@@ -201,23 +166,32 @@ module.exports = function (prisma) {
         }
       }
 
-      const entry = req.body?.entry?.[0];
+      const parsed = parseWebhookBody(req.body);
+      if (!parsed) {
+        return res.sendStatus(200);
+      }
+
+      const entry = parsed?.entry?.[0];
       const change = entry?.changes?.[0];
       const value = change?.value;
       const messages = value?.messages;
       const metadata = value?.metadata;
 
       if (!messages || !metadata) {
-        return res.sendStatus(200); // Acknowledge receipt
+        return res.sendStatus(200);
       }
 
       for (const msg of messages) {
-        const from = msg.from; // sender phone number
+        if (msg.id) {
+          if (seenMsgIds.has(msg.id)) continue;
+          seenMsgIds.add(msg.id);
+        }
+
+        const from = msg.from;
         const msgText = msg.text?.body || "";
         const msgType = msg.type || "text";
         const timestamp = new Date(parseInt(msg.timestamp) * 1000);
 
-        // Look up the user by phone number to get their user ID
         const senderUser = await prisma.user.findFirst({
           where: { phone: from },
         });
@@ -227,7 +201,6 @@ module.exports = function (prisma) {
           continue;
         }
 
-        // Use composite index: find active session by contact+listing
         let session = await prisma.whatsAppSession.findFirst({
           where: {
             contactId: senderUser.id,
@@ -241,7 +214,6 @@ module.exports = function (prisma) {
         });
 
         if (!session) {
-          // Create a new session for this contact
           session = await prisma.whatsAppSession.create({
             data: {
               userId: senderUser.id,
@@ -254,7 +226,6 @@ module.exports = function (prisma) {
           });
         }
 
-        // Store the incoming message
         await prisma.whatsAppMessage.create({
           data: {
             sessionId: session.id,
@@ -267,7 +238,6 @@ module.exports = function (prisma) {
           },
         });
 
-        // ── AI Fraud Check ──────────────────────────────────────────────
         const fraudResult = analyzeFraud(msgText);
         if (fraudResult.score > 0.8 && session.listingId) {
           await prisma.aIFraudSignal.create({
@@ -278,14 +248,12 @@ module.exports = function (prisma) {
               metadata: { source: "whatsapp", messageId: msg.id, from },
             },
           });
-          // Flag the listing
           await prisma.listing.update({
             where: { id: session.listingId },
             data: { isFlaggedForFraud: true, fraudReason: fraudResult.reasoning },
           });
         }
 
-        // ── Auto-reply logic based on message content ───────────────────
         let replyText =
           "Thank you for your message. A Lodgist agent will get back to you shortly.";
 
@@ -336,10 +304,7 @@ module.exports = function (prisma) {
               : "2. They sign up on Lodgist\n") +
             "3. You get ₦1,000 credit when they list their first property\n\n" +
             "Reply CLAIM when you've referred 3 people!";
-        } else if (
-          msgText.toLowerCase() === "claim"
-        ) {
-          // Check referral status
+        } else if (msgText.toLowerCase() === "claim") {
           const referral = await prisma.referral.findUnique({
             where: { referrerId: senderUser.id },
           });
@@ -376,7 +341,6 @@ module.exports = function (prisma) {
             "Homes appear there only after they are checked.";
         }
 
-        // Send reply via Meta's WhatsApp API
         if (
           process.env.WHATSAPP_API_TOKEN &&
           process.env.WHATSAPP_PHONE_NUMBER_ID
@@ -384,7 +348,6 @@ module.exports = function (prisma) {
           await sendWhatsAppMessage(from, replyText);
         }
 
-        // Store the outbound message
         await prisma.whatsAppMessage.create({
           data: {
             sessionId: session.id,
@@ -396,7 +359,6 @@ module.exports = function (prisma) {
           },
         });
 
-        // ── Track referral if message contains referral intent ──────────
         if (msgText.toLowerCase().includes("refer") || msgText.toLowerCase() === "4") {
           await trackReferral(prisma, from, senderUser.id);
         }
@@ -405,11 +367,9 @@ module.exports = function (prisma) {
       return res.sendStatus(200);
     } catch (error) {
       console.error("WhatsApp webhook error:", error);
-      return res.sendStatus(200); // Always return 200 to Meta
+      return res.sendStatus(200);
     }
   });
-
-  // ─── GET /api/whatsapp/sessions/:userId — Get active sessions for a user ──
 
   router.get("/sessions/:userId", requireAuth, async (req, res) => {
     try {
@@ -420,7 +380,6 @@ module.exports = function (prisma) {
           .json({ success: false, error: "Invalid userId" });
       }
 
-      // Users may only fetch their own sessions; STUDIO_ADMIN can fetch any
       if (req.user.id !== userId && req.user.role !== "STUDIO_ADMIN") {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }
@@ -446,8 +405,6 @@ module.exports = function (prisma) {
     }
   });
 
-  // ─── POST /api/whatsapp/send — Send a message via WhatsApp ────────────────
-
   router.post("/send", requireAuth, async (req, res) => {
     if (req.user.role !== "STUDIO_ADMIN") {
       return res.status(403).json({ success: false, error: "Forbidden: STUDIO_ADMIN only" });
@@ -464,7 +421,6 @@ module.exports = function (prisma) {
           });
       }
 
-      // Send via Meta's WhatsApp API
       if (
         process.env.WHATSAPP_API_TOKEN &&
         process.env.WHATSAPP_PHONE_NUMBER_ID
@@ -472,7 +428,6 @@ module.exports = function (prisma) {
         await sendWhatsAppMessage(to, message);
       }
 
-      // Store the outbound message
       if (sessionId) {
         await prisma.whatsAppMessage.create({
           data: {
