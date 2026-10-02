@@ -4,7 +4,9 @@ const {
   isExampleListing,
   hasTrustScore,
   isEvidenceVerified,
+  isLodgistReviewed,
   isPublicListing,
+  reviewLabel,
   verificationLabel,
   sourceLabel,
   canRequestViewing,
@@ -35,7 +37,9 @@ test("default browse keeps eligible pending and verified homes and drops samples
   assert.equal(isPublicListing(verified), true);
   assert.equal(isPublicListing(pending), true);
   assert.equal(isEvidenceVerified(pending), false);
-  assert.equal(isEvidenceVerified(verified), true);
+  assert.equal(isEvidenceVerified(verified), false);
+  assert.equal(reviewLabel(pending), "Not reviewed by Lodgist");
+  assert.equal(reviewLabel(verified), "Not reviewed by Lodgist");
   assert.equal(isPublicListing(sample), false);
   assert.equal(isPublicListing(flagged), false);
   assert.equal(isPublicListing(suspended), false);
@@ -74,10 +78,21 @@ test("a pending non-sample listing is labelled not verified and cannot request a
   assert.equal(canRequestViewing({ status: "PENDING", riskState: "UNVERIFIED" }), false);
 });
 
-test("a verified listing does not invent a verification date or itemised checks", () => {
-  const facts = decisionFacts({ status: "VERIFIED", riskState: "VERIFIED", price: 800000 });
-  assert.equal(facts.verified, true);
-  assert.match(facts.lastVerification, /date is not published/i);
-  assert.equal(facts.completed.length, 1);
-  assert.deepEqual(facts.outstanding, ["Physical inspection before you pay"]);
+test("Lodgist review and payment do not complete verification checks", () => {
+  const listing = {
+    status: "VERIFIED",
+    riskState: "VERIFIED",
+    reviewStatus: "APPROVED",
+    paid: true,
+    price: 800000,
+  };
+  assert.equal(isLodgistReviewed(listing), true);
+  assert.equal(reviewLabel(listing), "Lodgist-reviewed");
+  assert.equal(isEvidenceVerified(listing), false);
+  assert.equal(verificationLabel(listing), "Not verified by Lodgist");
+  const facts = decisionFacts(listing);
+  assert.equal(facts.verified, false);
+  assert.equal(facts.completed.length, 0);
+  assert.match(facts.lastVerification, /Not verified by Lodgist/);
+  assert.equal(canRequestViewing(listing), true);
 });

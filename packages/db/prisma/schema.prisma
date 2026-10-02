@@ -30,6 +30,14 @@ enum ListingStatus {
   ARCHIVED
 }
 
+// Public-review decision only. APPROVED means Lodgist approved the home for
+// public display. It is not evidence that verification checks are complete,
+// and payment must not set it.
+enum ListingReviewStatus {
+  NOT_REVIEWED
+  APPROVED
+}
+
 enum BookingStatus {
   PENDING
   PENDING_VERIFICATION
@@ -183,6 +191,7 @@ model Listing {
   // ("Argument `riskState` is missing") for `{ riskState: null }`.
   riskState         RiskState?      @default(UNVERIFIED)
   truthIndex        Int?
+  reviewStatus      ListingReviewStatus @default(NOT_REVIEWED)
 
   // Nigerian real estate metadata
   totalMoveInCost Json?            // { base_rent, agency_fee, legal_fee, caution_fee, inspection_fee?, currency, total }

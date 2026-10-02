@@ -18,18 +18,23 @@ function hasTrustScore(value) {
 
 const NOT_VERIFIED_LABEL = "Not verified by Lodgist";
 const VERIFIED_LABEL = "Verified by Lodgist";
+const REVIEWED_LABEL = "Lodgist-reviewed";
+const NOT_REVIEWED_LABEL = "Not reviewed by Lodgist";
 const DIRECT_SOURCE_LABEL = "Direct submission";
 const BLOCKED_RISK = new Set(["FLAGGED", "SUSPENDED"]);
 
-/** Evidence-verified means status VERIFIED with a verified or unscored risk, and not a sample. */
-function isEvidenceVerified(listing) {
-  if (!listing || typeof listing !== "object") return false;
-  if (isExampleListing(listing)) return false;
-  if (listing.isFlaggedForFraud === true) return false;
-  if (listing.status !== "VERIFIED") return false;
-  if (BLOCKED_RISK.has(listing.riskState)) return false;
-  if (listing.riskState === "UNVERIFIED" || listing.riskState === "UNDER_REVIEW") return false;
-  return listing.riskState == null || listing.riskState === "VERIFIED";
+function isLodgistReviewed(listing) {
+  if (!listing || typeof listing !== "object" || isExampleListing(listing)) return false;
+  return listing.reviewStatus === "APPROVED";
+}
+
+function reviewLabel(listing) {
+  return isLodgistReviewed(listing) ? REVIEWED_LABEL : NOT_REVIEWED_LABEL;
+}
+
+/** Completed checks are not implied by review, listing status, risk, or payment. */
+function isEvidenceVerified() {
+  return false;
 }
 
 /** Public discovery: non-sample PENDING or VERIFIED, and not fraud / flagged / suspended. */
@@ -97,9 +102,13 @@ module.exports = {
   OUTSTANDING_CHECKS,
   NOT_VERIFIED_LABEL,
   VERIFIED_LABEL,
+  REVIEWED_LABEL,
+  NOT_REVIEWED_LABEL,
   DIRECT_SOURCE_LABEL,
   isExampleListing,
   hasTrustScore,
+  isLodgistReviewed,
+  reviewLabel,
   isEvidenceVerified,
   isPublicListing,
   verificationLabel,
