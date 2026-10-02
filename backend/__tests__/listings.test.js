@@ -19,6 +19,23 @@ function listen(app) {
   });
 }
 
+
+function isSampleMatchWhere(where) {
+  const sample = listingsRouter.publicSampleMatchFilter();
+  const and = where && where.AND;
+  if (!Array.isArray(and)) return false;
+  return and.some((clause) => JSON.stringify(clause) === JSON.stringify(sample));
+}
+
+/** Mock count that mirrors countPublicBrowse: raw = eligible+samples, sample query = samples. */
+function publicListCount({ eligible, samples = 0 }) {
+  return async (args) => {
+    if (isSampleMatchWhere(args.where)) return samples;
+    return eligible + samples;
+  };
+}
+
+
 test("GET /api/listings returns an empty list", async () => {
   const prisma = {
     listing: {
@@ -45,7 +62,7 @@ test("GET /api/listings returns an empty list", async () => {
 test("GET /api/listings returns a listing without database internals", async () => {
   const prisma = {
     listing: {
-      count: async () => 1,
+      count: publicListCount({ eligible: 1 }),
       findMany: async (args) => {
         assert.equal(args.select.riskState, true);
         assert.equal(args.select.truthIndex, true);
@@ -112,7 +129,7 @@ test("GET /api/listings honours limit, state, area and sort", async () => {
   let seen;
   const prisma = {
     listing: {
-      count: async () => 30,
+      count: publicListCount({ eligible: 30 }),
       findMany: async (args) => { seen = args; return []; },
     },
     review: { groupBy: async () => [] },
@@ -281,7 +298,7 @@ function browsePrisma() {
   const seen = {};
   const prisma = {
     listing: {
-      count: async () => 2,
+      count: publicListCount({ eligible: 2, samples: 1 }),
       findMany: async (args) => {
         seen.args = args;
         return [
@@ -381,6 +398,7 @@ test("GET /api/listings returns eligible pending homes and hides samples", async
     rejectInvalidRiskStateWhere(seen.args.where);
     assert.equal(JSON.stringify(seen.args.where).includes('"riskState":null'), false);
     assert.deepEqual(body.data.map((row) => row.id), [1, 3]);
+    assert.equal(body.pagination.total, 2);
     assert.equal(JSON.stringify(body).includes("Sample flat"), false);
     const pending = body.data.find((row) => row.id === 3);
     assert.equal(pending.status, "PENDING");
@@ -428,7 +446,7 @@ test("GET /api/listings builds a public query that keeps null riskState rows", a
     listing: {
       count: async (args) => {
         rejectInvalidRiskStateWhere(args.where);
-        return rows.length;
+        return publicListCount({ eligible: 1, samples: 1 })(args);
       },
       findMany: async (args) => {
         seen = args;
@@ -449,11 +467,160 @@ test("GET /api/listings builds a public query that keeps null riskState rows", a
     assert.equal(seen.where.isFlaggedForFraud, false);
     assert.deepEqual(seen.where.AND, [PUBLIC_RISK_FILTER]);
     assert.deepEqual(body.data.map((row) => row.id), [11]);
+    assert.equal(body.pagination.total, 1);
     assert.equal(body.data[0].riskState, null);
     assert.equal(JSON.stringify(body).includes("Sample unscored flat"), false);
   } finally {
     server.close();
   }
+});
+
+
+test("anonymous public count is 0 when only samples exist", async () => {
+  const samples = [1, 2, 3, 4].map((id) => ({
+    id,
+    title: `Sample ${id}`,
+    status: "PENDING",
+    riskState: "UNVERIFIED",
+    isFlaggedForFraud: false,
+    totalMoveInCost: { sample: true, total: id },
+    images: [],
+    property: { city: "Owerri", state: "Imo" },
+    owner: { id: 1, name: "Demo", truthIndex: 0 },
+    fraudSignals: [],
+    _count: { reviews: 0, bookings: 0 },
+  }));
+  let countCalls = 0;
+  const prisma = {
+    listing: {
+      count: async (args) => {
+        countCalls += 1;
+        rejectInvalidRiskStateWhere(args.where);
+        assert.deepEqual(args.where.status, PUBLIC_STATUS_FILTER);
+        assert.equal(args.where.isFlaggedForFraud, false);
+        return publicListCount({ eligible: 0, samples: samples.length })(args);
+      },
+      findMany: async (args) => {
+        assert.deepEqual(args.where.status, PUBLIC_STATUS_FILTER);
+        return samples;
+      },
+    },
+    review: { groupBy: async () => [] },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings?limit=5`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(countCalls, 2);
+    assert.deepEqual(body.data, []);
+    assert.equal(body.pagination.total, 0);
+    assert.equal(body.pagination.pages, 0);
+    assert.equal(body.pagination.totalPages, 0);
+    assert.equal(JSON.stringify(body).includes("Sample "), false);
+  } finally {
+    server.close();
+  }
+});
+
+test("anonymous public count matches eligible PENDING rows", async () => {
+  const rows = [
+    {
+      id: 21,
+      title: "Pending A",
+      status: "PENDING",
+      riskState: "UNVERIFIED",
+      isFlaggedForFraud: false,
+      totalMoveInCost: { total: 500000 },
+      images: [],
+      property: { city: "Owerri", state: "Imo" },
+      owner: { id: 1, name: "Ada", truthIndex: 0 },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+    {
+      id: 22,
+      title: "Sample B",
+      status: "PENDING",
+      riskState: "UNVERIFIED",
+      isFlaggedForFraud: false,
+      totalMoveInCost: { sample: true, total: 1 },
+      images: [],
+      property: { city: "Owerri", state: "Imo" },
+      owner: { id: 1, name: "Ada", truthIndex: 0 },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+    {
+      id: 23,
+      title: "Pending C",
+      status: "PENDING",
+      riskState: "UNDER_REVIEW",
+      isFlaggedForFraud: false,
+      totalMoveInCost: { total: 700000 },
+      images: [],
+      property: { city: "Owerri", state: "Imo" },
+      owner: { id: 1, name: "Ada", truthIndex: 0 },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+  ];
+  const prisma = {
+    listing: {
+      count: async (args) => {
+        rejectInvalidRiskStateWhere(args.where);
+        assert.deepEqual(args.where.status, PUBLIC_STATUS_FILTER);
+        assert.equal(args.where.isFlaggedForFraud, false);
+        assert.deepEqual(
+          args.where.AND.slice(0, 1),
+          [PUBLIC_RISK_FILTER],
+        );
+        return publicListCount({ eligible: 2, samples: 1 })(args);
+      },
+      findMany: async () => rows,
+    },
+    review: { groupBy: async () => [] },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings?limit=5`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.deepEqual(body.data.map((row) => row.id), [21, 23]);
+    assert.equal(body.pagination.total, body.data.length);
+    assert.equal(body.pagination.total, 2);
+    assert.equal(body.data.every((row) => row.status === "PENDING"), true);
+    assert.equal(body.data.every((row) => row.verificationLabel === "Not verified by Lodgist"), true);
+    assert.equal(JSON.stringify(body).includes("Sample B"), false);
+  } finally {
+    server.close();
+  }
+});
+
+test("countPublicBrowse subtracts sample match for public mode only", async () => {
+  const where = {};
+  listingsRouter.applyPublicBrowseFilter(where, undefined, undefined);
+  const calls = [];
+  const prisma = {
+    listing: {
+      count: async (args) => {
+        calls.push(args.where);
+        return publicListCount({ eligible: 3, samples: 4 })(args);
+      },
+    },
+  };
+  const total = await listingsRouter.countPublicBrowse(prisma, where, "public");
+  assert.equal(total, 3);
+  assert.equal(calls.length, 2);
+  assert.equal(isSampleMatchWhere(calls[0]), false);
+  assert.equal(isSampleMatchWhere(calls[1]), true);
+  assert.deepEqual(calls[1].AND.slice(0, -1), calls[0].AND);
+  assert.deepEqual(calls[1].AND.at(-1), listingsRouter.publicSampleMatchFilter());
+
+  const managementTotal = await listingsRouter.countPublicBrowse(prisma, { status: "PENDING" }, "management");
+  assert.equal(managementTotal, 7);
 });
 
 test("public browse riskState filter is accepted by the Prisma 7.8 client", async () => {
