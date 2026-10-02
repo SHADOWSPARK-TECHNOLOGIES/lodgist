@@ -159,7 +159,7 @@ app.listen(PORT, HOST, () => {
   logger.info(`  GET  /api/health`);
   logger.info(`  /api/auth (register, login, passkey)`);
   logger.info(`  /api/users`);
-  logger.info(`  /api/listings`);
+  logger.info(`  /api/listings (browse, detail, viewing-requests)`);
   logger.info(`  /api/reviews`);
   logger.info(`  /api/truth-index`);
   logger.info(`  /api/verification`);

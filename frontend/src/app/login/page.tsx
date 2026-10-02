@@ -1,19 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import { useState } from 'react';
 import { auth } from '@/lib/copy';
+import { safeNextPath } from '@/lib/returnPath';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get('next'));
   const { login: loginFn } = useAuth();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const registerHref = nextPath ? `/register?next=${encodeURIComponent(nextPath)}` : '/register';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +25,7 @@ export default function LoginPage() {
     try {
       await loginFn(email, password);
       toast(auth.welcomeBack, 'success');
-      router.push('/listings');
+      router.push(nextPath || '/listings');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : auth.loginFailed;
       toast(message || auth.loginFailed, 'error');
@@ -54,10 +58,18 @@ export default function LoginPage() {
             {loading ? <span className="spinner" /> : auth.signIn}
           </button>
           <p className="text-center text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            {auth.noAccount} <Link href="/register" className="text-orange hover:underline">{auth.createOne}</Link>
+            {auth.noAccount} <Link href={registerHref} className="text-orange hover:underline">{auth.createOne}</Link>
           </p>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <LoginForm />
+    </Suspense>
   );
 }

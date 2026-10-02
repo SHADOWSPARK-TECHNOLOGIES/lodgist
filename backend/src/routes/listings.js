@@ -1,7 +1,14 @@
 const express = require("express");
 const { analyzeListing } = require("../services/listingScamDetection");
+const { isShareable, parsePreferredDate } = require("../services/whatsapp/tools");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const logger = require("../utils/logger");
+
+// Renters only. Landlords, agents, and admins book through /api/bookings.
+const TENANT_ROLES = new Set(["USER", "TENANT"]);
+const OPEN_VIEWING_STATUSES = ["REQUESTED", "SCHEDULED"];
+const VIEWING_NOTE_PREFIX = "Requested via web";
+const MAX_VIEWING_NOTE = 500;
 
 // Public listing columns. riskState and truthIndex come from migration
 // 20260928130000; the lodgist-api pre-deploy step fails if they are missing.
@@ -33,6 +40,28 @@ const LISTING_PUBLIC_SELECT = {
 // snapped to a 0.005° grid (about 550 m at Owerri's latitude).
 const APPROX_GRID_DEG = 0.005;
 const APPROX_RADIUS_M = 500;
+
+function dayStamp(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString().slice(0, 10);
+}
+
+function isPastUtcDay(date) {
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+  return date.getTime() < today.getTime();
+}
+
+function publicViewing(row) {
+  return {
+    id: row.id,
+    status: row.status,
+    listingId: row.listingId,
+    preferredDate: dayStamp(row.preferredDate),
+    preferredTime: row.preferredTime || null,
+  };
+}
 
 function approxLocation(lat, lng) {
   if (typeof lat !== "number" || typeof lng !== "number") return null;
@@ -309,6 +338,134 @@ function listingsRouter(prisma) {
         listingId: req.params.id,
       });
       res.status(500).json({ success: false, error: "We could not load this listing. Try again." });
+    }
+  });
+
+  // ─── POST /api/listings/:id/viewing-requests ──────────────────────────────
+  // Authenticated renter asks to view one listing. Shareable means the same
+  // thing as WhatsApp requestViewing: status VERIFIED and not fraud-flagged.
+  // An open REQUESTED or SCHEDULED row for this renter and listing is returned
+  // unchanged (200, duplicate: true). CANCELLED, COMPLETED, and NO_SHOW do not
+  // block a new request. Requester id always comes from the token.
+  router.post("/:id/viewing-requests", requireAuth, async (req, res) => {
+    if (!TENANT_ROLES.has(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: "Viewing requests are for renter accounts.",
+      });
+    }
+
+    if (!/^[1-9][0-9]*$/.test(req.params.id || "")) {
+      return res.status(400).json({ success: false, error: "Invalid listing ID" });
+    }
+    const listingId = Number(req.params.id);
+
+    const preferredDate = parsePreferredDate(req.body && req.body.preferredDate);
+    if (!preferredDate) {
+      return res.status(400).json({
+        success: false,
+        error: "preferredDate is required as YYYY-MM-DD.",
+      });
+    }
+    if (isPastUtcDay(preferredDate)) {
+      return res.status(400).json({
+        success: false,
+        error: "preferredDate cannot be in the past.",
+      });
+    }
+
+    let preferredTime = null;
+    if (req.body && req.body.preferredTime != null && req.body.preferredTime !== "") {
+      if (typeof req.body.preferredTime !== "string" || req.body.preferredTime.trim().length > 40) {
+        return res.status(400).json({ success: false, error: "preferredTime is too long." });
+      }
+      preferredTime = req.body.preferredTime.trim() || null;
+    }
+
+    let notes = VIEWING_NOTE_PREFIX;
+    if (req.body && req.body.notes != null && req.body.notes !== "") {
+      if (typeof req.body.notes !== "string") {
+        return res.status(400).json({ success: false, error: "notes must be text." });
+      }
+      const extra = req.body.notes.trim();
+      if (extra) {
+        notes = `${VIEWING_NOTE_PREFIX}. ${extra}`;
+        if (notes.length > MAX_VIEWING_NOTE) {
+          return res.status(400).json({ success: false, error: "notes are too long." });
+        }
+      }
+    }
+
+    try {
+      const listing = await prisma.listing.findUnique({
+        where: { id: listingId },
+        select: { id: true, status: true, isFlaggedForFraud: true, ownerId: true },
+      });
+      if (!listing) {
+        return res.status(404).json({ success: false, error: "Listing not found" });
+      }
+      if (!isShareable(listing)) {
+        return res.status(403).json({
+          success: false,
+          error: "Viewing requests are only open for verified homes.",
+          code: "listing_not_verified",
+        });
+      }
+      if (listing.ownerId === req.user.id) {
+        return res.status(403).json({
+          success: false,
+          error: "You cannot request a viewing of your own listing.",
+        });
+      }
+
+      const existing = await prisma.viewingRequest.findFirst({
+        where: {
+          listingId: listing.id,
+          requesterId: req.user.id,
+          status: { in: OPEN_VIEWING_STATUSES },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (existing) {
+        return res.status(200).json({
+          success: true,
+          duplicate: true,
+          data: publicViewing(existing),
+        });
+      }
+
+      const created = await prisma.viewingRequest.create({
+        data: {
+          listingId: listing.id,
+          requesterId: req.user.id,
+          preferredDate,
+          preferredTime,
+          notes,
+          status: "REQUESTED",
+        },
+      });
+
+      logger.info("Viewing request created", {
+        viewingRequestId: created.id,
+        listingId: listing.id,
+        requesterId: req.user.id,
+      });
+
+      return res.status(201).json({
+        success: true,
+        duplicate: false,
+        data: publicViewing(created),
+      });
+    } catch (error) {
+      logger.error("Error creating viewing request", {
+        code: error.code || error.name,
+        message: error.message,
+        listingId,
+      });
+      return res.status(500).json({
+        success: false,
+        error: "We could not save this viewing request. Try again.",
+      });
     }
   });
 

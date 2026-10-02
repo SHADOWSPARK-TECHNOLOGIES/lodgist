@@ -67,6 +67,7 @@ export interface Listing {
   price: number;
   currency: string;
   status: string;
+  isFlaggedForFraud?: boolean;
   riskState?: string | null;
   truthIndex?: number | null;
   totalMoveInCost?: { total?: number; sample?: boolean } | null;
@@ -84,6 +85,14 @@ export interface Listing {
   owner: Pick<User, "id" | "name" | "email" | "role" | "truthIndex"> | null;
   fraudSignals: FraudSignal[];
   reviews?: ReviewStats;
+}
+
+export interface ViewingRequestResult {
+  id: number;
+  status: string;
+  listingId: number;
+  preferredDate: string;
+  preferredTime: string | null;
 }
 
 export interface Review {
