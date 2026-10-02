@@ -29,7 +29,7 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/listings" className="btn btn-primary btn-lg">{home.browseCta}</Link>
-            <Link href="/register" className="btn btn-secondary btn-lg">{home.listCta}</Link>
+            <Link href="/advertise" className="btn btn-secondary btn-lg">{home.listCta}</Link>
           </div>
         </div>
       </section>

@@ -269,6 +269,19 @@ export interface LeadSaved {
   id: number;
 }
 
+export interface CreateAdvertiserLeadPayload {
+  name: string;
+  phone: string;
+  area: string;
+  propertyCount?: number;
+  notes?: string;
+  email?: string;
+}
+
+export interface AdvertiserLeadSaved {
+  id: number;
+}
+
 export interface TenantBooking {
   id: string;
   listingId: number;

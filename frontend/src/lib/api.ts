@@ -27,6 +27,8 @@ import type {
   ViewingRequestResult,
   CreateLeadPayload,
   LeadSaved,
+  CreateAdvertiserLeadPayload,
+  AdvertiserLeadSaved,
   TenantBooking,
 } from "./types";
 import { getToken } from "./auth";
@@ -245,6 +247,17 @@ export const leadsApi = {
       body: JSON.stringify(payload),
     }),
 };
+
+export const advertiserLeadsApi = {
+  /** Landlord interest. Does not create or verify a listing. */
+  create: (payload: CreateAdvertiserLeadPayload) =>
+    request<{ success: boolean; message: string; data: AdvertiserLeadSaved }>(
+      "POST",
+      "/api/advertiser-leads",
+      { body: JSON.stringify(payload) },
+    ),
+};
+
 
 // ─── Bookings API ──────────────────────────────────────────────────────────
 

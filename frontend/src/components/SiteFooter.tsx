@@ -3,7 +3,7 @@ import { brand } from "@/lib/copy";
 
 const product = [
   [brand.browse, "/listings"],
-  [brand.list, "/register"],
+  [brand.list, "/advertise"],
   [brand.trust, "/trust"],
 ] as const;
 
