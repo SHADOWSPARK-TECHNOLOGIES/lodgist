@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, listingsApi } from "@/lib/api";
@@ -27,7 +27,8 @@ function todayInputValue(): string {
 
 export default function RequestViewing({ listingId, loginHref, askHref }: Props) {
   const router = useRouter();
-  const { user, isLoaded } = useAuth();
+  const { user } = useAuth();
+  const [ready, setReady] = useState(false);
   const [preferredDate, setPreferredDate] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -35,7 +36,11 @@ export default function RequestViewing({ listingId, loginHref, askHref }: Props)
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ duplicate: boolean; data: ViewingRequestResult } | null>(null);
 
-  if (!isLoaded) {
+  useEffect(() => {
+    setReady(true);
+  }, []);
+
+  if (!ready) {
     return <div className="skeleton h-24 w-full mb-4" />;
   }
 
