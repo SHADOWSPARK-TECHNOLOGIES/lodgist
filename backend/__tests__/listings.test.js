@@ -185,6 +185,9 @@ function detailPrisma(property, seen = {}) {
         return {
           id: 1,
           title: "Two bedroom in Owerri",
+          status: "VERIFIED",
+          riskState: "VERIFIED",
+          isFlaggedForFraud: false,
           price: 1200000,
           images: [],
           property,
@@ -306,6 +309,19 @@ function browsePrisma() {
             fraudSignals: [],
             _count: { reviews: 0, bookings: 0 },
           },
+          {
+            id: 3,
+            title: "Pending flat",
+            status: "PENDING",
+            riskState: "UNVERIFIED",
+            isFlaggedForFraud: false,
+            totalMoveInCost: { total: 800000 },
+            images: [],
+            property: { city: "Owerri", state: "Imo" },
+            owner: { id: 1, name: "Ada", truthIndex: 0 },
+            fraudSignals: [],
+            _count: { reviews: 0, bookings: 0 },
+          },
         ];
       },
     },
@@ -314,7 +330,13 @@ function browsePrisma() {
   return { prisma, seen };
 }
 
-const PUBLIC_RISK_FILTER = { OR: [{ riskState: { equals: null } }, { riskState: "VERIFIED" }] };
+const PUBLIC_RISK_FILTER = {
+  OR: [
+    { riskState: { equals: null } },
+    { riskState: { in: ["UNVERIFIED", "UNDER_REVIEW", "VERIFIED"] } },
+  ],
+};
+const PUBLIC_STATUS_FILTER = { in: ["PENDING", "VERIFIED"] };
 
 // Mirrors Prisma 7.8 enum validation for this field. The generated client
 // throws these before the query is sent, which is what 500s public browse.
@@ -345,7 +367,7 @@ function rejectInvalidRiskStateWhere(where) {
   walk(where);
 }
 
-test("GET /api/listings defaults anonymous browse to verified, non-sample homes", async () => {
+test("GET /api/listings returns eligible pending homes and hides samples", async () => {
   const { prisma, seen } = browsePrisma();
   const server = await listen(buildApp(prisma));
   try {
@@ -353,11 +375,22 @@ test("GET /api/listings defaults anonymous browse to verified, non-sample homes"
     const res = await fetch(`http://127.0.0.1:${port}/api/listings?status=PENDING`);
     const body = await res.json();
     assert.equal(res.status, 200);
-    assert.equal(seen.args.where.status, "VERIFIED");
+    assert.deepEqual(seen.args.where.status, PUBLIC_STATUS_FILTER);
+    assert.equal(seen.args.where.isFlaggedForFraud, false);
     assert.deepEqual(seen.args.where.AND, [PUBLIC_RISK_FILTER]);
     rejectInvalidRiskStateWhere(seen.args.where);
-    assert.deepEqual(body.data.map((row) => row.id), [1]);
+    assert.equal(JSON.stringify(seen.args.where).includes('"riskState":null'), false);
+    assert.deepEqual(body.data.map((row) => row.id), [1, 3]);
     assert.equal(JSON.stringify(body).includes("Sample flat"), false);
+    const pending = body.data.find((row) => row.id === 3);
+    assert.equal(pending.status, "PENDING");
+    assert.equal(pending.verificationLabel, "Not verified by Lodgist");
+    assert.equal(pending.sourceLabel, "Direct submission");
+    assert.equal(pending.actions.enquiry, true);
+    assert.equal(pending.actions.viewing, false);
+    const verified = body.data.find((row) => row.id === 1);
+    assert.equal(verified.verificationLabel, "Verified by Lodgist");
+    assert.equal(verified.actions.viewing, true);
   } finally {
     server.close();
   }
@@ -412,7 +445,8 @@ test("GET /api/listings builds a public query that keeps null riskState rows", a
     const body = await res.json();
     assert.equal(res.status, 200);
     assert.equal(body.success, true);
-    assert.equal(seen.where.status, "VERIFIED");
+    assert.deepEqual(seen.where.status, PUBLIC_STATUS_FILTER);
+    assert.equal(seen.where.isFlaggedForFraud, false);
     assert.deepEqual(seen.where.AND, [PUBLIC_RISK_FILTER]);
     assert.deepEqual(body.data.map((row) => row.id), [11]);
     assert.equal(body.data[0].riskState, null);
@@ -425,7 +459,8 @@ test("GET /api/listings builds a public query that keeps null riskState rows", a
 test("public browse riskState filter is accepted by the Prisma 7.8 client", async () => {
   const where = {};
   listingsRouter.applyPublicBrowseFilter(where, undefined, undefined);
-  assert.equal(where.status, "VERIFIED");
+  assert.deepEqual(where.status, PUBLIC_STATUS_FILTER);
+  assert.equal(where.isFlaggedForFraud, false);
   assert.deepEqual(where.AND, [PUBLIC_RISK_FILTER]);
   rejectInvalidRiskStateWhere(where);
 
@@ -475,7 +510,76 @@ test("GET /api/listings lets an admin request a non-verified status", async () =
     assert.equal(res.status, 200);
     assert.equal(seen.args.where.status, "PENDING");
     assert.equal(seen.args.where.AND, undefined);
-    assert.deepEqual(body.data.map((row) => row.id), [1, 2]);
+    assert.equal(seen.args.where.isFlaggedForFraud, undefined);
+    assert.deepEqual(body.data.map((row) => row.id), [1, 2, 3]);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings/:id returns a non-sample pending home with a not-verified label", async () => {
+  const prisma = {
+    listing: {
+      findUnique: async () => ({
+        id: 4,
+        title: "Pending bungalow",
+        status: "PENDING",
+        riskState: "UNVERIFIED",
+        isFlaggedForFraud: false,
+        price: 400000,
+        totalMoveInCost: { total: 400000 },
+        images: [],
+        property: null,
+        owner: { id: 1, name: "Ada", truthIndex: 0, isVerified: false },
+        fraudSignals: [],
+        _count: { reviews: 0, bookings: 0 },
+      }),
+    },
+    review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings/4`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.data.status, "PENDING");
+    assert.equal(body.data.verificationLabel, "Not verified by Lodgist");
+    assert.equal(body.data.sourceLabel, "Direct submission");
+    assert.equal(body.data.actions.enquiry, true);
+    assert.equal(body.data.actions.viewing, false);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings/:id hides sample listings from anonymous discovery", async () => {
+  const prisma = {
+    listing: {
+      findUnique: async () => ({
+        id: 5,
+        title: "Sample flat",
+        status: "VERIFIED",
+        riskState: "VERIFIED",
+        isFlaggedForFraud: false,
+        totalMoveInCost: { sample: true, total: 1 },
+        images: [],
+        property: null,
+        owner: { id: 1, name: "Ada", truthIndex: 0, isVerified: false },
+        fraudSignals: [],
+        _count: { reviews: 0, bookings: 0 },
+      }),
+    },
+    review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings/5`);
+    const body = await res.json();
+    assert.equal(res.status, 404);
+    assert.equal(body.error, "Listing not found");
+    assert.equal(JSON.stringify(body).includes("Sample flat"), false);
   } finally {
     server.close();
   }

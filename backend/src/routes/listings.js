@@ -79,10 +79,19 @@ const SORTS = {
 };
 
 const LISTING_STATUSES = new Set(["PENDING", "VERIFIED", "REJECTED", "ARCHIVED"]);
-// Same public browse as frontend publicListings. Admin and landlord keep a
-// wider result only when they pass an explicit status on this route. There is
-// no separate management list route to leave untouched.
+// Public discovery is not the same as evidence verification. Anonymous browse
+// returns non-sample PENDING and VERIFIED homes whose risk is not FLAGGED or
+// SUSPENDED. There is no DRAFT status. Samples stay out of this set in JS
+// because `totalMoveInCost.sample` is JSON, not a column Prisma can index.
+// Admin and landlord keep a wider result only when they pass an explicit
+// status on this route. There is no separate management list route.
 const MANAGEMENT_ROLES = new Set(["STUDIO_ADMIN", "LANDLORD"]);
+const PUBLIC_LISTING_STATUSES = ["PENDING", "VERIFIED"];
+const ELIGIBLE_RISK_STATES = ["UNVERIFIED", "UNDER_REVIEW", "VERIFIED"];
+const BLOCKED_RISK_STATES = new Set(["FLAGGED", "SUSPENDED"]);
+const NOT_VERIFIED_LABEL = "Not verified by Lodgist";
+const VERIFIED_LABEL = "Verified by Lodgist";
+const DIRECT_SOURCE_LABEL = "Direct submission";
 
 function explicitListingStatus(statusQuery) {
   return typeof statusQuery === "string" && LISTING_STATUSES.has(statusQuery) ? statusQuery : null;
@@ -93,6 +102,50 @@ function isExampleListing(listing) {
   return Boolean(cost && typeof cost === "object" && !Array.isArray(cost) && cost.sample === true);
 }
 
+function isEvidenceVerified(listing) {
+  if (!listing || isExampleListing(listing)) return false;
+  if (listing.isFlaggedForFraud === true) return false;
+  if (listing.status !== "VERIFIED") return false;
+  if (BLOCKED_RISK_STATES.has(listing.riskState)) return false;
+  if (listing.riskState === "UNVERIFIED" || listing.riskState === "UNDER_REVIEW") return false;
+  return listing.riskState == null || listing.riskState === "VERIFIED";
+}
+
+function isEligiblePublicListing(listing) {
+  if (!listing || typeof listing !== "object") return false;
+  if (isExampleListing(listing)) return false;
+  if (listing.isFlaggedForFraud === true) return false;
+  if (listing.status !== "PENDING" && listing.status !== "VERIFIED") return false;
+  if (BLOCKED_RISK_STATES.has(listing.riskState)) return false;
+  return true;
+}
+
+// Listing has no source column. Public responses say "Direct submission"
+// until a real attribution field exists. This does not mark the home verified.
+function publicDiscovery(listing) {
+  const example = isExampleListing(listing);
+  return {
+    verificationLabel: isEvidenceVerified(listing) ? VERIFIED_LABEL : NOT_VERIFIED_LABEL,
+    sourceLabel: DIRECT_SOURCE_LABEL,
+    actions: {
+      enquiry: !example,
+      viewing: Boolean(isShareable(listing) && !example),
+    },
+  };
+}
+
+function publicRiskFilter() {
+  // Prisma 7.8 accepts `{ equals: null }` on this nullable enum.
+  // Bare `{ riskState: null }` is what the required-enum client threw
+  // ("Argument `riskState` is missing"). `in: [null, ...]` is rejected.
+  return {
+    OR: [
+      { riskState: { equals: null } },
+      { riskState: { in: ELIGIBLE_RISK_STATES } },
+    ],
+  };
+}
+
 function applyPublicBrowseFilter(where, user, statusQuery) {
   const explicit = explicitListingStatus(statusQuery);
   const management = Boolean(user && MANAGEMENT_ROLES.has(user.role));
@@ -100,11 +153,9 @@ function applyPublicBrowseFilter(where, user, statusQuery) {
     where.status = explicit;
     return { mode: "management", where };
   }
-  where.status = "VERIFIED";
-  // Prisma 7.8 accepts `{ equals: null }` on this nullable enum.
-  // Bare `{ riskState: null }` is what the required-enum client threw
-  // ("Argument `riskState` is missing"). `in: [null, "VERIFIED"]` is rejected.
-  const risk = { OR: [{ riskState: { equals: null } }, { riskState: "VERIFIED" }] };
+  where.status = { in: PUBLIC_LISTING_STATUSES };
+  where.isFlaggedForFraud = false;
+  const risk = publicRiskFilter();
   where.AND = Array.isArray(where.AND) ? where.AND.concat([risk]) : [risk];
   return { mode: "public", where };
 }
@@ -250,6 +301,7 @@ function listingsRouter(prisma) {
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
         return {
           ...rest,
+          ...publicDiscovery(listing),
           averageRating: ratingMap[listing.id] ?? null,
           reviewCount: _count.reviews,
           bookingCount: _count.bookings,
@@ -336,6 +388,11 @@ function listingsRouter(prisma) {
         return res.status(404).json({ error: "Listing not found" });
       }
 
+      const management = Boolean(req.user && MANAGEMENT_ROLES.has(req.user.role));
+      if (!management && !isEligiblePublicListing(listing)) {
+        return res.status(404).json({ error: "Listing not found" });
+      }
+
       // Compute average rating
       const ratingAgg = await prisma.review.aggregate({
         where: { listingId },
@@ -357,6 +414,7 @@ function listingsRouter(prisma) {
         success: true,
         data: {
           ...listingData,
+          ...publicDiscovery(listing),
           property: publicProperty,
           approxLocation: approx,
           averageRating: ratingAgg._avg.rating,
@@ -622,3 +680,5 @@ module.exports = listingsRouter;
 module.exports.approxLocation = approxLocation;
 module.exports.applyPublicBrowseFilter = applyPublicBrowseFilter;
 module.exports.isExampleListing = isExampleListing;
+module.exports.isEligiblePublicListing = isEligiblePublicListing;
+module.exports.publicDiscovery = publicDiscovery;

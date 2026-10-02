@@ -11,9 +11,9 @@ function visit(path, fallback) {
 
 function listingsReply() {
   return (
-    "Homes show on Lodgist only after they are checked.\n\n" +
+    "Published homes are listed, including ones Lodgist has not verified. Those say Not verified by Lodgist. Viewing is only for verified homes.\n\n" +
     `${visit("/listings", "Open Lodgist and browse homes.")}\n\n` +
-    "If that list is empty, there are no verified homes yet."
+    "If that list is empty, there are no published homes yet."
   );
 }
 
@@ -57,7 +57,7 @@ async function deterministicReply(prisma, { msgText, session, user }) {
       "👨‍💼 *Connect with an Agent*\n\n" +
       "An agent will be with you shortly. Your reference ID is: `" +
       (session?.id || "N/A") + "`\n\n" +
-      visit("/listings", "Browse homes on Lodgist. Only checked homes are listed.");
+      visit("/listings", "Browse homes on Lodgist. Unverified homes say Not verified by Lodgist.");
   } else if (lower === "4" || lower.includes("refer")) {
     trackRefer = true;
     replyText =
