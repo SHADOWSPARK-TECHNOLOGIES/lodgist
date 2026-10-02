@@ -24,6 +24,7 @@ import type {
   CreateReviewPayload,
   UpdateReviewPayload,
   EscrowInitiatePayload,
+  ViewingRequestResult,
 } from "./types";
 import { getToken } from "./auth";
 
@@ -213,6 +214,17 @@ export const listingsApi = {
   /** Delete a listing */
   delete: (id: number) =>
     request<ApiResponse>("DELETE", `/api/listings/${id}`),
+
+  /** Ask to view a verified listing. Requester comes from the auth token. */
+  requestViewing: (
+    id: number,
+    payload: { preferredDate: string; preferredTime?: string; notes?: string }
+  ) =>
+    request<{ success: boolean; duplicate: boolean; data: ViewingRequestResult }>(
+      "POST",
+      `/api/listings/${id}/viewing-requests`,
+      { body: JSON.stringify(payload) }
+    ),
 
   /** Analyze a listing for scam signals */
   analyzeScam: (listingId: number) =>

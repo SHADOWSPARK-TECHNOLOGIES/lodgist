@@ -1,14 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import { useState } from 'react';
 import { auth } from '@/lib/copy';
+import { safeNextPath } from '@/lib/returnPath';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get('next'));
   const { register } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -16,6 +19,7 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const loginHref = nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : '/login';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +27,7 @@ export default function RegisterPage() {
     try {
       await register(email, password, name, phone || undefined);
       toast(auth.registrationSuccess, 'success');
-      router.push('/listings');
+      router.push(nextPath || '/listings');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : auth.registrationFailure;
       toast(message || auth.registrationFailure, 'error');
@@ -66,10 +70,18 @@ export default function RegisterPage() {
             {loading ? <span className="spinner" /> : auth.createAccount}
           </button>
           <p className="text-center text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            {auth.alreadyHaveAccount} <Link href="/login" className="text-orange hover:underline">{auth.signIn}</Link>
+            {auth.alreadyHaveAccount} <Link href={loginHref} className="text-orange hover:underline">{auth.signIn}</Link>
           </p>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <RegisterForm />
+    </Suspense>
   );
 }

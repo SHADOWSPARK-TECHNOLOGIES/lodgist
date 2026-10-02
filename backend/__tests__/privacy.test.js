@@ -243,19 +243,12 @@ test("booking cancel: tenant and admin only, not landlords", async () => {
   }
 });
 
-function isoDateFromToday(daysAhead) {
-  const date = new Date();
-  date.setUTCHours(0, 0, 0, 0);
-  date.setUTCDate(date.getUTCDate() + daysAhead);
-  return date.toISOString().slice(0, 10);
-}
-
 test("POST /api/bookings: landlords only for their own listings", async () => {
   const body = {
     listingId: 10,
     tenantId: 5,
-    startDate: isoDateFromToday(30),
-    endDate: isoDateFromToday(60),
+    startDate: "2030-06-01",
+    endDate: "2030-07-01",
     totalAmount: 1,
   };
   for (const [u, status] of [[OTHER_LANDLORD, 403], [TENANT, 403], [OWNER, 201], [ADMIN, 201]]) {

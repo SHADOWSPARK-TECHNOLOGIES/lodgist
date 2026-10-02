@@ -266,4 +266,5 @@ module.exports = {
   getBookingStatus,
   requestViewing,
   isShareable,
+  parsePreferredDate,
 };

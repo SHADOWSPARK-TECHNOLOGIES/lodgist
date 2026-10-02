@@ -6,8 +6,10 @@ import { useParams } from 'next/navigation';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
+import RequestViewing from '@/components/ListingDetail/RequestViewing';
 import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
 import { decisionFacts, hasTrustScore } from '@/lib/listingHonesty';
+import { safeNextPath } from '@/lib/returnPath';
 import type { Listing } from '@/lib/types';
 
 type MoveIn = {
@@ -91,6 +93,9 @@ export default function ListingDetailPage() {
   const askHref = supportWhatsAppLink(`Home: ${homeLabel}`);
   const inspectHref = supportWhatsAppLink(`I want to inspect this home before I pay: ${homeLabel}`);
   const reportHref = supportWhatsAppLink(`Home: ${homeLabel}. Report: this listing needs a second look.`);
+  const canRequest = facts.verified && listing.isFlaggedForFraud !== true;
+  const returnTo = safeNextPath(`/listings/${listing.id}`) || '/listings';
+  const loginHref = `/login?next=${encodeURIComponent(returnTo)}`;
 
   return (
     <div className="container py-8 max-w-3xl">
@@ -161,12 +166,18 @@ export default function ListingDetailPage() {
         <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.7 }}>{listing.description}</p>
       )}
 
+      {canRequest ? (
+        <RequestViewing listingId={listing.id} loginHref={loginHref} askHref={askHref} />
+      ) : (
+        <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.viewingClosed}</p>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-3">
         {inspectHref ? (
-          <a className="btn btn-primary" href={inspectHref} target="_blank" rel="noopener noreferrer">{detail.inspection}</a>
-        ) : (
+          <a className={canRequest ? 'btn btn-secondary' : 'btn btn-primary'} href={inspectHref} target="_blank" rel="noopener noreferrer">{detail.inspection}</a>
+        ) : !canRequest ? (
           <p className="text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>{detail.whatsAppMissing}</p>
-        )}
+        ) : null}
         {askHref && <a className="btn btn-secondary" href={askHref} target="_blank" rel="noopener noreferrer">{detail.whatsApp}</a>}
         {reportHref && <a className="btn btn-secondary" href={reportHref} target="_blank" rel="noopener noreferrer">{detail.report}</a>}
       </div>
