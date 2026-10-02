@@ -101,7 +101,10 @@ function applyPublicBrowseFilter(where, user, statusQuery) {
     return { mode: "management", where };
   }
   where.status = "VERIFIED";
-  const risk = { OR: [{ riskState: null }, { riskState: "VERIFIED" }] };
+  // Prisma 7.8 accepts `{ equals: null }` on this nullable enum.
+  // Bare `{ riskState: null }` is what the required-enum client threw
+  // ("Argument `riskState` is missing"). `in: [null, "VERIFIED"]` is rejected.
+  const risk = { OR: [{ riskState: { equals: null } }, { riskState: "VERIFIED" }] };
   where.AND = Array.isArray(where.AND) ? where.AND.concat([risk]) : [risk];
   return { mode: "public", where };
 }
