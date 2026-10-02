@@ -151,6 +151,19 @@ test("POST skips duplicate msg.id before user lookup", async () => {
         return null;
       },
     },
+    whatsAppSession: {
+      findFirst: async () => null,
+      create: async ({ data }) => ({
+        id: "ses_lead",
+        messages: [],
+        userId: null,
+        contactId: null,
+        ...data,
+      }),
+    },
+    whatsAppMessage: {
+      create: async () => ({}),
+    },
   };
   const payload = {
     entry: [
