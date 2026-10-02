@@ -269,6 +269,15 @@ export interface LeadSaved {
   id: number;
 }
 
+export type AdvertiserAuthority = "CONTROLS" | "AUTHORIZED";
+export type AdvertiserAvailability = "AVAILABLE_NOW" | "FROM_DATE" | "NOT_AVAILABLE";
+export type AdvertiserRentPeriod = "MONTH" | "YEAR" | "SEMESTER";
+
+export interface MoveInFeeInput {
+  known: boolean;
+  amountNgn?: number;
+}
+
 export interface CreateAdvertiserLeadPayload {
   name: string;
   phone: string;
@@ -276,6 +285,18 @@ export interface CreateAdvertiserLeadPayload {
   propertyCount?: number;
   notes?: string;
   email?: string;
+  authority: AdvertiserAuthority;
+  photoPublicationAllowed: boolean;
+  availability: AdvertiserAvailability;
+  availableFrom?: string;
+  rentPeriod: AdvertiserRentPeriod;
+  moveInFees: {
+    baseRent: MoveInFeeInput;
+    agency: MoveInFeeInput;
+    legal: MoveInFeeInput;
+    caution: MoveInFeeInput;
+    inspection: MoveInFeeInput;
+  };
 }
 
 export interface AdvertiserLeadSaved {

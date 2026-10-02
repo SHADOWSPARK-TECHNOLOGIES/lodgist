@@ -681,17 +681,45 @@ model Lead {
   @@index([createdAt])
 }
 
+// Who may list the home. A claim on this lead is not a reviewed listing.
+enum AdvertiserAuthority {
+  CONTROLS
+  AUTHORIZED
+}
+
+// Current availability stated by the advertiser. Not a published listing.
+enum AdvertiserAvailability {
+  AVAILABLE_NOW
+  FROM_DATE
+  NOT_AVAILABLE
+}
+
+enum AdvertiserRentPeriod {
+  MONTH
+  YEAR
+  SEMESTER
+}
+
 // Landlord/hostel interest for paid presentation + enquiry management.
 // Payment / this lead never changes Listing.status or verification.
+// Nullable publish-fact columns are for rows saved before the packet existed.
+// New intake must set them. Null does not publish a home.
 model AdvertiserLead {
-  id            Int      @id @default(autoincrement())
-  name          String
-  phone         String
-  area          String
-  propertyCount Int?
-  notes         String?
-  email         String?
-  createdAt     DateTime @default(now())
+  id                      Int                      @id @default(autoincrement())
+  name                    String
+  phone                   String
+  area                    String
+  propertyCount           Int?
+  notes                   String?
+  email                   String?
+  authority               AdvertiserAuthority?
+  photoPublicationAllowed Boolean?
+  availability            AdvertiserAvailability?
+  availableFrom           DateTime?
+  rentPeriod              AdvertiserRentPeriod?
+  // { baseRent, agency, legal, caution, inspection } each { known: false } or { known: true, amountNgn }
+  moveInFees              Json?
+  createdAt               DateTime                 @default(now())
 
   @@index([phone])
   @@index([createdAt])

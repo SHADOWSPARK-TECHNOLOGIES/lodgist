@@ -3,9 +3,56 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 const logger = require("../utils/logger");
 
 const ADVERTISER_SAVED_MESSAGE =
-  "Thanks. A Lodgist teammate will contact you on WhatsApp to agree scope and fee. This does not verify any property. Payment never buys a verification badge.";
+  "Thanks. A Lodgist teammate will contact you on WhatsApp to agree scope and fee. This does not verify any property. Payment never buys a verification badge. Submission is not publication.";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const AUTHORITY = new Set(["CONTROLS", "AUTHORIZED"]);
+const AVAILABILITY = new Set(["AVAILABLE_NOW", "FROM_DATE", "NOT_AVAILABLE"]);
+const RENT_PERIOD = new Set(["MONTH", "YEAR", "SEMESTER"]);
+const FEE_KEYS = ["baseRent", "agency", "legal", "caution", "inspection"];
+
+function parseYmd(value) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function parseMoveInFees(source) {
+  const fees = source.moveInFees;
+  if (!fees || typeof fees !== "object" || Array.isArray(fees)) {
+    return { error: "moveInFees" };
+  }
+  const out = {};
+  for (const key of FEE_KEYS) {
+    const item = fees[key];
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return { error: `moveInFees.${key}` };
+    }
+    if (item.known === false) {
+      if (item.amountNgn != null && item.amountNgn !== "") {
+        return { error: `moveInFees.${key}` };
+      }
+      out[key] = { known: false };
+      continue;
+    }
+    if (item.known !== true) return { error: `moveInFees.${key}` };
+    const amount =
+      typeof item.amountNgn === "number" ? item.amountNgn : Number(item.amountNgn);
+    if (!Number.isInteger(amount) || amount < 0 || amount > 1_000_000_000) {
+      return { error: `moveInFees.${key}` };
+    }
+    out[key] = { known: true, amountNgn: amount };
+  }
+  return { data: out };
+}
 
 function validateAdvertiserLead(body) {
   const source = body && typeof body === "object" ? body : {};
@@ -45,23 +92,66 @@ function validateAdvertiserLead(body) {
     else email = candidate;
   }
 
+  const authority = typeof source.authority === "string" ? source.authority : "";
+  if (!AUTHORITY.has(authority)) errors.push("authority");
+
+  let photoPublicationAllowed = null;
+  if (typeof source.photoPublicationAllowed !== "boolean") {
+    errors.push("photoPublicationAllowed");
+  } else {
+    photoPublicationAllowed = source.photoPublicationAllowed;
+  }
+
+  const availability = typeof source.availability === "string" ? source.availability : "";
+  if (!AVAILABILITY.has(availability)) errors.push("availability");
+
+  let availableFrom = null;
+  const rawFrom = source.availableFrom;
+  const fromProvided = rawFrom != null && String(rawFrom).trim() !== "";
+  if (availability === "FROM_DATE") {
+    availableFrom = parseYmd(typeof rawFrom === "string" ? rawFrom.trim() : "");
+    if (!availableFrom) errors.push("availableFrom");
+  } else if (fromProvided) {
+    errors.push("availableFrom");
+  }
+
+  const rentPeriod = typeof source.rentPeriod === "string" ? source.rentPeriod : "";
+  if (!RENT_PERIOD.has(rentPeriod)) errors.push("rentPeriod");
+
+  const fees = parseMoveInFees(source);
+  if (fees.error) errors.push(fees.error);
+
   if (errors.length) return { ok: false, errors };
   return {
     ok: true,
-    data: { name, phone, area, propertyCount, notes, email },
+    data: {
+      name,
+      phone,
+      area,
+      propertyCount,
+      notes,
+      email,
+      authority,
+      photoPublicationAllowed,
+      availability,
+      availableFrom,
+      rentPeriod,
+      moveInFees: fees.data,
+    },
   };
 }
 
 function advertiserLeadsRouter(prisma) {
   const router = express.Router();
 
-  // Public intake. Never creates a listing or changes verification.
+  // Public intake. Never creates a listing, never publishes, never verifies.
   router.post("/", async (req, res) => {
     const parsed = validateAdvertiserLead(req.body);
     if (!parsed.ok) {
       return res.status(400).json({
         success: false,
-        error: "Check name, WhatsApp phone, and area / campus.",
+        error:
+          "Check name, WhatsApp phone, location, authority, photo permission, availability, rent period, and move-in fees.",
         fields: parsed.errors,
       });
     }
