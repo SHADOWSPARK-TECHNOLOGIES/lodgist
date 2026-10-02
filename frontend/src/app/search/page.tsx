@@ -7,6 +7,7 @@ import { listingsApi } from "@/lib/api";
 import { TruthScore } from "@/components/ui/TruthScore";
 import { formatYearlyRent, listings as browse, search as copy } from "@/lib/copy";
 import { hasTrustScore, isExampleListing, publicListings } from "@/lib/listingHonesty";
+import LeadCapture from "@/components/LeadCapture";
 import type { Listing } from "@/lib/types";
 
 function SearchContent() {
@@ -14,7 +15,7 @@ function SearchContent() {
   const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
   const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -93,9 +94,10 @@ function SearchContent() {
             <h2 className="font-poppins font-semibold text-white text-lg mb-2">
               {searchTerm ? copy.noTitle : browse.emptyTitle}
             </h2>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>
               {searchTerm ? copy.noBody : browse.emptyBody}
             </p>
+            <LeadCapture initialLocation={searchTerm} />
             <Link href="/listings" className="btn btn-primary mt-6">{copy.browseAll}</Link>
           </div>
         )}

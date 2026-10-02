@@ -27,6 +27,7 @@ const createPaymentsRouter = require("./routes/payments");
 const paymentsRouter = createPaymentsRouter(prisma);
 const createBookingsRouter = require("./routes/bookings");
 const bookingsRouter = createBookingsRouter(prisma);
+const leadsRouter = require("./routes/leads")(prisma);
 const healthRouter = require("./routes/health")(prisma);
 
 const app = express();
@@ -143,6 +144,7 @@ app.use("/api/rent", rentRouter);
 app.use("/api/escrow", escrowRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/bookings", bookingsRouter);
+app.use("/api/leads", leadsRouter);
 app.use("/api/whatsapp", whatsappRouter);
 
 // 404 handler
@@ -170,6 +172,7 @@ app.listen(PORT, HOST, () => {
   logger.info(`  /api/escrow`);
   logger.info(`  /api/payments (webhook)`);
   logger.info(`  /api/bookings (list[admin], mine, create, get, cancel, manual-payment, admin-notes, verify-payment)`);
+  logger.info(`  /api/leads (public create, admin list)`);
   logger.info(`  /api/whatsapp`);
 
   // Warm up the Neon connection pool on startup so the first real request doesn't

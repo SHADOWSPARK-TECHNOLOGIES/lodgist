@@ -25,6 +25,9 @@ import type {
   UpdateReviewPayload,
   EscrowInitiatePayload,
   ViewingRequestResult,
+  CreateLeadPayload,
+  LeadSaved,
+  TenantBooking,
 } from "./types";
 import { getToken } from "./auth";
 
@@ -231,6 +234,23 @@ export const listingsApi = {
     request<ApiResponse>("POST", "/api/listings/analyze-scam", {
       body: JSON.stringify({ listingId }),
     }),
+};
+
+// ─── Leads API ─────────────────────────────────────────────────────────────
+
+export const leadsApi = {
+  /** Save a no-match request. Does not create or verify a listing. */
+  create: (payload: CreateLeadPayload) =>
+    request<{ success: boolean; message: string; data: LeadSaved }>("POST", "/api/leads", {
+      body: JSON.stringify(payload),
+    }),
+};
+
+// ─── Bookings API ──────────────────────────────────────────────────────────
+
+export const bookingsApi = {
+  /** Bookings for the signed-in tenant. */
+  mine: () => request<{ success: boolean; data: TenantBooking[] }>("GET", "/api/bookings/mine"),
 };
 
 // ─── Reviews API ───────────────────────────────────────────────────────────

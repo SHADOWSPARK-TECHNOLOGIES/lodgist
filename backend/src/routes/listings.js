@@ -78,6 +78,34 @@ const SORTS = {
   price_desc: { price: "desc" },
 };
 
+const LISTING_STATUSES = new Set(["PENDING", "VERIFIED", "REJECTED", "ARCHIVED"]);
+// Same public browse as frontend publicListings. Admin and landlord keep a
+// wider result only when they pass an explicit status on this route. There is
+// no separate management list route to leave untouched.
+const MANAGEMENT_ROLES = new Set(["STUDIO_ADMIN", "LANDLORD"]);
+
+function explicitListingStatus(statusQuery) {
+  return typeof statusQuery === "string" && LISTING_STATUSES.has(statusQuery) ? statusQuery : null;
+}
+
+function isExampleListing(listing) {
+  const cost = listing && listing.totalMoveInCost;
+  return Boolean(cost && typeof cost === "object" && !Array.isArray(cost) && cost.sample === true);
+}
+
+function applyPublicBrowseFilter(where, user, statusQuery) {
+  const explicit = explicitListingStatus(statusQuery);
+  const management = Boolean(user && MANAGEMENT_ROLES.has(user.role));
+  if (management && explicit) {
+    where.status = explicit;
+    return { mode: "management", where };
+  }
+  where.status = "VERIFIED";
+  const risk = { OR: [{ riskState: null }, { riskState: "VERIFIED" }] };
+  where.AND = Array.isArray(where.AND) ? where.AND.concat([risk]) : [risk];
+  return { mode: "public", where };
+}
+
 function listingsRouter(prisma) {
   const router = express.Router();
 
@@ -146,7 +174,7 @@ function listingsRouter(prisma) {
       if (Object.keys(propertyWhere).length) where.property = { is: propertyWhere };
 
       if (category) where.category = category;
-      if (status) where.status = status;
+      const browse = applyPublicBrowseFilter(where, req.user, status);
       if (minPrice || maxPrice) {
         where.price = {};
         if (minPrice) where.price.gte = parseFloat(minPrice);
@@ -211,7 +239,10 @@ function listingsRouter(prisma) {
         ratingMap[agg.listingId] = agg._avg.rating;
       }
 
-      const data = listings.map((listing) => {
+      const visible = browse.mode === "public"
+        ? listings.filter((listing) => !isExampleListing(listing))
+        : listings;
+      const data = visible.map((listing) => {
         const { fraudSignals, _count, ...rest } = listing;
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
         return {
@@ -586,3 +617,5 @@ function listingsRouter(prisma) {
 
 module.exports = listingsRouter;
 module.exports.approxLocation = approxLocation;
+module.exports.applyPublicBrowseFilter = applyPublicBrowseFilter;
+module.exports.isExampleListing = isExampleListing;

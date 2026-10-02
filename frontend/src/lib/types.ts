@@ -249,6 +249,28 @@ export interface UpdateListingPayload {
   sqft?: number;
 }
 
+export interface CreateLeadPayload {
+  location: string;
+  budget: number;
+  bedrooms: number;
+  moveInTimeframe: string;
+  phone: string;
+  email?: string;
+}
+
+export interface LeadSaved {
+  id: number;
+}
+
+export interface TenantBooking {
+  id: string;
+  listingId: number;
+  totalAmount: number;
+  currency: string;
+  status: string;
+  listing?: { id: number; title: string; price: number } | null;
+}
+
 export interface CreateReviewPayload {
   listingId: number;
   rating: number;
