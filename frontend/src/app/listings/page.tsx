@@ -77,7 +77,7 @@ export default function ListingsPage() {
             <LeadCapture initialLocation={search} initialBudget={maxRent} />
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               {askHref ? <a href={askHref} className="btn btn-primary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a> : <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.whatsAppMissing}</p>}
-              <Link href="/register" className="btn btn-secondary">{copy.listCta}</Link>
+              <Link href="/advertise" className="btn btn-secondary">{copy.listCta}</Link>
             </div>
           </div>
         ) : (

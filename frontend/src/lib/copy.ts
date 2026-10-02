@@ -20,7 +20,7 @@ export const brand = {
   productLabel: "Product",
   companyLabel: "Company",
   browse: "Browse homes",
-  list: "List a property",
+  list: "Advertise with Lodgist",
   trust: "Trust and safety",
   about: "About Lodgist",
   privacy: "How we handle trust",
@@ -377,3 +377,34 @@ export const area = {
   occupancy: "How full the area is",
   amenities: "Nearby",
 };
+
+export const advertise = {
+  metaTitle: "Advertise rooms in Owerri — Lodgist",
+  badge: "Pilot · one campus · fee agreed upfront",
+  title: "Present your rooms. Organize enquiries.",
+  body: "Lodgist helps landlords and hostels present reviewed rooms, organize renter enquiries, and arrange viewings. Scope and fee are agreed before work starts.",
+  rule: "Payment never buys a verification badge. Verification stays a separate Lodgist review.",
+  name: "Your name",
+  phone: "WhatsApp number",
+  area: "Campus or area (e.g. FUTO / Owerri)",
+  propertyCount: "How many rooms / homes? (optional)",
+  notes: "Anything we should know (optional)",
+  email: "Email (optional)",
+  submit: "Request a call-back",
+  sending: "Saving…",
+  saved: "Thanks. A teammate will contact you on WhatsApp to agree scope and fee. This does not verify any property.",
+  failed: "We could not save that. Try again, or message us on WhatsApp.",
+  waCta: "Prefer WhatsApp?",
+  includedTitle: "What the paid offer covers",
+  included: [
+    "Help presenting rooms for Lodgist review",
+    "Organizing enquiries and arranging viewings",
+    "Clear scope and fee before work starts",
+  ],
+  excludedTitle: "What it does not include",
+  excluded: [
+    "A verification badge or Trust Score change",
+    "Publishing fictional or sample homes as real stock",
+  ],
+};
+

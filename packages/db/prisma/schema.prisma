@@ -671,3 +671,19 @@ model Lead {
   @@index([phone])
   @@index([createdAt])
 }
+
+// Landlord/hostel interest for paid presentation + enquiry management.
+// Payment / this lead never changes Listing.status or verification.
+model AdvertiserLead {
+  id            Int      @id @default(autoincrement())
+  name          String
+  phone         String
+  area          String
+  propertyCount Int?
+  notes         String?
+  email         String?
+  createdAt     DateTime @default(now())
+
+  @@index([phone])
+  @@index([createdAt])
+}
