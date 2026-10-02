@@ -81,8 +81,9 @@ const SORTS = {
 const LISTING_STATUSES = new Set(["PENDING", "VERIFIED", "REJECTED", "ARCHIVED"]);
 // Public discovery is not the same as evidence verification. Anonymous browse
 // returns non-sample PENDING and VERIFIED homes whose risk is not FLAGGED or
-// SUSPENDED. There is no DRAFT status. Samples stay out of this set in JS
-// because `totalMoveInCost.sample` is JSON, not a column Prisma can index.
+// SUSPENDED. There is no DRAFT status. Sample rows (`totalMoveInCost.sample`)
+// are JSON, so findMany still drops them in JS; public `pagination.total`
+// subtracts the same sample match so count and data stay aligned.
 // Admin and landlord keep a wider result only when they pass an explicit
 // status on this route. There is no separate management list route.
 const MANAGEMENT_ROLES = new Set(["STUDIO_ADMIN", "LANDLORD"]);
@@ -144,6 +145,32 @@ function publicRiskFilter() {
       { riskState: { in: ELIGIBLE_RISK_STATES } },
     ],
   };
+}
+
+// Positive match for seed/demo samples. Used to subtract from public count so
+// pagination.total matches the post-filter eligible set (isExampleListing).
+// NOT (path equals true) is unsafe here: missing `sample` keys become SQL NULL
+// and would drop real listings that only store `{ total }`.
+function publicSampleMatchFilter() {
+  return {
+    totalMoveInCost: {
+      path: ["sample"],
+      equals: true,
+    },
+  };
+}
+
+function withPublicSampleMatch(where) {
+  const and = Array.isArray(where.AND) ? where.AND.slice() : [];
+  and.push(publicSampleMatchFilter());
+  return { ...where, AND: and };
+}
+
+async function countPublicBrowse(prisma, where, mode) {
+  const rawTotal = await prisma.listing.count({ where });
+  if (mode !== "public") return rawTotal;
+  const sampleTotal = await prisma.listing.count({ where: withPublicSampleMatch(where) });
+  return Math.max(0, rawTotal - sampleTotal);
 }
 
 function applyPublicBrowseFilter(where, user, statusQuery) {
@@ -235,7 +262,7 @@ function listingsRouter(prisma) {
         if (maxPrice) where.price.lte = parseFloat(maxPrice);
       }
 
-      const total = await prisma.listing.count({ where });
+      const total = await countPublicBrowse(prisma, where, browse.mode);
 
       const listings = await prisma.listing.findMany({
         where,
@@ -679,6 +706,9 @@ function listingsRouter(prisma) {
 module.exports = listingsRouter;
 module.exports.approxLocation = approxLocation;
 module.exports.applyPublicBrowseFilter = applyPublicBrowseFilter;
+module.exports.publicSampleMatchFilter = publicSampleMatchFilter;
+module.exports.withPublicSampleMatch = withPublicSampleMatch;
+module.exports.countPublicBrowse = countPublicBrowse;
 module.exports.isExampleListing = isExampleListing;
 module.exports.isEligiblePublicListing = isEligiblePublicListing;
 module.exports.publicDiscovery = publicDiscovery;
