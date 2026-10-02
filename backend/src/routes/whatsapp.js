@@ -2,37 +2,27 @@ const express = require("express");
 const crypto = require("crypto");
 const { requireAuth } = require("../middleware/auth");
 const { parseWebhookBody } = require("./whatsappParse");
+const { sitePath, listingsReply, isExactMenuCommand, deterministicReply } = require("../services/whatsapp/menu");
+const { routeTurn, resolveSender, loadOrCreateSession, toHistory } = require("../services/whatsapp/engine");
+const { logWhatsApp, redactPhone } = require("../services/whatsapp/redact");
 
 /**
  * Create an Express router for WhatsApp webhook and messaging endpoints.
  * Accepts a `prisma` instance for testability.
  *
+ * Flow: Meta webhook → HMAC → msg.id dedupe → session (User or lead) →
+ * Gemini intent router (menu fallback) → Lodgist tools → Meta send.
+ *
  * @param {object} prisma - Prisma client instance
+ * @param {{ complete?: Function }} [options]
  * @returns {import("express").Router}
  */
 // Meta WhatsApp Cloud API. Required env names (set in the host, never in code):
 // WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN,
 // WHATSAPP_APP_SECRET, WHATSAPP_PUBLIC_URL
-function sitePath(path) {
-  const base = String(process.env.WHATSAPP_PUBLIC_URL || "").trim().replace(/\/$/, "");
-  if (!base) return "";
-  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
-}
-
-function visit(path, fallback) {
-  const url = sitePath(path);
-  return url ? `Visit ${url}` : fallback;
-}
-
-function listingsReply() {
-  return (
-    "Homes show on Lodgist only after they are checked.\n\n" +
-    `${visit("/listings", "Open Lodgist and browse homes.")}\n\n` +
-    "If that list is empty, there are no verified homes yet."
-  );
-}
-
-module.exports = function (prisma) {
+// AI: GCP_PROJECT_ID, GCP_PROJECT_LOCATION, GOOGLE_APPLICATION_CREDENTIALS
+// Optional Claude fallback: ANTHROPIC_API_KEY, ANTHROPIC_MODEL
+module.exports = function (prisma, options = {}) {
   const router = express.Router();
   const seenMsgIds = new Set();
 
@@ -102,8 +92,7 @@ module.exports = function (prisma) {
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      console.error("WhatsApp API error:", error);
+      logWhatsApp("error", "WhatsApp API error", { status: response.status });
       throw new Error(`WhatsApp API error: ${response.status}`);
     }
 
@@ -138,7 +127,7 @@ module.exports = function (prisma) {
         );
       }
     } catch (err) {
-      console.error("Referral tracking error:", err);
+      logWhatsApp("error", "Referral tracking error", err instanceof Error ? err.message : "");
     }
   }
 
@@ -150,7 +139,7 @@ module.exports = function (prisma) {
     const challenge = req.query["hub.challenge"];
 
     if (mode === "subscribe" && token === verifyToken) {
-      console.log("WhatsApp webhook verified");
+      logWhatsApp("info", "WhatsApp webhook verified");
       return res.status(200).send(challenge);
     }
     return res.sendStatus(403);
@@ -161,7 +150,7 @@ module.exports = function (prisma) {
       if (process.env.WHATSAPP_APP_SECRET) {
         const sig = req.headers["x-hub-signature-256"];
         if (!verifyWebhookSignature(sig, req.body)) {
-          console.error("Invalid webhook signature");
+          logWhatsApp("error", "Invalid webhook signature");
           return res.sendStatus(403);
         }
       }
@@ -181,6 +170,8 @@ module.exports = function (prisma) {
         return res.sendStatus(200);
       }
 
+      const profileName = value?.contacts?.[0]?.profile?.name || null;
+
       for (const msg of messages) {
         if (msg.id) {
           if (seenMsgIds.has(msg.id)) continue;
@@ -188,64 +179,44 @@ module.exports = function (prisma) {
         }
 
         const from = msg.from;
+        if (!from) continue;
         const msgText = msg.text?.body || "";
         const msgType = msg.type || "text";
-        const timestamp = new Date(parseInt(msg.timestamp) * 1000);
+        const timestamp = new Date(parseInt(msg.timestamp, 10) * 1000);
+        const sentAt = Number.isNaN(timestamp.getTime()) ? new Date() : timestamp;
 
-        const senderUser = await prisma.user.findFirst({
-          where: { phone: from },
-        });
-
+        const { phone, user: senderUser } = await resolveSender(prisma, from);
         if (!senderUser) {
-          console.log(`Unknown sender (phone: ${from}), skipping`);
-          continue;
+          logWhatsApp("info", "Unknown WhatsApp sender entered lead flow", redactPhone(phone));
         }
 
-        let session = await prisma.whatsAppSession.findFirst({
-          where: {
-            contactId: senderUser.id,
-            isActive: true,
-          },
-          include: {
-            listing: true,
-            user: true,
-          },
-          orderBy: { createdAt: "desc" },
+        const session = await loadOrCreateSession(prisma, {
+          user: senderUser,
+          phone,
+          profileName: msg.profile?.name || profileName,
         });
-
-        if (!session) {
-          session = await prisma.whatsAppSession.create({
-            data: {
-              userId: senderUser.id,
-              contactId: senderUser.id,
-              contactName: msg.profile?.name || senderUser.name || "Unknown",
-              platform: "whatsapp",
-              isActive: true,
-            },
-            include: { listing: true, user: true },
-          });
-        }
+        const history = toHistory(session.messages);
 
         await prisma.whatsAppMessage.create({
           data: {
             sessionId: session.id,
-            senderId: senderUser.id,
+            senderId: senderUser ? senderUser.id : null,
             content: msgText,
-            messageType: msgType.toUpperCase(),
+            messageType: String(msgType || "text").toUpperCase(),
             direction: "INBOUND",
-            sentAt: timestamp,
-            metadata: msg,
+            sentAt,
+            metadata: { messageId: msg.id || null, type: msgType },
           },
         });
 
         const fraudResult = analyzeFraud(msgText);
-        if (fraudResult.score > 0.8 && session.listingId) {
+        if (fraudResult.score > 0.8 && session.listingId && prisma.aIFraudSignal) {
           await prisma.aIFraudSignal.create({
             data: {
               listingId: session.listingId,
               score: fraudResult.score,
               reasoning: fraudResult.reasoning,
-              metadata: { source: "whatsapp", messageId: msg.id, from },
+              metadata: { source: "whatsapp", messageId: msg.id },
             },
           });
           await prisma.listing.update({
@@ -254,91 +225,28 @@ module.exports = function (prisma) {
           });
         }
 
-        let replyText =
-          "Thank you for your message. A Lodgist agent will get back to you shortly.";
-
-        if (
-          msgText.toLowerCase().includes("hello") ||
-          msgText.toLowerCase().includes("hi")
-        ) {
-          replyText =
-            "👋 *Welcome to Lodgist!* Nigeria's Most Trusted Property Platform.\n\n" +
-            "Reply with:\n" +
-            "1️⃣ *Listings* — Browse available properties\n" +
-            "2️⃣ *My Bookings* — Check your bookings\n" +
-            "3️⃣ *Talk to Agent* — Speak with a human\n" +
-            "4️⃣ *Refer* — Invite 3 landlords, get ₦1,000 escrow credit!";
-        } else if (
-          msgText === "1" ||
-          msgText.toLowerCase().includes("listing")
-        ) {
-          replyText = listingsReply();
-        } else if (
-          msgText === "2" ||
-          msgText.toLowerCase().includes("booking")
-        ) {
-          replyText =
-            "Your bookings\n\n" +
-            `${visit("/dashboard", "Open your Lodgist dashboard to see bookings.")}\n\n` +
-            "Need help? Reply with your booking reference.";
-        } else if (
-          msgText === "3" ||
-          msgText.toLowerCase().includes("agent")
-        ) {
-          replyText =
-            "👨‍💼 *Connect with an Agent*\n\n" +
-            "An agent will be with you shortly. Your reference ID is: `" +
-            (session?.id || "N/A") + "`\n\n" +
-            visit("/listings", "Browse homes on Lodgist. Only checked homes are listed.");
-        } else if (
-          msgText.toLowerCase() === "4" ||
-          msgText.toLowerCase().includes("refer")
-        ) {
-          replyText =
-            "🎁 *Referral Program*\n\n" +
-            "Share Lodgist with 3 landlord friends and earn ₦1,000 escrow credit!\n\n" +
-            "How it works:\n" +
-            "1. Forward this message to 3 landlords\n" +
-            (sitePath("/register")
-              ? `2. They sign up at ${sitePath("/register")}\n`
-              : "2. They sign up on Lodgist\n") +
-            "3. You get ₦1,000 credit when they list their first property\n\n" +
-            "Reply CLAIM when you've referred 3 people!";
-        } else if (msgText.toLowerCase() === "claim") {
-          const referral = await prisma.referral.findUnique({
-            where: { referrerId: senderUser.id },
+        let replyText;
+        let trackRefer = false;
+        if (isExactMenuCommand(msgText)) {
+          const menu = await deterministicReply(prisma, { msgText, session, user: senderUser });
+          replyText = menu.replyText;
+          trackRefer = menu.trackRefer;
+        } else {
+          const routed = await routeTurn({
+            prisma,
+            text: msgText,
+            session,
+            user: senderUser,
+            history,
+            complete: options.complete,
           });
-          if (referral && referral.count >= 3 && !referral.rewardClaimed) {
-            await prisma.referral.update({
-              where: { referrerId: senderUser.id },
-              data: { rewardClaimed: true },
-            });
-            replyText =
-              "✅ *Reward Claimed!*\n\n" +
-              "₦1,000 escrow credit has been added to your account. " +
-              "Use it on your next booking at Lodgist.\n\n" +
-              "Keep referring — more credits await! 🚀";
-          } else if (referral && referral.count < 3) {
-            replyText =
-              `📊 You've referred ${referral.count}/3 landlords. ` +
-              `Share Lodgist with ${3 - referral.count} more to earn ₦1,000!`;
+          if (routed.reply) {
+            replyText = routed.reply;
           } else {
-            replyText =
-              "No referrals found yet. Share Lodgist with 3 landlords to earn ₦1,000 escrow credit!";
+            const menu = await deterministicReply(prisma, { msgText, session, user: senderUser });
+            replyText = menu.replyText;
+            trackRefer = menu.trackRefer;
           }
-        } else if (
-          msgText.toLowerCase().includes("lagos") ||
-          msgText.toLowerCase().includes("abuja") ||
-          msgText.toLowerCase().includes("owerri") ||
-          msgText.toLowerCase().includes("portharcourt") ||
-          msgText.toLowerCase().includes("port harcourt")
-        ) {
-          const city = msgText.trim();
-          const cityPath = `/listings?search=${encodeURIComponent(city)}`;
-          replyText =
-            `Looking in ${city}.\n\n` +
-            `${visit(cityPath, "Open Lodgist and search that area.")}\n\n` +
-            "Homes appear there only after they are checked.";
         }
 
         if (
@@ -351,7 +259,7 @@ module.exports = function (prisma) {
         await prisma.whatsAppMessage.create({
           data: {
             sessionId: session.id,
-            senderId: senderUser.id,
+            senderId: senderUser ? senderUser.id : null,
             content: replyText,
             messageType: "TEXT",
             direction: "OUTBOUND",
@@ -359,14 +267,14 @@ module.exports = function (prisma) {
           },
         });
 
-        if (msgText.toLowerCase().includes("refer") || msgText.toLowerCase() === "4") {
+        if (trackRefer && senderUser) {
           await trackReferral(prisma, from, senderUser.id);
         }
       }
 
       return res.sendStatus(200);
     } catch (error) {
-      console.error("WhatsApp webhook error:", error);
+      logWhatsApp("error", "WhatsApp webhook error", error instanceof Error ? error.message : "");
       return res.sendStatus(200);
     }
   });
@@ -400,7 +308,7 @@ module.exports = function (prisma) {
       });
       res.json({ success: true, data: sessions });
     } catch (error) {
-      console.error("Error fetching sessions:", error);
+      logWhatsApp("error", "Error fetching sessions", error instanceof Error ? error.message : "");
       res.status(500).json({ success: false, error: error.message });
     }
   });
@@ -443,7 +351,7 @@ module.exports = function (prisma) {
 
       res.json({ success: true });
     } catch (error) {
-      console.error("Error sending WhatsApp message:", error);
+      logWhatsApp("error", "Error sending WhatsApp message", error instanceof Error ? error.message : "");
       res.status(500).json({ success: false, error: error.message });
     }
   });

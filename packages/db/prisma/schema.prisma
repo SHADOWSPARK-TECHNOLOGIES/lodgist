@@ -358,15 +358,19 @@ model TruthIndexScore {
 
 model WhatsAppSession {
   id          String           @id @default(cuid())
-  userId      Int
-  user        User             @relation("UserWhatsappSessions", fields: [userId], references: [id])
-  contactId   Int
-  contact     User             @relation("ContactWhatsappSessions", fields: [contactId], references: [id])
+  // Null for unknown WhatsApp senders. Leads are stored on `phone` until they
+  // have a User row. Do not invent a User to satisfy this relation.
+  userId      Int?
+  user        User?            @relation("UserWhatsappSessions", fields: [userId], references: [id])
+  contactId   Int?
+  contact     User?            @relation("ContactWhatsappSessions", fields: [contactId], references: [id])
+  phone       String?
   listingId   Int?
   listing     Listing?         @relation(fields: [listingId], references: [id])
   contactName String?
   platform    String           @default("whatsapp")
   isActive    Boolean          @default(true)
+  handoffRequested Boolean     @default(false)
   messages    WhatsAppMessage[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -374,14 +378,15 @@ model WhatsAppSession {
   @@index([userId])
   @@index([contactId])
   @@index([listingId])
+  @@index([phone])
 }
 
 model WhatsAppMessage {
   id        Int              @id @default(autoincrement())
   sessionId String
   session   WhatsAppSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  senderId  Int
-  sender    User             @relation("SenderMessages", fields: [senderId], references: [id])
+  senderId  Int?
+  sender    User?            @relation("SenderMessages", fields: [senderId], references: [id])
   content   String
   messageType String         @default("TEXT") // TEXT, IMAGE, DOCUMENT, LOCATION
   direction   String         @default("INBOUND") // INBOUND, OUTBOUND
