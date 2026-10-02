@@ -593,6 +593,113 @@ function listingsRouter(prisma) {
     }
   });
 
+  // ─── GET/PATCH viewing-requests — advertiser response ─────────────────────
+  // Owner (or studio admin) lists and answers an existing request.
+  // accept → SCHEDULED, decline → CANCELLED. Does not change listing
+  // status, reviewStatus, or verification. Notes stay off the response
+  // because they can carry a phone number.
+  async function loadOwnedListing(req, res) {
+    if (!/^[1-9][0-9]*$/.test(req.params.id || "")) {
+      res.status(400).json({ success: false, error: "Invalid listing ID" });
+      return null;
+    }
+    const listingId = Number(req.params.id);
+    const listing = await prisma.listing.findUnique({
+      where: { id: listingId },
+      select: { id: true, ownerId: true, status: true, reviewStatus: true },
+    });
+    if (!listing) {
+      res.status(404).json({ success: false, error: "Listing not found" });
+      return null;
+    }
+    const isAdmin = req.user.role === "STUDIO_ADMIN";
+    if (!isAdmin && listing.ownerId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        error: "Only the listing advertiser can manage these viewing requests.",
+      });
+      return null;
+    }
+    return listing;
+  }
+
+  router.get("/:id/viewing-requests", requireAuth, async (req, res) => {
+    try {
+      const listing = await loadOwnedListing(req, res);
+      if (!listing) return;
+      const rows = await prisma.viewingRequest.findMany({
+        where: { listingId: listing.id },
+        orderBy: { createdAt: "desc" },
+      });
+      return res.json({
+        success: true,
+        data: rows.map(publicViewing),
+      });
+    } catch (error) {
+      logger.error("Error listing viewing requests", {
+        code: error.code || error.name,
+        message: error.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: "We could not load viewing requests. Try again.",
+      });
+    }
+  });
+
+  router.patch("/:id/viewing-requests/:requestId", requireAuth, async (req, res) => {
+    const decision = req.body && req.body.decision;
+    if (decision !== "accept" && decision !== "decline") {
+      return res.status(400).json({
+        success: false,
+        error: "decision must be accept or decline.",
+      });
+    }
+    if (!/^[1-9][0-9]*$/.test(req.params.requestId || "")) {
+      return res.status(400).json({ success: false, error: "Invalid viewing request ID" });
+    }
+    const requestId = Number(req.params.requestId);
+    try {
+      const listing = await loadOwnedListing(req, res);
+      if (!listing) return;
+      const row = await prisma.viewingRequest.findFirst({
+        where: { id: requestId, listingId: listing.id },
+      });
+      if (!row) {
+        return res.status(404).json({ success: false, error: "Viewing request not found" });
+      }
+      if (row.status !== "REQUESTED") {
+        return res.status(409).json({
+          success: false,
+          error: "This viewing request was already answered.",
+          data: publicViewing(row),
+        });
+      }
+      const updated = await prisma.viewingRequest.update({
+        where: { id: row.id },
+        data: decision === "accept"
+          ? { status: "SCHEDULED", scheduledAt: row.preferredDate }
+          : { status: "CANCELLED" },
+      });
+      logger.info("Viewing request answered", {
+        viewingRequestId: updated.id,
+        listingId: listing.id,
+        decision,
+        status: updated.status,
+      });
+      return res.json({ success: true, data: publicViewing(updated) });
+    } catch (error) {
+      logger.error("Error answering viewing request", {
+        code: error.code || error.name,
+        message: error.message,
+      });
+      return res.status(500).json({
+        success: false,
+        error: "We could not save this response. Try again.",
+      });
+    }
+  });
+
   // ─── POST /api/listings — Auth required, create listing ───────────────────
   router.post("/", requireAuth, async (req, res) => {
     try {
