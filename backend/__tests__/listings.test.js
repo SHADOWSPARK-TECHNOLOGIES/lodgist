@@ -314,6 +314,37 @@ function browsePrisma() {
   return { prisma, seen };
 }
 
+const PUBLIC_RISK_FILTER = { OR: [{ riskState: { equals: null } }, { riskState: "VERIFIED" }] };
+
+// Mirrors Prisma 7.8 enum validation for this field. The generated client
+// throws these before the query is sent, which is what 500s public browse.
+function rejectInvalidRiskStateWhere(where) {
+  const walk = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) {
+      node.forEach(walk);
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(node, "riskState")) {
+      const value = node.riskState;
+      if (value === null) {
+        const err = new Error("Argument `riskState` is missing.");
+        err.name = "PrismaClientValidationError";
+        throw err;
+      }
+      if (value && typeof value === "object" && Array.isArray(value.in) && value.in.some((item) => item == null)) {
+        const err = new Error(
+          "Argument `in`: Invalid value provided. Expected ListEnumRiskStateFieldRefInput or Null, provided (Null, String).",
+        );
+        err.name = "PrismaClientValidationError";
+        throw err;
+      }
+    }
+    for (const value of Object.values(node)) walk(value);
+  };
+  walk(where);
+}
+
 test("GET /api/listings defaults anonymous browse to verified, non-sample homes", async () => {
   const { prisma, seen } = browsePrisma();
   const server = await listen(buildApp(prisma));
@@ -323,11 +354,111 @@ test("GET /api/listings defaults anonymous browse to verified, non-sample homes"
     const body = await res.json();
     assert.equal(res.status, 200);
     assert.equal(seen.args.where.status, "VERIFIED");
-    assert.deepEqual(seen.args.where.AND, [{ OR: [{ riskState: null }, { riskState: "VERIFIED" }] }]);
+    assert.deepEqual(seen.args.where.AND, [PUBLIC_RISK_FILTER]);
+    rejectInvalidRiskStateWhere(seen.args.where);
     assert.deepEqual(body.data.map((row) => row.id), [1]);
     assert.equal(JSON.stringify(body).includes("Sample flat"), false);
   } finally {
     server.close();
+  }
+});
+
+test("GET /api/listings builds a public query that keeps null riskState rows", async () => {
+  let seen;
+  const rows = [
+    {
+      id: 11,
+      title: "Unscored verified flat",
+      status: "VERIFIED",
+      riskState: null,
+      totalMoveInCost: { total: 1000 },
+      images: [],
+      property: { city: "Owerri", state: "Imo" },
+      owner: { id: 1, name: "Ada", truthIndex: 0 },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+    {
+      id: 12,
+      title: "Sample unscored flat",
+      status: "VERIFIED",
+      riskState: null,
+      totalMoveInCost: { sample: true, total: 1 },
+      images: [],
+      property: { city: "Owerri", state: "Imo" },
+      owner: { id: 1, name: "Ada", truthIndex: 0 },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+  ];
+  const prisma = {
+    listing: {
+      count: async (args) => {
+        rejectInvalidRiskStateWhere(args.where);
+        return rows.length;
+      },
+      findMany: async (args) => {
+        seen = args;
+        rejectInvalidRiskStateWhere(args.where);
+        return rows;
+      },
+    },
+    review: { groupBy: async () => [] },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.success, true);
+    assert.equal(seen.where.status, "VERIFIED");
+    assert.deepEqual(seen.where.AND, [PUBLIC_RISK_FILTER]);
+    assert.deepEqual(body.data.map((row) => row.id), [11]);
+    assert.equal(body.data[0].riskState, null);
+    assert.equal(JSON.stringify(body).includes("Sample unscored flat"), false);
+  } finally {
+    server.close();
+  }
+});
+
+test("public browse riskState filter is accepted by the Prisma 7.8 client", async () => {
+  const where = {};
+  listingsRouter.applyPublicBrowseFilter(where, undefined, undefined);
+  assert.equal(where.status, "VERIFIED");
+  assert.deepEqual(where.AND, [PUBLIC_RISK_FILTER]);
+  rejectInvalidRiskStateWhere(where);
+
+  let PrismaClient;
+  let PrismaPg;
+  let pg;
+  try {
+    ({ PrismaClient } = require("../../packages/db/node_modules/@prisma/client"));
+    ({ PrismaPg } = require("../../packages/db/node_modules/@prisma/adapter-pg"));
+    pg = require("../../packages/db/node_modules/pg");
+  } catch {
+    return;
+  }
+
+  const pool = new pg.Pool({
+    host: "127.0.0.1",
+    port: 1,
+    database: "db",
+    user: "u",
+    password: "p",
+    connectionTimeoutMillis: 200,
+    max: 1,
+  });
+  const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+  try {
+    await prisma.listing.findMany({ where, take: 1 });
+    assert.fail("expected the unreachable database, not a skipped query");
+  } catch (error) {
+    assert.notEqual(error.name, "PrismaClientValidationError", error.message);
+    assert.match(error.message, /Can't reach database server/);
+  } finally {
+    await prisma.$disconnect();
+    await pool.end();
   }
 });
 

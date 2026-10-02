@@ -178,7 +178,10 @@ model Listing {
   views           Int              @default(0)
   isFlaggedForFraud Boolean         @default(false)
   fraudReason       String?
-  riskState         RiskState       @default(UNVERIFIED)
+  // Nullable so public browse can match unscored rows (IS NULL) or VERIFIED.
+  // A required enum makes Prisma 7.8 throw PrismaClientValidationError
+  // ("Argument `riskState` is missing") for `{ riskState: null }`.
+  riskState         RiskState?      @default(UNVERIFIED)
   truthIndex        Int?
 
   // Nigerian real estate metadata
