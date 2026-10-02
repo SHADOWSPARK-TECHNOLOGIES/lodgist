@@ -652,3 +652,19 @@ model AdminAction {
   @@index([adminId])
   @@index([targetListingId])
 }
+
+// Anonymous demand when browse/search has no verified match.
+// This does not create a listing and does not change Listing.status.
+model Lead {
+  id              Int      @id @default(autoincrement())
+  location        String
+  budget          Float
+  bedrooms        Int
+  moveInTimeframe String
+  phone           String
+  email           String?
+  createdAt       DateTime @default(now())
+
+  @@index([phone])
+  @@index([createdAt])
+}

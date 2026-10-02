@@ -3,14 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { listingsApi } from '@/lib/api';
+import { bookingsApi, listingsApi } from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import RequestViewing from '@/components/ListingDetail/RequestViewing';
 import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
 import { decisionFacts, hasTrustScore } from '@/lib/listingHonesty';
+import { invoiceRequestMessage } from '@/lib/invoiceRequest';
 import { safeNextPath } from '@/lib/returnPath';
-import type { Listing } from '@/lib/types';
+import type { Listing, TenantBooking } from '@/lib/types';
 
 type MoveIn = {
   base_rent?: number;
@@ -44,6 +46,8 @@ export default function ListingDetailPage() {
   const [failed, setFailed] = useState(false);
   const [missing, setMissing] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const { user } = useAuth();
+  const [invoiceBooking, setInvoiceBooking] = useState<TenantBooking | null>(null);
 
   useEffect(() => {
     if (!Number.isFinite(id)) {
@@ -65,6 +69,22 @@ export default function ListingDetailPage() {
       })
       .finally(() => setLoading(false));
   }, [id, reloadKey]);
+
+  useEffect(() => {
+    if (!user || !listing) {
+      setInvoiceBooking(null);
+      return;
+    }
+    let cancelled = false;
+    bookingsApi.mine()
+      .then((res) => {
+        if (cancelled) return;
+        const match = (res.data ?? []).find((row) => row.listingId === listing.id && row.status !== "CANCELLED");
+        setInvoiceBooking(match ?? null);
+      })
+      .catch(() => { if (!cancelled) setInvoiceBooking(null); });
+    return () => { cancelled = true; };
+  }, [user, listing]);
 
   if (loading) {
     return (
@@ -96,6 +116,13 @@ export default function ListingDetailPage() {
   const canRequest = facts.verified && listing.isFlaggedForFraud !== true;
   const returnTo = safeNextPath(`/listings/${listing.id}`) || '/listings';
   const loginHref = `/login?next=${encodeURIComponent(returnTo)}`;
+  const invoiceHref = invoiceBooking
+    ? supportWhatsAppLink(invoiceRequestMessage({
+        bookingId: invoiceBooking.id,
+        listing: homeLabel,
+        amount: typeof invoiceBooking.totalAmount === "number" ? invoiceBooking.totalAmount : listing.price,
+      }))
+    : null;
 
   return (
     <div className="container py-8 max-w-3xl">
@@ -170,6 +197,13 @@ export default function ListingDetailPage() {
         <RequestViewing listingId={listing.id} loginHref={loginHref} askHref={askHref} />
       ) : (
         <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.viewingClosed}</p>
+      )}
+
+      {invoiceHref && (
+        <div className="mb-4">
+          <a className="btn btn-secondary" href={invoiceHref} target="_blank" rel="noopener noreferrer">{detail.askInvoice}</a>
+          <p className="text-sm mt-2" style={{ color: 'rgba(255,255,255,0.55)' }}>{detail.askInvoiceNote}</p>
+        </div>
       )}
 
       <div className="flex flex-col sm:flex-row gap-3">

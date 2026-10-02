@@ -1,7 +1,10 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const express = require("express");
+const jwt = require("jsonwebtoken");
 const listingsRouter = require("../src/routes/listings");
+
+process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
 function buildApp(prisma) {
   const app = express();
@@ -266,6 +269,82 @@ test("GET /api/listings never selects exact location fields", async () => {
     const { port } = server.address();
     await fetch(`http://127.0.0.1:${port}/api/listings`);
     for (const key of EXACT_KEYS) assert.equal(seen.select.property.select[key], undefined);
+  } finally {
+    server.close();
+  }
+});
+
+function browsePrisma() {
+  const seen = {};
+  const prisma = {
+    listing: {
+      count: async () => 2,
+      findMany: async (args) => {
+        seen.args = args;
+        return [
+          {
+            id: 1,
+            title: "Checked flat",
+            status: "VERIFIED",
+            riskState: "VERIFIED",
+            totalMoveInCost: { total: 1000 },
+            images: [],
+            property: { city: "Owerri", state: "Imo" },
+            owner: { id: 1, name: "Ada", truthIndex: 80 },
+            fraudSignals: [],
+            _count: { reviews: 0, bookings: 0 },
+          },
+          {
+            id: 2,
+            title: "Sample flat",
+            status: "VERIFIED",
+            riskState: "VERIFIED",
+            totalMoveInCost: { sample: true, total: 1 },
+            images: [],
+            property: { city: "Owerri", state: "Imo" },
+            owner: { id: 1, name: "Ada", truthIndex: 0 },
+            fraudSignals: [],
+            _count: { reviews: 0, bookings: 0 },
+          },
+        ];
+      },
+    },
+    review: { groupBy: async () => [] },
+  };
+  return { prisma, seen };
+}
+
+test("GET /api/listings defaults anonymous browse to verified, non-sample homes", async () => {
+  const { prisma, seen } = browsePrisma();
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings?status=PENDING`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(seen.args.where.status, "VERIFIED");
+    assert.deepEqual(seen.args.where.AND, [{ OR: [{ riskState: null }, { riskState: "VERIFIED" }] }]);
+    assert.deepEqual(body.data.map((row) => row.id), [1]);
+    assert.equal(JSON.stringify(body).includes("Sample flat"), false);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings lets an admin request a non-verified status", async () => {
+  const { prisma, seen } = browsePrisma();
+  const token = jwt.sign({ id: 9, email: "admin@example.com", name: "Admin", role: "STUDIO_ADMIN" }, process.env.JWT_SECRET);
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings?status=PENDING`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(seen.args.where.status, "PENDING");
+    assert.equal(seen.args.where.AND, undefined);
+    assert.deepEqual(body.data.map((row) => row.id), [1, 2]);
   } finally {
     server.close();
   }

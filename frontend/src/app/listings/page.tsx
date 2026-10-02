@@ -6,6 +6,7 @@ import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
 import { formatYearlyRent, listings as copy, supportWhatsAppLink } from '@/lib/copy';
 import { hasTrustScore, isExampleListing, publicListings } from '@/lib/listingHonesty';
+import LeadCapture from '@/components/LeadCapture';
 import type { Listing } from '@/lib/types';
 
 export default function ListingsPage() {
@@ -74,6 +75,7 @@ export default function ListingsPage() {
             <h2 className="font-poppins font-semibold text-white text-lg mb-2">{search || maxRent ? copy.searchEmptyTitle : copy.emptyTitle}</h2>
             <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.5)' }}>{search || maxRent ? copy.searchEmptyBody : copy.emptyBody}</p>
             {!search && !maxRent && <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.elsewhere}</p>}
+            <LeadCapture initialLocation={search} initialBudget={maxRent} />
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               {askHref ? <a href={askHref} className="btn btn-primary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a> : <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.whatsAppMissing}</p>}
               <Link href="/register" className="btn btn-secondary">{copy.listCta}</Link>
