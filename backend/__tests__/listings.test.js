@@ -66,6 +66,7 @@ test("GET /api/listings returns a listing without database internals", async () 
       findMany: async (args) => {
         assert.equal(args.select.riskState, true);
         assert.equal(args.select.truthIndex, true);
+        assert.equal(args.select.reviewStatus, true);
         assert.equal(args.select.owner.select.email, undefined);
         return [{
           id: 7,
@@ -403,11 +404,14 @@ test("GET /api/listings returns eligible pending homes and hides samples", async
     const pending = body.data.find((row) => row.id === 3);
     assert.equal(pending.status, "PENDING");
     assert.equal(pending.verificationLabel, "Not verified by Lodgist");
+    assert.equal(pending.reviewLabel, "Not reviewed by Lodgist");
+    assert.equal(pending.reviewStatus, "NOT_REVIEWED");
     assert.equal(pending.sourceLabel, "Direct submission");
     assert.equal(pending.actions.enquiry, true);
     assert.equal(pending.actions.viewing, false);
     const verified = body.data.find((row) => row.id === 1);
-    assert.equal(verified.verificationLabel, "Verified by Lodgist");
+    assert.equal(verified.verificationLabel, "Not verified by Lodgist");
+    assert.equal(verified.reviewLabel, "Not reviewed by Lodgist");
     assert.equal(verified.actions.viewing, true);
   } finally {
     server.close();
@@ -712,6 +716,8 @@ test("GET /api/listings/:id returns a non-sample pending home with a not-verifie
     assert.equal(res.status, 200);
     assert.equal(body.data.status, "PENDING");
     assert.equal(body.data.verificationLabel, "Not verified by Lodgist");
+    assert.equal(body.data.reviewLabel, "Not reviewed by Lodgist");
+    assert.equal(body.data.reviewStatus, "NOT_REVIEWED");
     assert.equal(body.data.sourceLabel, "Direct submission");
     assert.equal(body.data.actions.enquiry, true);
     assert.equal(body.data.actions.viewing, false);
@@ -747,6 +753,41 @@ test("GET /api/listings/:id hides sample listings from anonymous discovery", asy
     assert.equal(res.status, 404);
     assert.equal(body.error, "Listing not found");
     assert.equal(JSON.stringify(body).includes("Sample flat"), false);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings/:id can be Lodgist-reviewed without a verified badge", async () => {
+  const prisma = {
+    listing: {
+      findUnique: async () => ({
+        id: 8,
+        title: "Reviewed flat",
+        status: "VERIFIED",
+        riskState: "VERIFIED",
+        reviewStatus: "APPROVED",
+        isFlaggedForFraud: false,
+        price: 800000,
+        images: [],
+        property: null,
+        owner: { id: 1, name: "Ada", truthIndex: 0, isVerified: false },
+        fraudSignals: [],
+        _count: { reviews: 0, bookings: 0 },
+      }),
+    },
+    review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings/8`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.data.reviewStatus, "APPROVED");
+    assert.equal(body.data.reviewLabel, "Lodgist-reviewed");
+    assert.equal(body.data.verificationLabel, "Not verified by Lodgist");
+    assert.equal(body.data.actions.viewing, true);
   } finally {
     server.close();
   }

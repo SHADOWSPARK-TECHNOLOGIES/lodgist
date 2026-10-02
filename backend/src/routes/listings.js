@@ -32,6 +32,7 @@ const LISTING_PUBLIC_SELECT = {
   serviceCharge: true,
   riskState: true,
   truthIndex: true,
+  reviewStatus: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -91,8 +92,9 @@ const PUBLIC_LISTING_STATUSES = ["PENDING", "VERIFIED"];
 const ELIGIBLE_RISK_STATES = ["UNVERIFIED", "UNDER_REVIEW", "VERIFIED"];
 const BLOCKED_RISK_STATES = new Set(["FLAGGED", "SUSPENDED"]);
 const NOT_VERIFIED_LABEL = "Not verified by Lodgist";
-const VERIFIED_LABEL = "Verified by Lodgist";
 const DIRECT_SOURCE_LABEL = "Direct submission";
+const REVIEWED_LABEL = "Lodgist-reviewed";
+const NOT_REVIEWED_LABEL = "Not reviewed by Lodgist";
 
 function explicitListingStatus(statusQuery) {
   return typeof statusQuery === "string" && LISTING_STATUSES.has(statusQuery) ? statusQuery : null;
@@ -103,13 +105,14 @@ function isExampleListing(listing) {
   return Boolean(cost && typeof cost === "object" && !Array.isArray(cost) && cost.sample === true);
 }
 
-function isEvidenceVerified(listing) {
-  if (!listing || isExampleListing(listing)) return false;
-  if (listing.isFlaggedForFraud === true) return false;
-  if (listing.status !== "VERIFIED") return false;
-  if (BLOCKED_RISK_STATES.has(listing.riskState)) return false;
-  if (listing.riskState === "UNVERIFIED" || listing.riskState === "UNDER_REVIEW") return false;
-  return listing.riskState == null || listing.riskState === "VERIFIED";
+// Review and verification are different. status VERIFIED, riskState VERIFIED,
+// reviewStatus APPROVED, and a successful payment are not completed checks.
+function isEvidenceVerified() {
+  return false;
+}
+
+function reviewLabelFor(listing) {
+  return listing && listing.reviewStatus === "APPROVED" ? REVIEWED_LABEL : NOT_REVIEWED_LABEL;
 }
 
 function isEligiblePublicListing(listing) {
@@ -126,7 +129,9 @@ function isEligiblePublicListing(listing) {
 function publicDiscovery(listing) {
   const example = isExampleListing(listing);
   return {
-    verificationLabel: isEvidenceVerified(listing) ? VERIFIED_LABEL : NOT_VERIFIED_LABEL,
+    reviewStatus: listing && listing.reviewStatus === "APPROVED" ? "APPROVED" : "NOT_REVIEWED",
+    reviewLabel: reviewLabelFor(listing),
+    verificationLabel: isEvidenceVerified(listing) ? "Verified by Lodgist" : NOT_VERIFIED_LABEL,
     sourceLabel: DIRECT_SOURCE_LABEL,
     actions: {
       enquiry: !example,
@@ -614,6 +619,7 @@ function listingsRouter(prisma) {
           ...(category && { category }),
           ...(currency && { currency }),
           ...(totalMoveInCost && { totalMoveInCost }),
+          reviewStatus: "NOT_REVIEWED",
         },
         include: {
           images: { select: { url: true, altText: true, isPrimary: true } },

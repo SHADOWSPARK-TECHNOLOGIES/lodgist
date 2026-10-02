@@ -70,6 +70,8 @@ export interface Listing {
   isFlaggedForFraud?: boolean;
   riskState?: string | null;
   truthIndex?: number | null;
+  reviewStatus?: "NOT_REVIEWED" | "APPROVED";
+  reviewLabel?: string;
   verificationLabel?: string;
   sourceLabel?: string;
   source?: string | null;
