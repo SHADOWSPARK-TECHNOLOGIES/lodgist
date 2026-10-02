@@ -9,7 +9,7 @@ import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import RequestViewing from '@/components/ListingDetail/RequestViewing';
 import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
-import { decisionFacts, hasTrustScore } from '@/lib/listingHonesty';
+import { canRequestViewing, decisionFacts, hasTrustScore, sourceLabel, verificationLabel, isEvidenceVerified } from '@/lib/listingHonesty';
 import { invoiceRequestMessage } from '@/lib/invoiceRequest';
 import { safeNextPath } from '@/lib/returnPath';
 import type { Listing, TenantBooking } from '@/lib/types';
@@ -113,7 +113,7 @@ export default function ListingDetailPage() {
   const askHref = supportWhatsAppLink(`Home: ${homeLabel}`);
   const inspectHref = supportWhatsAppLink(`I want to inspect this home before I pay: ${homeLabel}`);
   const reportHref = supportWhatsAppLink(`Home: ${homeLabel}. Report: this listing needs a second look.`);
-  const canRequest = facts.verified && listing.isFlaggedForFraud !== true;
+  const canRequest = canRequestViewing(listing);
   const returnTo = safeNextPath(`/listings/${listing.id}`) || '/listings';
   const loginHref = `/login?next=${encodeURIComponent(returnTo)}`;
   const invoiceHref = invoiceBooking
@@ -129,10 +129,12 @@ export default function ListingDetailPage() {
       <Link href="/listings" className="nav-link text-sm">{detail.back}</Link>
       <h1 className="font-poppins font-bold text-white text-2xl mt-4 mb-1">{listing.title}</h1>
       {place && <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.55)' }}>{place}</p>}
-      {(facts.example || !facts.verified) && (
-        <p className="text-sm mt-3" style={{ color: 'var(--color-orange)' }}>
-          {facts.example ? detail.sampleTitle : detail.unverified}
-        </p>
+      <p className="text-sm mt-3" style={{ color: isEvidenceVerified(listing) ? 'var(--color-teal)' : 'var(--color-orange)' }}>
+        {verificationLabel(listing)}
+      </p>
+      <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.source}: {sourceLabel(listing)}</p>
+      {facts.example && (
+        <p className="text-sm mt-2" style={{ color: 'var(--color-orange)' }}>{detail.sampleTitle}</p>
       )}
 
       <div className="h-56 rounded-xl mt-6 mb-6 flex items-center justify-center overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>

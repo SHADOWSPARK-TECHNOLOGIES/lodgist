@@ -3,7 +3,7 @@ const { requireAuth, requireRole } = require("../middleware/auth");
 const logger = require("../utils/logger");
 
 const LEAD_SAVED_MESSAGE =
-  "No verified match yet. Your request is saved. We will notify you when a checked home is available.";
+  "No matching homes yet. Your request is saved. We will notify you when a home matches. This is not a promise of a specific home.";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

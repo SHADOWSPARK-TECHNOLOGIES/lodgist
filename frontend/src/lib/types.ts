@@ -70,6 +70,11 @@ export interface Listing {
   isFlaggedForFraud?: boolean;
   riskState?: string | null;
   truthIndex?: number | null;
+  verificationLabel?: string;
+  sourceLabel?: string;
+  source?: string | null;
+  sourceChannel?: string | null;
+  actions?: { enquiry: boolean; viewing: boolean };
   totalMoveInCost?: { total?: number; sample?: boolean } | null;
   beds: number | null;
   baths: number | null;
