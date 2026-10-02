@@ -31,6 +31,9 @@ export default function HomePage() {
             <Link href="/listings" className="btn btn-primary btn-lg">{home.browseCta}</Link>
             <Link href="/advertise" className="btn btn-secondary btn-lg">{home.listCta}</Link>
           </div>
+          <p className="mt-6 text-sm">
+            <Link href="/nekede" style={{ color: 'var(--color-teal)' }}>Nekede: no reviewed room yet</Link>
+          </p>
         </div>
       </section>
 
