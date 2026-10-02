@@ -49,6 +49,12 @@ test("GET /api/listings returns a listing without database internals", async () 
       findMany: async (args) => {
         assert.equal(args.select.riskState, true);
         assert.equal(args.select.truthIndex, true);
+        assert.equal(args.select.origin, true);
+        assert.equal(args.select.publication, true);
+        assert.equal(args.select.availability, true);
+        assert.equal(args.select.verification, true);
+        assert.equal(args.select.locationPrecision, true);
+        assert.equal(args.select.actionEligibility, true);
         assert.equal(args.select.owner.select.email, undefined);
         return [{
           id: 7,
@@ -388,8 +394,16 @@ test("GET /api/listings returns eligible pending homes and hides samples", async
     assert.equal(pending.sourceLabel, "Direct submission");
     assert.equal(pending.actions.enquiry, true);
     assert.equal(pending.actions.viewing, false);
+    assert.equal(pending.state.publication, "PUBLISHED");
+    assert.equal(pending.state.verification, "NOT_CHECKED");
+    assert.equal(pending.state.availability, "UNKNOWN");
+    assert.equal(pending.state.locationPrecision, "UNKNOWN");
+    assert.equal(pending.state.actionEligibility, "ENQUIRY");
+    assert.equal(pending.state.labels.verification, "Not checked");
     const verified = body.data.find((row) => row.id === 1);
-    assert.equal(verified.verificationLabel, "Verified by Lodgist");
+    assert.equal(verified.verificationLabel, "Not verified by Lodgist");
+    assert.equal(verified.state.verification, "NOT_CHECKED");
+    assert.equal(verified.state.actionEligibility, "VIEWING_REQUEST");
     assert.equal(verified.actions.viewing, true);
   } finally {
     server.close();
@@ -548,6 +562,13 @@ test("GET /api/listings/:id returns a non-sample pending home with a not-verifie
     assert.equal(body.data.sourceLabel, "Direct submission");
     assert.equal(body.data.actions.enquiry, true);
     assert.equal(body.data.actions.viewing, false);
+    assert.equal(body.data.state.origin, "DIRECT_SUBMISSION");
+    assert.equal(body.data.state.publication, "PUBLISHED");
+    assert.equal(body.data.state.availability, "UNKNOWN");
+    assert.equal(body.data.state.verification, "NOT_CHECKED");
+    assert.equal(body.data.state.locationPrecision, "UNKNOWN");
+    assert.equal(body.data.state.actionEligibility, "ENQUIRY");
+    assert.equal(body.data.state.labels.publication, "Published");
   } finally {
     server.close();
   }
@@ -580,6 +601,91 @@ test("GET /api/listings/:id hides sample listings from anonymous discovery", asy
     assert.equal(res.status, 404);
     assert.equal(body.error, "Listing not found");
     assert.equal(JSON.stringify(body).includes("Sample flat"), false);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings/:id exposes stored dimensions without promoting verification", async () => {
+  const prisma = {
+    listing: {
+      findUnique: async () => ({
+        id: 8,
+        title: "Checked on file",
+        status: "VERIFIED",
+        riskState: "VERIFIED",
+        isFlaggedForFraud: false,
+        origin: "DIRECT_SUBMISSION",
+        publication: "PUBLISHED",
+        availability: "UNKNOWN",
+        verification: "CHECKS_COMPLETED",
+        locationPrecision: "APPROXIMATE",
+        actionEligibility: "VIEWING_REQUEST",
+        price: 800000,
+        totalMoveInCost: { total: 800000 },
+        images: [],
+        property: { city: "Owerri", state: "Imo", latitude: 5.48, longitude: 7.03 },
+        owner: { id: 1, name: "Ada", truthIndex: 0, isVerified: false },
+        fraudSignals: [],
+        _count: { reviews: 0, bookings: 0 },
+      }),
+    },
+    review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings/8`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.data.verificationLabel, "Verified by Lodgist");
+    assert.equal(body.data.state.verification, "CHECKS_COMPLETED");
+    assert.equal(body.data.state.labels.verification, "Checks completed");
+    assert.equal(body.data.state.availability, "UNKNOWN");
+    assert.equal(body.data.state.labels.availability, "Unknown");
+    assert.equal(body.data.state.locationPrecision, "APPROXIMATE");
+    assert.equal(body.data.actions.viewing, true);
+    assert.equal(body.data.actions.enquiry, true);
+    assert.equal(body.data.property.latitude, undefined);
+    assert.equal(body.data.property.longitude, undefined);
+    assert.ok(body.data.approxLocation);
+  } finally {
+    server.close();
+  }
+});
+
+test("GET /api/listings/:id keeps viewing closed when eligibility is enquiry", async () => {
+  const prisma = {
+    listing: {
+      findUnique: async () => ({
+        id: 9,
+        title: "Published unverified",
+        status: "VERIFIED",
+        riskState: "VERIFIED",
+        isFlaggedForFraud: false,
+        actionEligibility: "ENQUIRY",
+        verification: "NOT_CHECKED",
+        price: 500000,
+        images: [],
+        property: null,
+        owner: { id: 1, name: "Ada", truthIndex: 0, isVerified: false },
+        fraudSignals: [],
+        _count: { reviews: 0, bookings: 0 },
+      }),
+    },
+    review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings/9`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(body.data.verificationLabel, "Not verified by Lodgist");
+    assert.equal(body.data.state.actionEligibility, "ENQUIRY");
+    assert.equal(body.data.actions.viewing, false);
+    assert.equal(body.data.actions.enquiry, true);
+    assert.equal(body.data.state.publication, "PUBLISHED");
   } finally {
     server.close();
   }

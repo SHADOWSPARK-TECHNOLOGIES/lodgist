@@ -5,6 +5,8 @@ const {
   hasTrustScore,
   isEvidenceVerified,
   isPublicListing,
+  listingDimensions,
+  dimensionRows,
   verificationLabel,
   sourceLabel,
   canRequestViewing,
@@ -25,7 +27,14 @@ test("a zero trust index is not a score", () => {
 });
 
 test("default browse keeps eligible pending and verified homes and drops samples", () => {
-  const verified = { id: 1, status: "VERIFIED", riskState: "VERIFIED", price: 900000 };
+  const verified = {
+    id: 1,
+    status: "VERIFIED",
+    riskState: "VERIFIED",
+    verification: "CHECKS_COMPLETED",
+    actionEligibility: "VIEWING_REQUEST",
+    price: 900000,
+  };
   const pending = { id: 2, status: "PENDING", riskState: "UNVERIFIED", price: 500000 };
   const sample = { id: 3, status: "PENDING", riskState: "UNVERIFIED", totalMoveInCost: { sample: true, total: 1 } };
   const flagged = { id: 4, status: "VERIFIED", riskState: "FLAGGED" };
@@ -35,6 +44,7 @@ test("default browse keeps eligible pending and verified homes and drops samples
   assert.equal(isPublicListing(verified), true);
   assert.equal(isPublicListing(pending), true);
   assert.equal(isEvidenceVerified(pending), false);
+  assert.equal(isEvidenceVerified({ status: "VERIFIED", riskState: "VERIFIED" }), false);
   assert.equal(isEvidenceVerified(verified), true);
   assert.equal(isPublicListing(sample), false);
   assert.equal(isPublicListing(flagged), false);
@@ -75,9 +85,32 @@ test("a pending non-sample listing is labelled not verified and cannot request a
 });
 
 test("a verified listing does not invent a verification date or itemised checks", () => {
-  const facts = decisionFacts({ status: "VERIFIED", riskState: "VERIFIED", price: 800000 });
+  const facts = decisionFacts({
+    status: "VERIFIED",
+    riskState: "VERIFIED",
+    verification: "CHECKS_COMPLETED",
+    price: 800000,
+  });
   assert.equal(facts.verified, true);
   assert.match(facts.lastVerification, /date is not published/i);
   assert.equal(facts.completed.length, 1);
+  assert.match(facts.completed[0], /not published/i);
+  assert.equal(facts.completed[0].includes("Title document"), false);
   assert.deepEqual(facts.outstanding, ["Physical inspection before you pay"]);
+});
+
+test("old verified status stays not checked and does not hide the other dimensions", () => {
+  const listing = { status: "VERIFIED", riskState: "VERIFIED", price: 800000, availableFrom: "2026-10-01" };
+  const state = listingDimensions(listing);
+  assert.equal(verificationLabel(listing), "Not verified by Lodgist");
+  assert.equal(state.verification, "NOT_CHECKED");
+  assert.equal(state.availability, "UNKNOWN");
+  assert.equal(state.publication, "PUBLISHED");
+  assert.equal(state.origin, "DIRECT_SUBMISSION");
+  assert.equal(state.locationPrecision, "UNKNOWN");
+  assert.equal(state.actionEligibility, "VIEWING_REQUEST");
+  assert.equal(canRequestViewing(listing), true);
+  assert.equal(canRequestViewing({ ...listing, actionEligibility: "ENQUIRY" }), false);
+  const titles = dimensionRows(listing).map((row) => row.title);
+  assert.deepEqual(titles, ["Origin", "Publication", "Availability", "Verification", "Location", "What you can do"]);
 });

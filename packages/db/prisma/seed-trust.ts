@@ -71,6 +71,15 @@ async function seedListingWithTrust(
       status: ListingStatus.PENDING,
       riskState: listing.riskState,
       truthIndex: listing.truthIndex,
+      origin: "DIRECT_SUBMISSION",
+      publication:
+        listing.riskState === RiskState.FLAGGED || listing.riskState === RiskState.SUSPENDED
+          ? "SUSPENDED"
+          : "PUBLISHED",
+      availability: "UNKNOWN",
+      verification: listing.riskState === RiskState.UNDER_REVIEW ? "PENDING" : "NOT_CHECKED",
+      locationPrecision: "UNKNOWN",
+      actionEligibility: "ENQUIRY",
     },
   });
 

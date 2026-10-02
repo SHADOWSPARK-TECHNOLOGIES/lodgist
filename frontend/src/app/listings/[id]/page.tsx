@@ -10,6 +10,7 @@ import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import RequestViewing from '@/components/ListingDetail/RequestViewing';
 import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
 import { canRequestViewing, decisionFacts, hasTrustScore, sourceLabel, verificationLabel, isEvidenceVerified } from '@/lib/listingHonesty';
+import { ListingStateLabels } from '@/components/ListingStateLabels';
 import { invoiceRequestMessage } from '@/lib/invoiceRequest';
 import { safeNextPath } from '@/lib/returnPath';
 import type { Listing, TenantBooking } from '@/lib/types';
@@ -133,6 +134,7 @@ export default function ListingDetailPage() {
         {verificationLabel(listing)}
       </p>
       <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.source}: {sourceLabel(listing)}</p>
+      <ListingStateLabels listing={listing} />
       {facts.example && (
         <p className="text-sm mt-2" style={{ color: 'var(--color-orange)' }}>{detail.sampleTitle}</p>
       )}

@@ -285,6 +285,12 @@ async function main() {
         ownerId: prop.landlordId,
         totalMoveInCost: data.totalMoveInCost,
         views: Math.floor(Math.random() * 500) + 50,
+        origin: "DIRECT_SUBMISSION",
+        publication: "PUBLISHED",
+        availability: "UNKNOWN",
+        verification: "NOT_CHECKED",
+        locationPrecision: "UNKNOWN",
+        actionEligibility: data.status === ListingStatus.VERIFIED ? "VIEWING_REQUEST" : "ENQUIRY",
       },
     })
 

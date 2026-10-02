@@ -123,6 +123,23 @@ test("viewing request for a nonexistent listing is rejected", async () => {
   assert.equal(state.created, undefined);
 });
 
+test("viewing follows action eligibility when it is stored", async () => {
+  const enquiry = {
+    listings: [{ id: 10, status: "VERIFIED", isFlaggedForFraud: false, ownerId: 6, actionEligibility: "ENQUIRY" }],
+  };
+  const closed = await post(viewingPrisma(enquiry), "/api/listings/10/viewing-requests", TENANT, FUTURE);
+  assert.equal(closed.status, 403);
+  assert.equal(JSON.parse(closed.text).code, "listing_not_verified");
+  assert.equal(enquiry.created, undefined);
+
+  const open = {
+    listings: [{ id: 10, status: "PENDING", isFlaggedForFraud: false, ownerId: 6, actionEligibility: "VIEWING_REQUEST" }],
+  };
+  const res = await post(viewingPrisma(open), "/api/listings/10/viewing-requests", TENANT, FUTURE);
+  assert.equal(res.status, 201);
+  assert.equal(open.created.listingId, 10);
+});
+
 test("pending and fraud-flagged listings are not bookable for a viewing", async () => {
   for (const listing of [
     { id: 10, status: "PENDING", isFlaggedForFraud: false, ownerId: 6 },

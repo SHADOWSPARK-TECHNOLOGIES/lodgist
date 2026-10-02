@@ -60,6 +60,25 @@ export interface ListingImage {
   listingId: number;
 }
 
+export interface ListingStateLabels {
+  origin: string;
+  publication: string;
+  availability: string;
+  verification: string;
+  locationPrecision: string;
+  actionEligibility: string;
+}
+
+export interface ListingState {
+  origin: "DIRECT_SUBMISSION" | "AUTHORIZED_IMPORT" | "EXTERNAL_REFERENCE";
+  publication: "DRAFT" | "REVIEW" | "PUBLISHED" | "SUSPENDED" | "REMOVED";
+  availability: "UNKNOWN" | "REPORTED_AVAILABLE" | "RECENTLY_CONFIRMED" | "UNAVAILABLE" | "EXPIRED";
+  verification: "NOT_CHECKED" | "PENDING" | "PARTIALLY_CHECKED" | "CHECKS_COMPLETED" | "EXPIRED" | "REVOKED";
+  locationPrecision: "EXACT" | "APPROXIMATE" | "UNKNOWN";
+  actionEligibility: "SOURCE_LINK_ONLY" | "ENQUIRY" | "VIEWING_REQUEST";
+  labels: ListingStateLabels;
+}
+
 export interface Listing {
   id: number;
   title: string;
@@ -70,6 +89,13 @@ export interface Listing {
   isFlaggedForFraud?: boolean;
   riskState?: string | null;
   truthIndex?: number | null;
+  origin?: ListingState["origin"];
+  publication?: ListingState["publication"];
+  availability?: ListingState["availability"];
+  verification?: ListingState["verification"];
+  locationPrecision?: ListingState["locationPrecision"];
+  actionEligibility?: ListingState["actionEligibility"];
+  state?: ListingState;
   verificationLabel?: string;
   sourceLabel?: string;
   source?: string | null;

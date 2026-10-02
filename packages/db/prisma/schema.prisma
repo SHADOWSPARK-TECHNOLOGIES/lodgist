@@ -30,6 +30,52 @@ enum ListingStatus {
   ARCHIVED
 }
 
+// Separate from ListingStatus. A direct submission is the only origin we can
+// prove from rows that have no source column.
+enum ListingOrigin {
+  DIRECT_SUBMISSION
+  AUTHORIZED_IMPORT
+  EXTERNAL_REFERENCE
+}
+
+enum ListingPublication {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  SUSPENDED
+  REMOVED
+}
+
+enum ListingAvailability {
+  UNKNOWN
+  REPORTED_AVAILABLE
+  RECENTLY_CONFIRMED
+  UNAVAILABLE
+  EXPIRED
+}
+
+// Evidence state. ListingStatus.VERIFIED is not this enum.
+enum ListingVerification {
+  NOT_CHECKED
+  PENDING
+  PARTIALLY_CHECKED
+  CHECKS_COMPLETED
+  EXPIRED
+  REVOKED
+}
+
+enum ListingLocationPrecision {
+  EXACT
+  APPROXIMATE
+  UNKNOWN
+}
+
+enum ListingActionEligibility {
+  SOURCE_LINK_ONLY
+  ENQUIRY
+  VIEWING_REQUEST
+}
+
 enum BookingStatus {
   PENDING
   PENDING_VERIFICATION
@@ -183,6 +229,16 @@ model Listing {
   // ("Argument `riskState` is missing") for `{ riskState: null }`.
   riskState         RiskState?      @default(UNVERIFIED)
   truthIndex        Int?
+
+  // Listing-state dimensions. Independent of status and riskState so one
+  // badge cannot stand in for the others. Backfill never sets
+  // verification = CHECKS_COMPLETED or availability beyond UNKNOWN.
+  origin              ListingOrigin            @default(DIRECT_SUBMISSION)
+  publication         ListingPublication       @default(PUBLISHED)
+  availability        ListingAvailability      @default(UNKNOWN)
+  verification        ListingVerification      @default(NOT_CHECKED)
+  locationPrecision   ListingLocationPrecision @default(UNKNOWN)
+  actionEligibility   ListingActionEligibility @default(ENQUIRY)
 
   // Nigerian real estate metadata
   totalMoveInCost Json?            // { base_rent, agency_fee, legal_fee, caution_fee, inspection_fee?, currency, total }

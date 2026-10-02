@@ -1,5 +1,6 @@
 const { logWhatsApp } = require("./redact");
 const { listingsReply, welcomeReply } = require("./menu");
+const { allowsViewing } = require("../listingState");
 
 const LISTING_PROPERTY_SELECT = {
   city: true,
@@ -28,7 +29,7 @@ function publicListing(listing) {
 }
 
 function isShareable(listing) {
-  return Boolean(listing) && listing.status === "VERIFIED" && listing.isFlaggedForFraud !== true;
+  return allowsViewing(listing);
 }
 
 function parsePreferredDate(value) {

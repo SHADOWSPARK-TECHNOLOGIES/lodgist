@@ -6,6 +6,7 @@ import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
 import { formatYearlyRent, listings as copy, supportWhatsAppLink } from '@/lib/copy';
 import { hasTrustScore, isExampleListing, publicListings, sourceLabel, verificationLabel, isEvidenceVerified } from '@/lib/listingHonesty';
+import { ListingStateLabels } from '@/components/ListingStateLabels';
 import LeadCapture from '@/components/LeadCapture';
 import type { Listing } from '@/lib/types';
 
@@ -108,6 +109,7 @@ export default function ListingsPage() {
                       {verificationLabel(listing)}
                     </p>
                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{sourceLabel(listing)}</p>
+                    <ListingStateLabels listing={listing} />
                     {isExampleListing(listing) && (
                       <p className="text-xs mt-2" style={{ color: 'var(--color-teal)' }}>{copy.sampleBadge}</p>
                     )}

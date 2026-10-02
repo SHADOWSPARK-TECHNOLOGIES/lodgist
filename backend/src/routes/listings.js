@@ -1,6 +1,7 @@
 const express = require("express");
 const { analyzeListing } = require("../services/listingScamDetection");
-const { isShareable, parsePreferredDate } = require("../services/whatsapp/tools");
+const { parsePreferredDate } = require("../services/whatsapp/tools");
+const { allowsViewing, listingState } = require("../services/listingState");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const logger = require("../utils/logger");
 
@@ -32,6 +33,12 @@ const LISTING_PUBLIC_SELECT = {
   serviceCharge: true,
   riskState: true,
   truthIndex: true,
+  origin: true,
+  publication: true,
+  availability: true,
+  verification: true,
+  locationPrecision: true,
+  actionEligibility: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -91,7 +98,6 @@ const ELIGIBLE_RISK_STATES = ["UNVERIFIED", "UNDER_REVIEW", "VERIFIED"];
 const BLOCKED_RISK_STATES = new Set(["FLAGGED", "SUSPENDED"]);
 const NOT_VERIFIED_LABEL = "Not verified by Lodgist";
 const VERIFIED_LABEL = "Verified by Lodgist";
-const DIRECT_SOURCE_LABEL = "Direct submission";
 
 function explicitListingStatus(statusQuery) {
   return typeof statusQuery === "string" && LISTING_STATUSES.has(statusQuery) ? statusQuery : null;
@@ -105,10 +111,10 @@ function isExampleListing(listing) {
 function isEvidenceVerified(listing) {
   if (!listing || isExampleListing(listing)) return false;
   if (listing.isFlaggedForFraud === true) return false;
-  if (listing.status !== "VERIFIED") return false;
   if (BLOCKED_RISK_STATES.has(listing.riskState)) return false;
-  if (listing.riskState === "UNVERIFIED" || listing.riskState === "UNDER_REVIEW") return false;
-  return listing.riskState == null || listing.riskState === "VERIFIED";
+  // Checks completed is the only evidence state. status VERIFIED is not.
+  const verification = listing.verification || (listing.state && listing.state.verification);
+  return verification === "CHECKS_COMPLETED";
 }
 
 function isEligiblePublicListing(listing) {
@@ -120,17 +126,18 @@ function isEligiblePublicListing(listing) {
   return true;
 }
 
-// Listing has no source column. Public responses say "Direct submission"
-// until a real attribution field exists. This does not mark the home verified.
 function publicDiscovery(listing) {
   const example = isExampleListing(listing);
+  const state = listingState(listing);
+  const viewing = !example && allowsViewing(listing);
   return {
     verificationLabel: isEvidenceVerified(listing) ? VERIFIED_LABEL : NOT_VERIFIED_LABEL,
-    sourceLabel: DIRECT_SOURCE_LABEL,
+    sourceLabel: state.labels.origin,
     actions: {
-      enquiry: !example,
-      viewing: Boolean(isShareable(listing) && !example),
+      enquiry: !example && state.actionEligibility !== "SOURCE_LINK_ONLY",
+      viewing,
     },
+    state,
   };
 }
 
@@ -491,15 +498,22 @@ function listingsRouter(prisma) {
     try {
       const listing = await prisma.listing.findUnique({
         where: { id: listingId },
-        select: { id: true, status: true, isFlaggedForFraud: true, ownerId: true },
+        select: {
+          id: true,
+          status: true,
+          isFlaggedForFraud: true,
+          ownerId: true,
+          actionEligibility: true,
+          totalMoveInCost: true,
+        },
       });
       if (!listing) {
         return res.status(404).json({ success: false, error: "Listing not found" });
       }
-      if (!isShareable(listing)) {
+      if (!allowsViewing(listing)) {
         return res.status(403).json({
           success: false,
-          error: "Viewing requests are only open for verified homes.",
+          error: "Viewing requests are not open for this home.",
           code: "listing_not_verified",
         });
       }
@@ -587,6 +601,12 @@ function listingsRouter(prisma) {
           ...(category && { category }),
           ...(currency && { currency }),
           ...(totalMoveInCost && { totalMoveInCost }),
+          origin: "DIRECT_SUBMISSION",
+          publication: "PUBLISHED",
+          availability: "UNKNOWN",
+          verification: "NOT_CHECKED",
+          locationPrecision: "UNKNOWN",
+          actionEligibility: "ENQUIRY",
         },
         include: {
           images: { select: { url: true, altText: true, isPrimary: true } },

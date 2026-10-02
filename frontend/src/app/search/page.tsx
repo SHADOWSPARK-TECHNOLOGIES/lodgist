@@ -7,6 +7,7 @@ import { listingsApi } from "@/lib/api";
 import { TruthScore } from "@/components/ui/TruthScore";
 import { formatYearlyRent, listings as browse, search as copy } from "@/lib/copy";
 import { hasTrustScore, isEvidenceVerified, isExampleListing, publicListings, sourceLabel, verificationLabel } from "@/lib/listingHonesty";
+import { ListingStateLabels } from "@/components/ListingStateLabels";
 import LeadCapture from "@/components/LeadCapture";
 import type { Listing } from "@/lib/types";
 
@@ -80,6 +81,7 @@ function SearchContent() {
                       {verificationLabel(listing)}
                     </p>
                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{sourceLabel(listing)}</p>
+                    <ListingStateLabels listing={listing} />
                     {isExampleListing(listing) && (
                       <p className="text-xs mt-2" style={{ color: 'var(--color-teal)' }}>{browse.sampleBadge}</p>
                     )}
