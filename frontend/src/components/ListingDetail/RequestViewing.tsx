@@ -7,6 +7,7 @@ import { ApiError, listingsApi } from "@/lib/api";
 import { detail } from "@/lib/copy";
 import { track } from "@/lib/gtag";
 import type { ViewingRequestResult } from "@/lib/types";
+import { viewingStatusText } from "@/lib/viewingStatus";
 import { useAuth } from "@/context/AuthContext";
 
 type Props = {
@@ -34,11 +35,32 @@ export default function RequestViewing({ listingId, loginHref, askHref }: Props)
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ duplicate: boolean; data: ViewingRequestResult } | null>(null);
+  const [result, setResult] = useState<{
+    duplicate: boolean;
+    savedNow: boolean;
+    data: ViewingRequestResult;
+  } | null>(null);
 
   useEffect(() => {
     setReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!user || !isRenter(user.role)) return;
+    let cancelled = false;
+    listingsApi.myViewing(listingId)
+      .then((res) => {
+        const row = res.data;
+        if (cancelled || !row) return;
+        setResult((current) => current ?? { duplicate: false, savedNow: false, data: row });
+      })
+      .catch(() => {
+        if (!cancelled) setError(detail.viewingStatusFailed);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, listingId]);
 
   if (!ready) {
     return <div className="skeleton h-24 w-full mb-4" />;
@@ -63,15 +85,17 @@ export default function RequestViewing({ listingId, loginHref, askHref }: Props)
       <section className="card mb-4" aria-live="polite">
         <h2 className="font-poppins font-semibold text-white mb-2">{detail.requestViewing}</h2>
         <p className="text-sm mb-3" style={{ color: "rgba(255,255,255,0.75)" }}>
-          {result.duplicate ? detail.viewingDuplicate : detail.viewingNext}
+          {result.savedNow
+            ? (result.duplicate ? detail.viewingDuplicate : detail.viewingNext)
+            : detail.viewingExisting}
         </p>
         <p className="text-sm mb-1" style={{ color: "rgba(255,255,255,0.45)" }}>{detail.viewingReference}</p>
         <p className="font-poppins font-bold text-xl mb-3" style={{ color: "var(--color-teal)" }}>#{result.data.id}</p>
-        <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.75)" }}>
+        <p className="text-sm mb-1" style={{ color: "rgba(255,255,255,0.75)" }}>
           {result.data.preferredDate}
           {result.data.preferredTime ? ` · ${result.data.preferredTime}` : ""}
-          {result.data.status ? ` · ${result.data.status}` : ""}
         </p>
+        <p className="text-sm mb-4" style={{ color: "rgba(255,255,255,0.75)" }}>{viewingStatusText(result.data.status)}</p>
         {askHref && (
           <a className="btn btn-secondary" href={askHref} target="_blank" rel="noopener noreferrer">{detail.whatsApp}</a>
         )}
@@ -89,7 +113,7 @@ export default function RequestViewing({ listingId, loginHref, askHref }: Props)
         ...(preferredTime ? { preferredTime } : {}),
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       });
-      setResult({ duplicate: saved.duplicate, data: saved.data });
+      setResult({ duplicate: saved.duplicate, savedNow: true, data: saved.data });
       track("viewing_request", {
         listing_id: String(listingId),
         duplicate: saved.duplicate ? "true" : "false",

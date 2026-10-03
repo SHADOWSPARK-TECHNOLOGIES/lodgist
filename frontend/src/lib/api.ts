@@ -231,6 +231,13 @@ export const listingsApi = {
       { body: JSON.stringify(payload) }
     ),
 
+  /** Latest request for the signed-in renter. Notes are not returned. */
+  myViewing: (id: number) =>
+    request<{ success: boolean; data: ViewingRequestResult | null }>(
+      "GET",
+      `/api/listings/${id}/viewing-requests/mine`
+    ),
+
   /** Analyze a listing for scam signals */
   analyzeScam: (listingId: number) =>
     request<ApiResponse>("POST", "/api/listings/analyze-scam", {

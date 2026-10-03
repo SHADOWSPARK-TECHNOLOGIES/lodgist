@@ -12,6 +12,7 @@ import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
 import { canRequestViewing, decisionFacts, hasTrustScore, isLodgistReviewed, isPublicListing, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
 import ExploreNeighborhood from '@/components/spatial/ExploreNeighborhood';
 import { invoiceRequestMessage } from '@/lib/invoiceRequest';
+import { campusDirections } from '@/lib/campusDirections';
 import { safeNextPath } from '@/lib/returnPath';
 import type { Listing, TenantBooking } from '@/lib/types';
 
@@ -124,6 +125,10 @@ export default function ListingDetailPage() {
         amount: typeof invoiceBooking.totalAmount === "number" ? invoiceBooking.totalAmount : listing.price,
       }))
     : null;
+  const directions = campusDirections({
+    place,
+    approx: listing.approxLocation ?? null,
+  });
 
   return (
     <div className="container py-8 max-w-3xl">
@@ -148,6 +153,18 @@ export default function ListingDetailPage() {
           <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>No photo yet</span>
         )}
       </div>
+
+      <section className="card mb-4" aria-labelledby="campus-heading">
+        <h2 id="campus-heading" className="font-poppins font-semibold text-white mb-2">Area and campus</h2>
+        <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.75)' }}>{directions.placeText}</p>
+        <p className="text-sm mb-2" style={{ color: 'rgba(255,255,255,0.75)' }}>{directions.distanceText}</p>
+        <p className="text-sm mb-3" style={{ color: 'rgba(255,255,255,0.55)' }}>{directions.pinNote}</p>
+        {directions.mapUrl && (
+          <a className="btn btn-secondary" href={directions.mapUrl} target="_blank" rel="noopener noreferrer">
+            {directions.mapUrl.includes('/directions?') ? 'Open the area-to-campus map' : 'Open the area map'}
+          </a>
+        )}
+      </section>
 
       <section className="card mb-4" aria-labelledby="decision-heading">
         <h2 id="decision-heading" className="font-poppins font-semibold text-white mb-4">{detail.decisionTitle}</h2>
