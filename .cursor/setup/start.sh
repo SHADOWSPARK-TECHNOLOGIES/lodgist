@@ -36,8 +36,10 @@ DATABASE_URL="$DB_URL" corepack pnpm --dir packages/db exec \
 corepack pnpm --dir packages/db exec \
   prisma db push --config prisma.config.ts --accept-data-loss --url "$TEST_DB_URL" >/dev/null
 
-# Seed the dev database only when it has no users yet.
-USER_COUNT="$(PGPASSWORD=lodgist_pass psql -tAqX "host=127.0.0.1 port=5432 user=lodgist_user dbname=lodgist_db sslmode=require" -c 'SELECT count(*) FROM "User";' 2>/dev/null || echo 0)"
+# Seed the dev database only when it has no users yet. psql's default sslmode
+# (prefer) negotiates SSL when available and falls back to plaintext, so this
+# probe works whether or not the server enforces SSL.
+USER_COUNT="$(PGPASSWORD=lodgist_pass psql -tAqX "host=127.0.0.1 port=5432 user=lodgist_user dbname=lodgist_db" -c 'SELECT count(*) FROM "User";' 2>/dev/null || echo 0)"
 if [ "${USER_COUNT:-0}" = "0" ]; then
   echo "==> Seeding dev database"
   DATABASE_URL="$DB_URL" corepack pnpm --dir packages/db exec tsx prisma/seed.ts
