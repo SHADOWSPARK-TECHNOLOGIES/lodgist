@@ -146,6 +146,8 @@ export const detail = {
   viewingClosed: "Viewing requests open after this home is verified.",
   viewingLandlord: "Viewing requests are for renter accounts.",
   viewingReference: "Reference",
+  viewingExisting: "This is your viewing request for this home.",
+  viewingStatusFailed: "We could not load an existing viewing request. You can still send one.",
   viewingFailed: "We could not save this viewing request.",
   askInvoice: "Ask an agent to send an invoice",
   askInvoiceNote: "This asks an agent for an invoice. It does not mean a payment is completed.",
