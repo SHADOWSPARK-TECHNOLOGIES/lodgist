@@ -30,14 +30,24 @@ function viewingPrisma(state = {}) {
     },
     viewingRequest: {
       findFirst: async ({ where }) =>
-        rows.find(
-          (row) =>
-            row.listingId === where.listingId &&
-            row.requesterId === where.requesterId &&
-            where.status.in.includes(row.status)
-        ) || null,
+        rows.find((row) => {
+          if (where.id != null && row.id !== where.id) return false;
+          if (where.listingId != null && row.listingId !== where.listingId) return false;
+          if (where.requesterId != null && row.requesterId !== where.requesterId) return false;
+          if (where.status && where.status.in && !where.status.in.includes(row.status)) return false;
+          return true;
+        }) || null,
+      findMany: async ({ where }) =>
+        rows.filter((row) => row.listingId === where.listingId),
+      update: async ({ where, data }) => {
+        const row = rows.find((item) => item.id === where.id);
+        if (!row) throw new Error("missing viewing request");
+        Object.assign(row, data);
+        state.updated = { ...data };
+        return row;
+      },
       create: async ({ data }) => {
-        const row = { id: nextId++, ...data };
+        const row = { id: nextId++, ...data, createdAt: new Date() };
         rows.push(row);
         state.created = data;
         state.rows = rows;
@@ -247,4 +257,88 @@ test("viewing request rejects a bad date and does not write", async () => {
   }
   const badId = await post(viewingPrisma({}), "/api/listings/10abc/viewing-requests", TENANT, FUTURE);
   assert.equal(badId.status, 400);
+});
+
+function authed(prisma, method, path, user, body) {
+  return call(prisma, path, {
+    method,
+    headers: user ? { Authorization: token(user) } : {},
+    body,
+  });
+}
+
+test("detail request then advertiser accept does not change verification", async () => {
+  const state = {};
+  const prisma = viewingPrisma(state);
+  let listingWrites = 0;
+  prisma.listing.update = async () => {
+    listingWrites += 1;
+    throw new Error("listing must not be updated");
+  };
+  const created = await post(prisma, "/api/listings/10/viewing-requests", TENANT, FUTURE);
+  assert.equal(created.status, 201);
+  const createdBody = JSON.parse(created.text);
+
+  const stranger = { id: 9, role: "LANDLORD", email: "other@example.com", name: "Other" };
+  const denied = await authed(prisma, "GET", "/api/listings/10/viewing-requests", stranger);
+  assert.equal(denied.status, 403);
+
+  const listed = await authed(prisma, "GET", "/api/listings/10/viewing-requests", LANDLORD);
+  const listedBody = JSON.parse(listed.text);
+  assert.equal(listed.status, 200);
+  assert.equal(listedBody.data.length, 1);
+  assert.equal(listedBody.data[0].id, createdBody.data.id);
+  assert.equal(listedBody.data[0].status, "REQUESTED");
+  assert.equal(listed.text.includes("08031234567"), false);
+
+  const renterAnswer = await authed(
+    prisma,
+    "PATCH",
+    `/api/listings/10/viewing-requests/${createdBody.data.id}`,
+    TENANT,
+    { decision: "accept" }
+  );
+  assert.equal(renterAnswer.status, 403);
+
+  const accepted = await authed(
+    prisma,
+    "PATCH",
+    `/api/listings/10/viewing-requests/${createdBody.data.id}`,
+    LANDLORD,
+    { decision: "accept" }
+  );
+  const acceptedBody = JSON.parse(accepted.text);
+  assert.equal(accepted.status, 200);
+  assert.equal(acceptedBody.data.status, "SCHEDULED");
+  assert.equal(state.rows[0].status, "SCHEDULED");
+  assert.equal(listingWrites, 0);
+  assert.equal(state.rows[0].listingId, 10);
+
+  const again = await authed(
+    prisma,
+    "PATCH",
+    `/api/listings/10/viewing-requests/${createdBody.data.id}`,
+    LANDLORD,
+    { decision: "decline" }
+  );
+  assert.equal(again.status, 409);
+});
+
+test("advertiser decline cancels a requested viewing", async () => {
+  const state = {};
+  const prisma = viewingPrisma(state);
+  const created = await post(prisma, "/api/listings/10/viewing-requests", TENANT, FUTURE);
+  const id = JSON.parse(created.text).data.id;
+  const bad = await authed(prisma, "PATCH", `/api/listings/10/viewing-requests/${id}`, LANDLORD, {
+    decision: "maybe",
+  });
+  assert.equal(bad.status, 400);
+  const declined = await authed(prisma, "PATCH", `/api/listings/10/viewing-requests/${id}`, LANDLORD, {
+    decision: "decline",
+  });
+  assert.equal(declined.status, 200);
+  assert.equal(JSON.parse(declined.text).data.status, "CANCELLED");
+  const adminList = await authed(prisma, "GET", "/api/listings/10/viewing-requests", ADMIN);
+  assert.equal(adminList.status, 200);
+  assert.equal(JSON.parse(adminList.text).data[0].status, "CANCELLED");
 });
