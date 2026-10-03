@@ -465,6 +465,42 @@ function listingsRouter(prisma) {
     }
   });
 
+  // ─── GET /api/listings/:id/viewing-requests/mine ───────────────────────────
+  // Authenticated caller reads only their own latest request. Notes stay off
+  // the payload. No listing lookup, so a missing home looks like no request.
+  router.get("/:id/viewing-requests/mine", requireAuth, async (req, res) => {
+    if (!TENANT_ROLES.has(req.user.role)) {
+      return res.status(403).json({
+        success: false,
+        error: "Viewing requests are for renter accounts.",
+      });
+    }
+    if (!/^[1-9][0-9]*$/.test(req.params.id || "")) {
+      return res.status(400).json({ success: false, error: "Invalid listing ID" });
+    }
+    const listingId = Number(req.params.id);
+    try {
+      const row = await prisma.viewingRequest.findFirst({
+        where: { listingId, requesterId: req.user.id },
+        orderBy: { createdAt: "desc" },
+      });
+      return res.status(200).json({
+        success: true,
+        data: row ? publicViewing(row) : null,
+      });
+    } catch (error) {
+      logger.error("Error reading viewing request", {
+        code: error.code || error.name,
+        message: error.message,
+        listingId,
+      });
+      return res.status(500).json({
+        success: false,
+        error: "We could not load this viewing request. Try again.",
+      });
+    }
+  });
+
   // ─── POST /api/listings/:id/viewing-requests ──────────────────────────────
   // Authenticated renter asks to view one listing. Shareable means the same
   // thing as WhatsApp requestViewing: status VERIFIED and not fraud-flagged.
