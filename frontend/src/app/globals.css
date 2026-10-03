@@ -220,6 +220,131 @@ input, button, textarea, select { font: inherit; color: inherit; }
 
 .label { font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.5rem; display: block; }
 
+.spatial-fixture-banner {
+  background: var(--color-orange);
+  color: var(--color-navy);
+  font-family: var(--font-poppins);
+  font-weight: 700;
+  text-align: center;
+  padding: 0.65rem 1rem;
+}
+.spatial-preview-layout { max-width: 720px; margin-right: auto; margin-left: 0; }
+.spatial-preview-card { max-width: 34rem; }
+.spatial-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(11, 27, 43, 0.62);
+}
+.spatial-panel {
+  position: fixed;
+  z-index: 61;
+  top: 0;
+  right: 0;
+  width: min(440px, 100%);
+  height: 100dvh;
+  overflow: auto;
+  background: var(--color-navy-2);
+  border-left: 1px solid var(--color-border);
+  padding: 1.25rem 1.25rem 2rem;
+  box-shadow: var(--shadow-lg);
+}
+.spatial-panel-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.spatial-kicker {
+  font-family: var(--font-poppins);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-orange);
+}
+.spatial-disclaimer {
+  font-size: 0.875rem;
+  color: rgba(255,255,255,0.86);
+  margin-bottom: 0.5rem;
+}
+.spatial-quiet { color: rgba(255,255,255,0.62); font-size: 0.8125rem; display: block; }
+.spatial-heading {
+  font-family: var(--font-poppins);
+  color: #fff;
+  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
+}
+.spatial-block { margin-top: 1rem; }
+.spatial-map-figure { margin: 0.75rem 0 0; }
+.spatial-map {
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-navy);
+}
+.spatial-map svg { width: 100%; height: auto; display: block; }
+.spatial-map-caption {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.75);
+  padding: 0.4rem 0.75rem 0.6rem;
+}
+.spatial-map-loading { height: 180px; margin: 0.75rem 0; }
+.spatial-note { color: rgba(255,255,255,0.6); font-size: 0.75rem; margin-top: 0.4rem; }
+.spatial-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 0.25rem; margin-top: 0.5rem; }
+.spatial-tiles img { width: 100%; height: 96px; object-fit: cover; border-radius: var(--radius-md); }
+.spatial-fieldset { border: 0; margin: 1rem 0 0; padding: 0; display: grid; gap: 0.5rem; }
+.spatial-fieldset legend {
+  font-family: var(--font-poppins);
+  color: #fff;
+  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
+}
+.spatial-campus {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--radius-lg);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--color-border);
+}
+.spatial-campus input { margin-top: 0.25rem; accent-color: var(--color-teal); }
+.spatial-distance { display: block; color: var(--color-teal); font-size: 0.8125rem; }
+.spatial-filters { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
+.spatial-chip {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: #fff;
+  border-radius: var(--radius-full);
+  padding: 0.3rem 0.7rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.spatial-chip-on { background: rgba(26,188,156,0.18); border-color: var(--color-teal); color: var(--color-teal); }
+.spatial-amenity-list { list-style: none; display: grid; gap: 0.45rem; margin-top: 0.5rem; }
+.spatial-amenity-list li { font-size: 0.875rem; }
+
+@media (max-width: 767px) {
+  .spatial-map svg { height: 96px; }
+  .spatial-disclaimer { font-size: 0.75rem; margin-bottom: 0.25rem; }
+  .spatial-panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    height: auto;
+    max-height: 92dvh;
+    padding: 0.75rem 1rem 1rem;
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+    border-radius: 1.25rem 1.25rem 0 0;
+  }
+  .spatial-preview-layout { margin-left: auto; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

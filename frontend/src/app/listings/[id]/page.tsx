@@ -9,7 +9,8 @@ import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import RequestViewing from '@/components/ListingDetail/RequestViewing';
 import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
-import { canRequestViewing, decisionFacts, hasTrustScore, isLodgistReviewed, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
+import { canRequestViewing, decisionFacts, hasTrustScore, isLodgistReviewed, isPublicListing, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
+import ExploreNeighborhood from '@/components/spatial/ExploreNeighborhood';
 import { invoiceRequestMessage } from '@/lib/invoiceRequest';
 import { safeNextPath } from '@/lib/returnPath';
 import type { Listing, TenantBooking } from '@/lib/types';
@@ -198,6 +199,16 @@ export default function ListingDetailPage() {
         <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.7 }}>{listing.description}</p>
       )}
 
+      {isPublicListing(listing) && (
+        <ExploreNeighborhood
+          listingId={listing.id}
+          title={listing.title}
+          place={place}
+          approxLocation={listing.approxLocation ?? null}
+        />
+      )}
+
+      <div id="listing-actions">
       {canRequest ? (
         <RequestViewing listingId={listing.id} loginHref={loginHref} askHref={askHref} />
       ) : (
@@ -219,6 +230,7 @@ export default function ListingDetailPage() {
         ) : null}
         {askHref && <a className="btn btn-secondary" href={askHref} target="_blank" rel="noopener noreferrer">{detail.whatsApp}</a>}
         {reportHref && <a className="btn btn-secondary" href={reportHref} target="_blank" rel="noopener noreferrer">{detail.report}</a>}
+      </div>
       </div>
     </div>
   );
