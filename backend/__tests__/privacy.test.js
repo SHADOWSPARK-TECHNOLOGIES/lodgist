@@ -244,7 +244,13 @@ test("booking cancel: tenant and admin only, not landlords", async () => {
 });
 
 test("POST /api/bookings: landlords only for their own listings", async () => {
-  const body = { listingId: 10, tenantId: 5, startDate: "2026-10-01", endDate: "2026-11-01", totalAmount: 1 };
+  const body = {
+    listingId: 10,
+    tenantId: 5,
+    startDate: "2030-06-01",
+    endDate: "2030-07-01",
+    totalAmount: 1,
+  };
   for (const [u, status] of [[OTHER_LANDLORD, 403], [TENANT, 403], [OWNER, 201], [ADMIN, 201]]) {
     const state = {};
     const res = await call(require("../src/routes/bookings")(bookingPrisma(state)), "/api/bookings", "/api/bookings", { method: "POST", headers: auth(u), body });

@@ -24,6 +24,12 @@ import type {
   CreateReviewPayload,
   UpdateReviewPayload,
   EscrowInitiatePayload,
+  ViewingRequestResult,
+  CreateLeadPayload,
+  LeadSaved,
+  CreateAdvertiserLeadPayload,
+  AdvertiserLeadSaved,
+  TenantBooking,
 } from "./types";
 import { getToken } from "./auth";
 
@@ -214,11 +220,57 @@ export const listingsApi = {
   delete: (id: number) =>
     request<ApiResponse>("DELETE", `/api/listings/${id}`),
 
+  /** Ask to view a verified listing. Requester comes from the auth token. */
+  requestViewing: (
+    id: number,
+    payload: { preferredDate: string; preferredTime?: string; notes?: string }
+  ) =>
+    request<{ success: boolean; duplicate: boolean; data: ViewingRequestResult }>(
+      "POST",
+      `/api/listings/${id}/viewing-requests`,
+      { body: JSON.stringify(payload) }
+    ),
+
+  /** Latest request for the signed-in renter. Notes are not returned. */
+  myViewing: (id: number) =>
+    request<{ success: boolean; data: ViewingRequestResult | null }>(
+      "GET",
+      `/api/listings/${id}/viewing-requests/mine`
+    ),
+
   /** Analyze a listing for scam signals */
   analyzeScam: (listingId: number) =>
     request<ApiResponse>("POST", "/api/listings/analyze-scam", {
       body: JSON.stringify({ listingId }),
     }),
+};
+
+// ─── Leads API ─────────────────────────────────────────────────────────────
+
+export const leadsApi = {
+  /** Save a no-match request. Does not create or verify a listing. */
+  create: (payload: CreateLeadPayload) =>
+    request<{ success: boolean; message: string; data: LeadSaved }>("POST", "/api/leads", {
+      body: JSON.stringify(payload),
+    }),
+};
+
+export const advertiserLeadsApi = {
+  /** Landlord interest. Does not create or verify a listing. */
+  create: (payload: CreateAdvertiserLeadPayload) =>
+    request<{ success: boolean; message: string; data: AdvertiserLeadSaved }>(
+      "POST",
+      "/api/advertiser-leads",
+      { body: JSON.stringify(payload) },
+    ),
+};
+
+
+// ─── Bookings API ──────────────────────────────────────────────────────────
+
+export const bookingsApi = {
+  /** Bookings for the signed-in tenant. */
+  mine: () => request<{ success: boolean; data: TenantBooking[] }>("GET", "/api/bookings/mine"),
 };
 
 // ─── Reviews API ───────────────────────────────────────────────────────────

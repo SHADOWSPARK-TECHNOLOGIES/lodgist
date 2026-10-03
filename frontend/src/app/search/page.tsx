@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { listingsApi } from "@/lib/api";
 import { TruthScore } from "@/components/ui/TruthScore";
 import { formatYearlyRent, listings as browse, search as copy } from "@/lib/copy";
-import { hasTrustScore, isExampleListing, publicListings } from "@/lib/listingHonesty";
+import { hasTrustScore, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from "@/lib/listingHonesty";
+import LeadCapture from "@/components/LeadCapture";
 import type { Listing } from "@/lib/types";
 
 function SearchContent() {
@@ -14,14 +15,14 @@ function SearchContent() {
   const searchParams = useSearchParams();
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") ?? "");
   const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    listingsApi.list({ search: searchTerm || undefined, status: "VERIFIED", page: 1, limit: 12 })
+    listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
       .then(res => { if (!cancelled) setListings(publicListings(res.data)); })
       .catch(() => { if (!cancelled) setError(copy.fetchError); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -75,6 +76,13 @@ function SearchContent() {
                     <p className="font-poppins font-bold text-sm mt-2" style={{ color: 'var(--color-orange)' }}>
                       {formatYearlyRent(listing.price)}
                     </p>
+                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'var(--color-teal)' : 'rgba(255,255,255,0.45)' }}>
+                      {reviewLabel(listing)}
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--color-orange)' }}>
+                      {verificationLabel(listing)}
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{sourceLabel(listing)}</p>
                     {isExampleListing(listing) && (
                       <p className="text-xs mt-2" style={{ color: 'var(--color-teal)' }}>{browse.sampleBadge}</p>
                     )}
@@ -93,9 +101,10 @@ function SearchContent() {
             <h2 className="font-poppins font-semibold text-white text-lg mb-2">
               {searchTerm ? copy.noTitle : browse.emptyTitle}
             </h2>
-            <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>
               {searchTerm ? copy.noBody : browse.emptyBody}
             </p>
+            <LeadCapture initialLocation={searchTerm} />
             <Link href="/listings" className="btn btn-primary mt-6">{copy.browseAll}</Link>
           </div>
         )}

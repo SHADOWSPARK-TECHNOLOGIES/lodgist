@@ -67,8 +67,16 @@ export interface Listing {
   price: number;
   currency: string;
   status: string;
+  isFlaggedForFraud?: boolean;
   riskState?: string | null;
   truthIndex?: number | null;
+  reviewStatus?: "NOT_REVIEWED" | "APPROVED";
+  reviewLabel?: string;
+  verificationLabel?: string;
+  sourceLabel?: string;
+  source?: string | null;
+  sourceChannel?: string | null;
+  actions?: { enquiry: boolean; viewing: boolean };
   totalMoveInCost?: { total?: number; sample?: boolean } | null;
   beds: number | null;
   baths: number | null;
@@ -84,6 +92,14 @@ export interface Listing {
   owner: Pick<User, "id" | "name" | "email" | "role" | "truthIndex"> | null;
   fraudSignals: FraudSignal[];
   reviews?: ReviewStats;
+}
+
+export interface ViewingRequestResult {
+  id: number;
+  status: string;
+  listingId: number;
+  preferredDate: string;
+  preferredTime: string | null;
 }
 
 export interface Review {
@@ -238,6 +254,62 @@ export interface UpdateListingPayload {
   beds?: number;
   baths?: number;
   sqft?: number;
+}
+
+export interface CreateLeadPayload {
+  location: string;
+  budget: number;
+  bedrooms: number;
+  moveInTimeframe: string;
+  phone: string;
+  email?: string;
+}
+
+export interface LeadSaved {
+  id: number;
+}
+
+export type AdvertiserAuthority = "CONTROLS" | "AUTHORIZED";
+export type AdvertiserAvailability = "AVAILABLE_NOW" | "FROM_DATE" | "NOT_AVAILABLE";
+export type AdvertiserRentPeriod = "MONTH" | "YEAR" | "SEMESTER";
+
+export interface MoveInFeeInput {
+  known: boolean;
+  amountNgn?: number;
+}
+
+export interface CreateAdvertiserLeadPayload {
+  name: string;
+  phone: string;
+  area: string;
+  propertyCount?: number;
+  notes?: string;
+  email?: string;
+  authority: AdvertiserAuthority;
+  photoPublicationAllowed: boolean;
+  availability: AdvertiserAvailability;
+  availableFrom?: string;
+  rentPeriod: AdvertiserRentPeriod;
+  moveInFees: {
+    baseRent: MoveInFeeInput;
+    agency: MoveInFeeInput;
+    legal: MoveInFeeInput;
+    caution: MoveInFeeInput;
+    inspection: MoveInFeeInput;
+  };
+}
+
+export interface AdvertiserLeadSaved {
+  id: number;
+}
+
+export interface TenantBooking {
+  id: string;
+  listingId: number;
+  totalAmount: number;
+  currency: string;
+  status: string;
+  listing?: { id: number; title: string; price: number } | null;
 }
 
 export interface CreateReviewPayload {
