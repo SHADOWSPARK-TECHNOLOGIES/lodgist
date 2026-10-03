@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import NekedeRoomCard from "@/components/NekedeRoomCard";
 import { ADVERTISE_HREF, ARTICLE_HREF, nekedePage } from "@/lib/nekedePilot";
+import { mission } from "@/lib/copy";
 
 export const metadata: Metadata = {
   title: nekedePage.metaTitle,
@@ -18,8 +19,11 @@ export default function NekedePage() {
         <h1 className="font-poppins text-3xl md:text-4xl font-bold text-white mb-4">
           {nekedePage.title}
         </h1>
-        <p className="text-base mb-8" style={{ color: "rgba(255,255,255,0.7)" }}>
+        <p className="text-base mb-4" style={{ color: "rgba(255,255,255,0.7)" }}>
           {nekedePage.intro}
+        </p>
+        <p className="text-sm mb-8">
+          <Link href="/mission" className="nav-link">{mission.nekedeNext}</Link>
         </p>
 
         <section className="card text-left mb-8" aria-label={nekedePage.todayTitle}>

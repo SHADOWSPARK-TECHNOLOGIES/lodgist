@@ -7,6 +7,7 @@ import { nav } from '@/lib/copy';
 
 const links = [
   { href: '/listings', label: nav.browse },
+  { href: '/mission', label: nav.aim },
   { href: '/dashboard', label: nav.dashboard, authRequired: true },
 ];
 

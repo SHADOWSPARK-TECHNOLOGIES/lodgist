@@ -9,6 +9,7 @@ const product = [
 
 const company = [
   [brand.about, "/about"],
+  [brand.aim, "/mission"],
   [brand.privacy, "/trust"],
 ] as const;
 
