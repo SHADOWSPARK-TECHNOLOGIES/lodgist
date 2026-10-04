@@ -37,11 +37,12 @@ function isEvidenceVerified() {
   return false;
 }
 
-/** Public discovery: non-sample PENDING or VERIFIED, and not fraud / flagged / suspended. */
+/** Public discovery: Lodgist-reviewed, non-sample PENDING or VERIFIED, and not fraud / flagged / suspended. */
 function isPublicListing(listing) {
   if (!listing || typeof listing !== "object") return false;
   if (isExampleListing(listing)) return false;
   if (listing.isFlaggedForFraud === true) return false;
+  if (listing.reviewStatus !== "APPROVED") return false;
   if (listing.status !== "PENDING" && listing.status !== "VERIFIED") return false;
   if (BLOCKED_RISK.has(listing.riskState)) return false;
   return true;

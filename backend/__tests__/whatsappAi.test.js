@@ -211,6 +211,7 @@ const VERIFIED_FLAT = {
   price: 850000,
   currency: "NGN",
   status: "VERIFIED",
+  reviewStatus: "APPROVED",
   isFlaggedForFraud: false,
   riskState: "VERIFIED",
   truthIndex: 80,

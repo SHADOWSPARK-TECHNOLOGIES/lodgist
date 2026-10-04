@@ -26,20 +26,22 @@ test("a zero trust index is not a score", () => {
   assert.equal(hasTrustScore(82), true);
 });
 
-test("default browse keeps eligible pending and verified homes and drops samples", () => {
-  const verified = { id: 1, status: "VERIFIED", riskState: "VERIFIED", price: 900000 };
-  const pending = { id: 2, status: "PENDING", riskState: "UNVERIFIED", price: 500000 };
-  const sample = { id: 3, status: "PENDING", riskState: "UNVERIFIED", totalMoveInCost: { sample: true, total: 1 } };
-  const flagged = { id: 4, status: "VERIFIED", riskState: "FLAGGED" };
-  const suspended = { id: 5, status: "PENDING", riskState: "SUSPENDED" };
-  const rejected = { id: 6, status: "REJECTED", riskState: "UNVERIFIED" };
-  const fraud = { id: 7, status: "PENDING", riskState: "UNVERIFIED", isFlaggedForFraud: true };
+test("default browse keeps reviewed non-sample homes and drops samples and unreviewed rows", () => {
+  const verified = { id: 1, status: "VERIFIED", riskState: "VERIFIED", reviewStatus: "APPROVED", price: 900000 };
+  const pending = { id: 2, status: "PENDING", riskState: "UNVERIFIED", reviewStatus: "APPROVED", price: 500000 };
+  const unreviewed = { id: 8, status: "PENDING", riskState: "UNVERIFIED", reviewStatus: "NOT_REVIEWED", price: 400000 };
+  const sample = { id: 3, status: "PENDING", riskState: "UNVERIFIED", reviewStatus: "APPROVED", totalMoveInCost: { sample: true, total: 1 } };
+  const flagged = { id: 4, status: "VERIFIED", riskState: "FLAGGED", reviewStatus: "APPROVED" };
+  const suspended = { id: 5, status: "PENDING", riskState: "SUSPENDED", reviewStatus: "APPROVED" };
+  const rejected = { id: 6, status: "REJECTED", riskState: "UNVERIFIED", reviewStatus: "APPROVED" };
+  const fraud = { id: 7, status: "PENDING", riskState: "UNVERIFIED", reviewStatus: "APPROVED", isFlaggedForFraud: true };
   assert.equal(isPublicListing(verified), true);
   assert.equal(isPublicListing(pending), true);
+  assert.equal(isPublicListing(unreviewed), false);
   assert.equal(isEvidenceVerified(pending), false);
   assert.equal(isEvidenceVerified(verified), false);
-  assert.equal(reviewLabel(pending), "Not reviewed by Lodgist");
-  assert.equal(reviewLabel(verified), "Not reviewed by Lodgist");
+  assert.equal(reviewLabel(unreviewed), "Not reviewed by Lodgist");
+  assert.equal(reviewLabel(pending), "Lodgist-reviewed");
   assert.equal(isPublicListing(sample), false);
   assert.equal(isPublicListing(flagged), false);
   assert.equal(isPublicListing(suspended), false);
@@ -48,9 +50,10 @@ test("default browse keeps eligible pending and verified homes and drops samples
   assert.equal(verificationLabel(pending), "Not verified by Lodgist");
   assert.equal(sourceLabel(pending), "Direct submission");
   assert.equal(canRequestViewing(pending), false);
+  assert.equal(canRequestViewing(unreviewed), false);
   assert.equal(canRequestViewing(verified), true);
   assert.equal(canRequestViewing(sample), false);
-  assert.deepEqual(publicListings([pending, sample, verified, flagged]).map((l) => l.id), [2, 1]);
+  assert.deepEqual(publicListings([pending, unreviewed, sample, verified, flagged]).map((l) => l.id), [2, 1]);
 });
 
 test("an unverified listing has no completed checks and no verification date", () => {
