@@ -28,7 +28,7 @@ function publicHome(extra = {}) {
     title: "Flat near Nekede",
     status: "PENDING",
     riskState: "UNVERIFIED",
-    reviewStatus: "NOT_REVIEWED",
+    reviewStatus: "APPROVED",
     property: { lga: "Owerri West", city: "Owerri", state: "Imo", latitude: PRIVATE.lat, longitude: PRIVATE.lng },
     approxLocation: { lat: 5.495, lng: 7.035, radius_m: 500 },
     ...extra,
@@ -52,6 +52,10 @@ test("publication gate hides samples, fixtures, and blocked homes; review is not
   assert.equal(context.evidenceVerified, false);
   assert.equal(context.reviewForDisplay, true);
   assert.equal(context.focus.precision, "approximate");
+
+  const unreviewed = publicHome({ reviewStatus: "NOT_REVIEWED", status: "PENDING" });
+  assert.equal(spatialPublicationDecision(unreviewed).published, false);
+  assert.equal(buildPublicSpatialContext(unreviewed), null);
 
   const sample = publicHome({ totalMoveInCost: { sample: true, total: 1 }, reviewStatus: "APPROVED" });
   assert.equal(isPublicListing(sample), false);

@@ -1,0 +1,31 @@
+{
+  "_note": "Null means the fact is not in the repo. Do not invent landlord, photo permission, availability, location, rent period, move-in fees, price, or a review decision.",
+  "landlord": {
+    "name": null,
+    "email": null,
+    "phone": null,
+    "authority": null
+  },
+  "photoPublicationAllowed": null,
+  "photos": [],
+  "availability": null,
+  "availableFrom": null,
+  "location": {
+    "address": null,
+    "city": null,
+    "state": null,
+    "lga": null
+  },
+  "rentPeriod": null,
+  "priceNgn": null,
+  "moveInFees": {
+    "baseRent": null,
+    "agency": null,
+    "legal": null,
+    "caution": null,
+    "inspection": null
+  },
+  "title": null,
+  "description": null,
+  "displayReview": null
+}

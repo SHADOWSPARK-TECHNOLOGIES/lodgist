@@ -80,13 +80,13 @@ const SORTS = {
 };
 
 const LISTING_STATUSES = new Set(["PENDING", "VERIFIED", "REJECTED", "ARCHIVED"]);
-// Public discovery is not the same as evidence verification. Anonymous browse
-// returns non-sample PENDING and VERIFIED homes whose risk is not FLAGGED or
-// SUSPENDED. There is no DRAFT status. Sample rows (`totalMoveInCost.sample`)
-// are JSON, so findMany still drops them in JS; public `pagination.total`
-// subtracts the same sample match so count and data stay aligned.
-// Admin and landlord keep a wider result only when they pass an explicit
-// status on this route. There is no separate management list route.
+// Public discovery is not evidence verification. Anonymous browse returns
+// Lodgist-reviewed, non-sample PENDING and VERIFIED homes whose risk is not
+// FLAGGED or SUSPENDED. reviewStatus APPROVED is review-for-display only.
+// There is no DRAFT status. Sample rows (`totalMoveInCost.sample`) are JSON,
+// so findMany still drops them in JS; public `pagination.total` subtracts the
+// same sample match so count and data stay aligned. Admin and landlord keep a
+// wider result only when they pass an explicit status on this route.
 const MANAGEMENT_ROLES = new Set(["STUDIO_ADMIN", "LANDLORD"]);
 const PUBLIC_LISTING_STATUSES = ["PENDING", "VERIFIED"];
 const ELIGIBLE_RISK_STATES = ["UNVERIFIED", "UNDER_REVIEW", "VERIFIED"];
@@ -119,6 +119,7 @@ function isEligiblePublicListing(listing) {
   if (!listing || typeof listing !== "object") return false;
   if (isExampleListing(listing)) return false;
   if (listing.isFlaggedForFraud === true) return false;
+  if (listing.reviewStatus !== "APPROVED") return false;
   if (listing.status !== "PENDING" && listing.status !== "VERIFIED") return false;
   if (BLOCKED_RISK_STATES.has(listing.riskState)) return false;
   return true;
@@ -186,6 +187,7 @@ function applyPublicBrowseFilter(where, user, statusQuery) {
     return { mode: "management", where };
   }
   where.status = { in: PUBLIC_LISTING_STATUSES };
+  where.reviewStatus = "APPROVED";
   where.isFlaggedForFraud = false;
   const risk = publicRiskFilter();
   where.AND = Array.isArray(where.AND) ? where.AND.concat([risk]) : [risk];
@@ -326,7 +328,7 @@ function listingsRouter(prisma) {
       }
 
       const visible = browse.mode === "public"
-        ? listings.filter((listing) => !isExampleListing(listing))
+        ? listings.filter((listing) => isEligiblePublicListing(listing))
         : listings;
       const data = visible.map((listing) => {
         const { fraudSignals, _count, ...rest } = listing;

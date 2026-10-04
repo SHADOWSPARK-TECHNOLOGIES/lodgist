@@ -167,7 +167,7 @@ export const listings = {
   maxRent: "Highest annual rent",
   count: (n: number) => (n === 1 ? "1 home" : `${n} homes`),
   emptyTitle: "No homes here yet",
-  emptyBody: "We're starting with Imo. Published homes show here, including ones Lodgist has not verified.",
+  emptyBody: "We're starting with Imo. Only a Lodgist-reviewed home is shown. Review is not verification.",
   emptyCta: "Ask us on WhatsApp",
   whatsAppMissing: "WhatsApp support is not set up on this site yet.",
   listCta: "List your property",

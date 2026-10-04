@@ -4,6 +4,11 @@ import { PrismaPg } from '@prisma/adapter-pg'
 import pg from 'pg'
 import { hash } from 'bcryptjs'
 
+if (process.env.LODGIST_LEGACY_FICTIONAL_SEED !== "1") {
+  console.error("Refusing packages/db/prisma/seed.ts. It deletes rows and inserts fictional verified homes. Use: node prisma/seed-owerri-home.js")
+  process.exit(1)
+}
+
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },

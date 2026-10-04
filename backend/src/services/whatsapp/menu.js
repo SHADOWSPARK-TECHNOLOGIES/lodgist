@@ -11,7 +11,7 @@ function visit(path, fallback) {
 
 function listingsReply() {
   return (
-    "Published homes are listed, including ones Lodgist has not verified. Those say Not verified by Lodgist. Viewing is only for verified homes.\n\n" +
+    "The public list is Lodgist-reviewed homes, not samples. Review is not verification, so they say Not verified by Lodgist. Viewing is only for verified homes.\n\n" +
     `${visit("/listings", "Open Lodgist and browse homes.")}\n\n` +
     "If that list is empty, there are no published homes yet."
   );
