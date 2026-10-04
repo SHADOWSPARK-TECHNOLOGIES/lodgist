@@ -2,7 +2,7 @@
 
 Renters can open Spatial Lab from a public home, see the published area, pick a campus, and read straight-line distance. Road time appears only when a routing provider answers. Nearby shops, pharmacies, clinics, and transport stops appear only when a place provider answers. Map imagery does not prove ownership, condition, availability, or safety. The lab does not infer crime, flood, power, or safety.
 
-The Nekede page (`/nekede`, commits `c8683fb4` and `9aaeba7a`) stays a labelled example. It is not a listing and Spatial Lab does not publish it.
+The Nekede page (`/nekede`) stays a labelled example. It states the one Owerri campus pilot and links to `/nekede/supply`. It is not a listing and Spatial Lab does not publish it.
 
 ## Provider choice
 
