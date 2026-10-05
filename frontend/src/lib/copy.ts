@@ -23,6 +23,7 @@ export const brand = {
   list: "Advertise with Lodgist",
   trust: "Trust and safety",
   about: "About Lodgist",
+  aim: "Our aim",
   privacy: "How we handle trust",
   support: "Lodgist Support · ShadowSpark Technologies",
   authLine: "A ShadowSpark Technologies platform",
@@ -35,6 +36,7 @@ export function formatYearlyRent(price?: number | null) {
 
 export const nav = {
   browse: "Browse",
+  aim: "Aim",
   dashboard: "Dashboard",
   signOut: "Sign out",
   signIn: "Sign in",
@@ -349,6 +351,47 @@ export const about = {
   metaTitle: "About Lodgist",
   lead: "Lodgist is a Nigerian rental-trust platform curated by ShadowSpark Technologies.",
   parent: "ShadowSpark builds technology focused on practical automation, trust, and digital services for African markets.",
+};
+
+export const mission = {
+  metaTitle: "What Lodgist is trying to do",
+  kicker: "Aim",
+  title: "What Lodgist is trying to do",
+  lead: "Lodgist wants a renter in Imo to see what was checked before money leaves their account. It starts with one campus. A public home appears only after a person reviews it.",
+  boardTitle: "Mission board",
+  boardNote: "Each row is a product promise. None of these rows is a listing.",
+  rows: [
+    {
+      status: "Written",
+      title: "Show the checks before you pay",
+      body: "The trust page says what a check covers. A Trust Score is not a promise that the house, the landlord, or the payment is safe.",
+    },
+    {
+      status: "Not yet",
+      title: "Publish a reviewed room near Nekede",
+      body: "The Nekede page still says nothing to rent. An example card is not a home. A portal ad is not a Lodgist listing.",
+    },
+    {
+      status: "In place",
+      title: "Keep an ad from becoming a listing",
+      body: "Submission is not publication. Payment never buys a verification badge.",
+    },
+    {
+      status: "Written",
+      title: "Take one home for review",
+      body: "Advertise asks for the facts on one room. Sending those facts does not publish the room.",
+    },
+    {
+      status: "Not yet",
+      title: "Open more cities",
+      body: "More cities come after homes are reviewed. Imo is the start.",
+    },
+  ],
+  nextTitle: "What you can do now",
+  readTrust: "Read how checks work",
+  offerRoom: "Offer one room for review",
+  seeNekede: "See the Nekede page",
+  nekedeNext: "Read what Lodgist is trying to do",
 };
 
 export const trustCenter = {
