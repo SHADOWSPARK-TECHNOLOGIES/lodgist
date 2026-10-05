@@ -58,11 +58,12 @@ The private beta includes only the minimum flows required to validate trust, dem
 | DB persistence | READY | 5 | Neon connected in production at 14ms. All core models persisted. Confirmed via live /api/health. |
 | Social/chatbot-assisted ops support | READY | 5 | Admin booking queue, source channel tagging, admin notes — implemented and smoke-tested in production. |
 | Deployment/runtime stability | READY | 5 | App Runner RUNNING on commit 23a09e76. DB connected. CORS fixed. Smoke test passed end-to-end in production. |
+| Rental Safety Check | READY | 5 | Paid ₦5,000 pre-payment fraud check, Paystack integration, webhook idempotency, STUDIO_ADMIN review/publish workflow, WhatsApp intake. 113/113 backend tests pass. |
 
 ---
 
 ## 4. Verified Endpoints
-All endpoints below were verified against the live production App Runner URL (`3trpjpyhu2.us-east-1.awsapprunner.com`) on commit 23a09e76.
+All endpoints below were verified against the live production App Runner URL (`3trpjpyhu2.us-east-1.awsapprunner.com`) on commit 23a09e76 or automated test suites.
 
 | Endpoint | Method | Purpose | Verified? | Notes |
 |---|---|---|---|---|
@@ -78,6 +79,12 @@ All endpoints below were verified against the live production App Runner URL (`3
 | /api/bookings/:id/manual-payment | PATCH | Submit payment reference | YES (PROD) | PENDING → PENDING_VERIFICATION confirmed in production |
 | /api/bookings/:id/admin-notes | PATCH | Admin internal notes | YES | Stored, absent from tenant GET |
 | /api/bookings/:id/verify-payment | PATCH | Approve/reject/cancel | YES (PROD) | CONFIRMED + verifiedBy=6 confirmed in production |
+| /api/rental-checks | POST | Create safety check case | YES (TESTED) | Assigns publicReference + accessToken |
+| /api/rental-checks/:ref | GET | Fetch case / status | YES (TESTED) | Case token or phone-gated, auto-delivers |
+| /api/rental-checks/:ref/pay | POST | Initialize Paystack payment | YES (TESTED) | Generates authorizationUrl, blocks credentials |
+| /api/rental-checks/:ref/confirm-payment | POST | Confirm Paystack payment | YES (TESTED) | Server-side verification |
+| /api/rental-checks/:ref/review | PATCH | Staff review & publish report | YES (TESTED) | STUDIO_ADMIN only, requires paid status |
+| /api/rental-checks/metrics | GET | Summary metrics | YES (TESTED) | STUDIO_ADMIN only |
 | /api/whatsapp/send | POST | Admin outbound message | YES | 403 for non-STUDIO_ADMIN |
 | /api/transactions | GET/POST | Transaction access | NO | Route exists, guarded; not on critical beta path |
 | /api/agreements | GET/POST | Agreement access | NO | Route exists; not on critical beta path |
@@ -135,7 +142,20 @@ Notes:
 - Paystack webhook has idempotency via ProcessedWebhookEvent unique PK (already shipped in earlier sprint).
 - No CSRF risk: API is JWT bearer-only, no session cookies.
 
+### Flow E — Rental Safety Check (Paid Pre-Payment Check)
+Status: READY
+Steps:
+1. Renter submits unverified rental details via web (`POST /api/rental-checks`) or WhatsApp (`CHECK`).
+2. System validates input (blocks sensitive card/CVV/PIN data; ensures minimum fields).
+3. System assigns unique case reference (`RSC-XXXXXXXX`) and case access token.
+4. Renter pays ₦5,000 via Paystack checkout (`POST /api/rental-checks/:reference/pay`).
+5. Server-side verification confirms payment via Paystack API or `charge.success` webhook (`LODG-RSC-` prefix).
+6. Case moves to `PAID` / `UNDER_REVIEW`.
+7. `STUDIO_ADMIN` conducts review and publishes report (`PATCH /api/rental-checks/:reference/review`).
+8. Renter accesses report securely via token or phone verification. Delivery timestamp recorded.
+
 ---
+
 
 ## 6. Blockers
 No high-severity blockers remain. All prior blockers resolved in this session.

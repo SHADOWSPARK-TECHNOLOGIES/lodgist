@@ -5,6 +5,7 @@ const { parseWebhookBody } = require("./whatsappParse");
 const { sitePath, listingsReply, isExactMenuCommand, deterministicReply } = require("../services/whatsapp/menu");
 const { routeTurn, resolveSender, loadOrCreateSession, toHistory } = require("../services/whatsapp/engine");
 const { logWhatsApp, redactPhone } = require("../services/whatsapp/redact");
+const { handleWhatsAppRentalCheck } = require("../services/rentalCheck");
 
 /**
  * Create an Express router for WhatsApp webhook and messaging endpoints.
@@ -227,7 +228,21 @@ module.exports = function (prisma, options = {}) {
 
         let replyText;
         let trackRefer = false;
-        if (isExactMenuCommand(msgText)) {
+        const rentalTurn = await handleWhatsAppRentalCheck(prisma, {
+          text: msgText,
+          phone,
+          session,
+        });
+        if (rentalTurn.context !== undefined && prisma.whatsAppSession && prisma.whatsAppSession.update) {
+          await prisma.whatsAppSession.update({
+            where: { id: session.id },
+            data: { context: rentalTurn.context },
+          });
+          session.context = rentalTurn.context;
+        }
+        if (rentalTurn.handled) {
+          replyText = rentalTurn.reply;
+        } else if (isExactMenuCommand(msgText)) {
           const menu = await deterministicReply(prisma, { msgText, session, user: senderUser });
           replyText = menu.replyText;
           trackRefer = menu.trackRefer;

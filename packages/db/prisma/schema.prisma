@@ -123,6 +123,7 @@ model User {
   fraudSignalReports      FraudSignal[]         @relation("FraudReports")
   fraudSignalResolutions  FraudSignal[]         @relation("FraudResolutions")
   adminActions            AdminAction[]         @relation("AdminActions")
+  rentalChecks            RentalCheck[]
 
   @@index([email])
   @@index([whatsappId])
@@ -383,6 +384,8 @@ model WhatsAppSession {
   platform    String           @default("whatsapp")
   isActive    Boolean          @default(true)
   handoffRequested Boolean     @default(false)
+  // Rental-check draft only. Not a verified home and not a payment.
+  context     Json?
   messages    WhatsAppMessage[]
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -722,5 +725,82 @@ model AdvertiserLead {
   createdAt               DateTime                 @default(now())
 
   @@index([phone])
+  @@index([createdAt])
+}
+
+// Paid rental safety check. A payment confirms the fee, not the home.
+// Bank details in paymentDetails are fraud evidence, not credentials.
+// Do not store card numbers, CVV, PIN, OTP, or passwords.
+enum RentalCheckStatus {
+  SUBMITTED
+  AWAITING_PAYMENT
+  PAID
+  UNDER_REVIEW
+  REPORT_READY
+  DELIVERED
+  CANCELLED
+}
+
+enum RentalCheckPaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+}
+
+enum RentalCheckReviewStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+}
+
+enum RentalCheckConfidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RentalCheckRecommendation {
+  LOWER_RISK
+  UNCERTAIN
+  HIGH_RISK
+}
+
+model RentalCheck {
+  id                       String                      @id @default(cuid())
+  publicReference          String                      @unique
+  accessToken              String                      @unique
+  userId                   Int?
+  user                     User?                       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerName             String?
+  customerPhone            String
+  listingUrl               String?
+  location                 String
+  askingRent               Int
+  agentName                String?
+  agentPhone               String?
+  paymentDetails           Json?
+  customerNotes            String?
+  evidence                 Json?
+  neighborhoodContext      Json?
+  status                   RentalCheckStatus           @default(SUBMITTED)
+  paymentStatus            RentalCheckPaymentStatus    @default(UNPAID)
+  reviewStatus             RentalCheckReviewStatus     @default(NOT_STARTED)
+  paystackReference        String?                     @unique
+  paystackAuthorizationUrl String?
+  amountKobo               Int                         @default(500000)
+  paidAt                   DateTime?
+  riskScore                Int?
+  confidence               RentalCheckConfidence?
+  recommendation           RentalCheckRecommendation?
+  reviewNotes              String?
+  reviewedAt               DateTime?
+  deliveredAt              DateTime?
+  createdAt                DateTime                    @default(now())
+  updatedAt                DateTime                    @updatedAt
+
+  @@index([customerPhone])
+  @@index([status])
+  @@index([paymentStatus])
   @@index([createdAt])
 }

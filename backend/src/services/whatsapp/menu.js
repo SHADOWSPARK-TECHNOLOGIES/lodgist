@@ -21,6 +21,7 @@ function welcomeReply() {
   return (
     "👋 *Welcome to Lodgist!* Nigeria's Most Trusted Property Platform.\n\n" +
     "Reply with:\n" +
+    "CHECK — Check a rental before you pay (₦5,000)\n" +
     "1️⃣ *Listings* — Browse available properties\n" +
     "2️⃣ *My Bookings* — Check your bookings\n" +
     "3️⃣ *Talk to Agent* — Speak with a human\n" +

@@ -20,6 +20,7 @@
 
 const express = require("express");
 const crypto = require("crypto");
+const { applyRentalCheckCharge, applyRentalCheckChargeFailed, PAYSTACK_PREFIX } = require("../services/rentalCheck");
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -177,6 +178,11 @@ async function handleChargeSuccess(prisma, data, eventId) {
     return;
   }
 
+  if (typeof reference === "string" && reference.startsWith(PAYSTACK_PREFIX)) {
+    await applyRentalCheckCharge(prisma, data);
+    return;
+  }
+
   // Route by reference prefix first, then fall back to metadata type
   const bookingId = data?.metadata?.bookingId;
   if (isBookingReference(reference) || (bookingId && data?.metadata?.type === "booking_payment")) {
@@ -266,6 +272,11 @@ async function handleChargeFailed(prisma, data, eventId) {
   const reference = data?.reference;
   if (!reference) {
     console.warn("[Paystack Webhook] charge.failed missing reference");
+    return;
+  }
+
+  if (typeof reference === "string" && reference.startsWith(PAYSTACK_PREFIX)) {
+    await applyRentalCheckChargeFailed(prisma, data);
     return;
   }
 
