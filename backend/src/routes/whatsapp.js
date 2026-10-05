@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { requireAuth } = require("../middleware/auth");
 const { parseWebhookBody } = require("./whatsappParse");
 const { sitePath, listingsReply, isExactMenuCommand, deterministicReply } = require("../services/whatsapp/menu");
+const { handleRentalCheckMessage } = require("../services/whatsapp/rentalCheck");
 const { routeTurn, resolveSender, loadOrCreateSession, toHistory } = require("../services/whatsapp/engine");
 const { logWhatsApp, redactPhone } = require("../services/whatsapp/redact");
 
@@ -227,7 +228,18 @@ module.exports = function (prisma, options = {}) {
 
         let replyText;
         let trackRefer = false;
-        if (isExactMenuCommand(msgText)) {
+        const rentalTurn =
+          !isExactMenuCommand(msgText) && prisma.rentalCheckDraft && prisma.rentalCheck
+            ? await handleRentalCheckMessage(prisma, {
+                text: msgText,
+                phone,
+                user: senderUser,
+                profileName: msg.profile?.name || profileName,
+              })
+            : { handled: false };
+        if (rentalTurn.handled) {
+          replyText = rentalTurn.replyText;
+        } else if (isExactMenuCommand(msgText)) {
           const menu = await deterministicReply(prisma, { msgText, session, user: senderUser });
           replyText = menu.replyText;
           trackRefer = menu.trackRefer;

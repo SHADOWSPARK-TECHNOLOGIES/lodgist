@@ -2,6 +2,7 @@ import Link from "next/link";
 import { brand } from "@/lib/copy";
 
 const product = [
+  [brand.check, "/check"],
   [brand.browse, "/listings"],
   [brand.list, "/advertise"],
   [brand.trust, "/trust"],

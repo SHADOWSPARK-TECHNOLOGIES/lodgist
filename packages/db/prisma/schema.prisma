@@ -123,6 +123,8 @@ model User {
   fraudSignalReports      FraudSignal[]         @relation("FraudReports")
   fraudSignalResolutions  FraudSignal[]         @relation("FraudResolutions")
   adminActions            AdminAction[]         @relation("AdminActions")
+  rentalChecks            RentalCheck[]         @relation("RentalCheckCustomer")
+  reviewedRentalChecks    RentalCheck[]         @relation("RentalCheckReviewer")
 
   @@index([email])
   @@index([whatsappId])
@@ -723,4 +725,92 @@ model AdvertiserLead {
 
   @@index([phone])
   @@index([createdAt])
+}
+
+// Paid Rental Safety Check. A paid case is a review, not verification.
+// paymentDetails may hold bank-account evidence. It must not hold card, PIN, or OTP secrets.
+enum RentalCheckStatus {
+  SUBMITTED
+  AWAITING_PAYMENT
+  PAID
+  UNDER_REVIEW
+  REPORT_READY
+  DELIVERED
+  CANCELLED
+}
+
+enum RentalCheckPaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+}
+
+enum RentalCheckReviewStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+}
+
+enum RentalCheckConfidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RentalCheckRecommendation {
+  LOWER_RISK
+  UNCERTAIN
+  HIGH_RISK
+}
+
+model RentalCheck {
+  id                String                     @id @default(cuid())
+  publicReference   String                     @unique
+  accessTokenHash   String
+  userId            Int?
+  user              User?                      @relation("RentalCheckCustomer", fields: [userId], references: [id])
+  customerName      String?
+  customerPhone     String
+  customerEmail     String?
+  listingUrl        String?
+  location          String
+  askingRent        Int
+  agentName         String?
+  agentPhone        String?
+  paymentDetails    Json?
+  customerNotes     String?
+  status            RentalCheckStatus          @default(SUBMITTED)
+  paymentStatus     RentalCheckPaymentStatus   @default(UNPAID)
+  reviewStatus      RentalCheckReviewStatus    @default(NOT_STARTED)
+  paystackReference String?                    @unique
+  amountNgn         Int                        @default(5000)
+  paidAt            DateTime?
+  riskScore         Int?
+  confidence        RentalCheckConfidence?
+  recommendation    RentalCheckRecommendation?
+  reviewerNotes     String?
+  evidence          Json?
+  reviewedBy        Int?
+  reviewer          User?                      @relation("RentalCheckReviewer", fields: [reviewedBy], references: [id])
+  reviewedAt        DateTime?
+  reportPublishedAt DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+
+  @@index([customerPhone])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+// In-progress WhatsApp CHECK collection. Not a case until the fields are complete.
+model RentalCheckDraft {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  step      String
+  fields    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
