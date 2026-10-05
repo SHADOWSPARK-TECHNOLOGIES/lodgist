@@ -20,6 +20,11 @@
 
 const express = require("express");
 const crypto = require("crypto");
+const {
+  isRentalPaystackReference,
+  chargeAmountAccepted,
+  paidPaymentUpdate,
+} = require("../services/rentalCheck");
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -184,6 +189,11 @@ async function handleChargeSuccess(prisma, data, eventId) {
     return;
   }
 
+  if (isRentalPaystackReference(reference, data)) {
+    await handleRentalChargeSuccess(prisma, data);
+    return;
+  }
+
   try {
     const transaction = await prisma.escrowTransaction.findFirst({
       where: {
@@ -272,6 +282,11 @@ async function handleChargeFailed(prisma, data, eventId) {
   const bookingId = data?.metadata?.bookingId;
   if (isBookingReference(reference) || (bookingId && data?.metadata?.type === "booking_payment")) {
     await handleBookingChargeFailed(prisma, data, reference, bookingId);
+    return;
+  }
+
+  if (isRentalPaystackReference(reference, data)) {
+    await handleRentalChargeFailed(prisma, data);
     return;
   }
 
@@ -416,6 +431,43 @@ async function handleTransferFailed(prisma, data, eventId) {
     }
   } catch (error) {
     console.error("[Paystack Webhook] Error in transfer.failed handler:", error);
+  }
+}
+
+async function handleRentalChargeSuccess(prisma, data) {
+  if (!prisma.rentalCheck || !data?.reference) return;
+  if (!chargeAmountAccepted(data)) {
+    console.warn("[Paystack Webhook] Rental check charge rejected: amount or currency");
+    return;
+  }
+  try {
+    const check = await prisma.rentalCheck.findFirst({ where: { paystackReference: data.reference } });
+    if (!check) {
+      console.warn("[Paystack Webhook] No rental check for charge.success");
+      return;
+    }
+    if (check.paymentStatus === "PAID" || check.status === "CANCELLED") return;
+    await prisma.rentalCheck.update({
+      where: { id: check.id },
+      data: paidPaymentUpdate(check),
+    });
+    console.log(`[Paystack Webhook] Rental check ${check.publicReference} → UNDER_REVIEW`);
+  } catch (error) {
+    console.error("[Paystack Webhook] Error in rental charge.success:", error);
+  }
+}
+
+async function handleRentalChargeFailed(prisma, data) {
+  if (!prisma.rentalCheck || !data?.reference) return;
+  try {
+    const check = await prisma.rentalCheck.findFirst({ where: { paystackReference: data.reference } });
+    if (!check || check.paymentStatus === "PAID" || check.status === "CANCELLED") return;
+    await prisma.rentalCheck.update({
+      where: { id: check.id },
+      data: { paymentStatus: "FAILED", status: "AWAITING_PAYMENT" },
+    });
+  } catch (error) {
+    console.error("[Paystack Webhook] Error in rental charge.failed:", error);
   }
 }
 
