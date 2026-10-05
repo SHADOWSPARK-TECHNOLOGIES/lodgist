@@ -24,7 +24,8 @@ function welcomeReply() {
     "1️⃣ *Listings* — Browse available properties\n" +
     "2️⃣ *My Bookings* — Check your bookings\n" +
     "3️⃣ *Talk to Agent* — Speak with a human\n" +
-    "4️⃣ *Refer* — Invite 3 landlords, get ₦1,000 escrow credit!"
+    "4️⃣ *Refer* — Invite 3 landlords, get ₦1,000 escrow credit!\n\n" +
+    "Reply *CHECK* to start a Rental Safety Check before you pay (₦5,000). A check is not a statement that a house is verified."
   );
 }
 
