@@ -27,8 +27,14 @@ export default function HomePage() {
             {home.subtitle}
           </p>
 
+          <p className="text-base mb-6 mx-auto" style={{ color: "rgba(255,255,255,0.75)", maxWidth: "42ch" }}>
+            {home.checkPrompt}
+          </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href="/listings" className="btn btn-primary btn-lg">{home.browseCta}</Link>
+            <Link href="/check" className="btn btn-primary btn-lg" style={{ whiteSpace: "normal", textAlign: "center" }}>{home.checkCta}</Link>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center mt-4">
+            <Link href="/listings" className="btn btn-secondary btn-lg">{home.browseCta}</Link>
             <Link href="/advertise" className="btn btn-secondary btn-lg">{home.listCta}</Link>
           </div>
           <p className="mt-6 text-sm">

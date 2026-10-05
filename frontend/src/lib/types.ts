@@ -352,3 +352,120 @@ export interface HNWVerificationStatus {
   threshold: number;
   currency: string;
 }
+
+export type RentalCheckStatus =
+  | "SUBMITTED"
+  | "AWAITING_PAYMENT"
+  | "PAID"
+  | "UNDER_REVIEW"
+  | "REPORT_READY"
+  | "DELIVERED"
+  | "CANCELLED";
+
+export type RentalRecommendation = "LOWER_RISK" | "UNCERTAIN" | "HIGH_RISK";
+export type RentalConfidence = "LOW" | "MEDIUM" | "HIGH";
+export type EvidenceState = "not_checked" | "checked" | "unavailable" | "incomplete" | "unconfirmed";
+
+export interface RentalPaymentDetails {
+  method?: "bank_transfer" | "cash" | "pos" | "unknown" | "other";
+  bankName?: string | null;
+  accountName?: string | null;
+  accountNumber?: string | null;
+  narration?: string | null;
+}
+
+export interface CreateRentalCheckPayload {
+  customerName?: string;
+  customerPhone: string;
+  customerEmail?: string;
+  listingUrl?: string;
+  location: string;
+  askingRent: number;
+  agentName?: string;
+  agentPhone?: string;
+  customerNotes?: string;
+  paymentDetails?: RentalPaymentDetails | null;
+}
+
+export interface RentalCheckStatusView {
+  product: string;
+  publicReference: string;
+  status: RentalCheckStatus;
+  paymentStatus: string;
+  reviewStatus: string;
+  amountNgn: number;
+  reportReady: boolean;
+  createdAt: string;
+  accessToken?: string;
+}
+
+export interface RentalReportSection {
+  key: string;
+  label: string;
+  state: string;
+  stateLabel: string;
+  note: string | null;
+  provenance: string | null;
+}
+
+export interface RentalReport {
+  product: string;
+  publicReference: string;
+  status: RentalCheckStatus;
+  published: boolean;
+  trustScore: number | null;
+  confidence: RentalConfidence | null;
+  recommendation: RentalRecommendation | null;
+  recommendationLabel: string | null;
+  disclaimer: string;
+  sections: RentalReportSection[];
+  checked: string[];
+  couldNotVerify: string[];
+  nextActions: string[];
+  amountNgn: number;
+  location: string;
+  askingRent: number;
+  reportPublishedAt: string | null;
+}
+
+export interface RentalEvidenceItem {
+  state: EvidenceState;
+  note: string;
+  provenance?: string;
+}
+
+export interface RentalCheckAdmin {
+  id: string;
+  publicReference: string;
+  customerName: string | null;
+  customerPhone: string;
+  listingUrl: string | null;
+  location: string;
+  askingRent: number;
+  agentName: string | null;
+  agentPhone: string | null;
+  paymentDetails: RentalPaymentDetails | null;
+  customerNotes: string | null;
+  status: RentalCheckStatus;
+  paymentStatus: string;
+  reviewStatus: string;
+  amountNgn: number;
+  riskScore: number | null;
+  confidence: RentalConfidence | null;
+  recommendation: RentalRecommendation | null;
+  reviewerNotes: string | null;
+  evidence: Record<string, RentalEvidenceItem> | null;
+  paidAt: string | null;
+  createdAt: string;
+  reportPublishedAt: string | null;
+  deliveredAt: string | null;
+  preview: RentalReport;
+}
+
+export interface RentalCheckMetrics {
+  submitted: number;
+  paid: number;
+  reportsDelivered: number;
+  revenueNgn: number;
+  averageCompletionMs: number | null;
+}

@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { nav } from '@/lib/copy';
 
 const links = [
+  { href: '/check', label: 'Check a rental' },
   { href: '/listings', label: nav.browse },
   { href: '/mission', label: nav.aim },
   { href: '/dashboard', label: nav.dashboard, authRequired: true },
@@ -36,6 +37,11 @@ export function NavBar() {
               {l.label}
             </Link>
           ))}
+          {user?.role === "STUDIO_ADMIN" && (
+            <Link href="/admin/rental-checks" className={`nav-link ${pathname === "/admin/rental-checks" ? "text-white bg-white/5" : ""}`}>
+              Rental checks
+            </Link>
+          )}
         </div>
 
         <div className="hidden md:flex items-center gap-3">
@@ -69,6 +75,11 @@ export function NavBar() {
             <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
               className="nav-link text-base py-3">{l.label}</Link>
           ))}
+          {user?.role === "STUDIO_ADMIN" && (
+            <Link href="/admin/rental-checks" onClick={() => setOpen(false)} className="nav-link text-base py-3">
+              Rental checks
+            </Link>
+          )}
           {user ? (
             <button onClick={() => { logout(); setOpen(false); }}
               className="btn btn-secondary mt-2">{nav.signOut}</button>

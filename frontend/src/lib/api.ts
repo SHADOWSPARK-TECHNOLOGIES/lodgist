@@ -30,6 +30,12 @@ import type {
   CreateAdvertiserLeadPayload,
   AdvertiserLeadSaved,
   TenantBooking,
+  CreateRentalCheckPayload,
+  RentalCheckStatusView,
+  RentalReport,
+  RentalCheckAdmin,
+  RentalCheckMetrics,
+  RentalEvidenceItem,
 } from "./types";
 import { getToken } from "./auth";
 
@@ -267,6 +273,75 @@ export const advertiserLeadsApi = {
 
 
 // ─── Bookings API ──────────────────────────────────────────────────────────
+
+function rentalTokenHeader(token: string): Record<string, string> {
+  return { "x-rental-check-token": token };
+}
+
+export const rentalChecksApi = {
+  create: (payload: CreateRentalCheckPayload) =>
+    request<{ success: boolean; message: string; data: RentalCheckStatusView }>(
+      "POST",
+      "/api/rental-checks",
+      { body: JSON.stringify(payload) },
+    ),
+
+  status: (reference: string) =>
+    request<{ success: boolean; data: RentalCheckStatusView }>(
+      "GET",
+      `/api/rental-checks/${encodeURIComponent(reference)}`,
+    ),
+
+  pay: (reference: string, token: string) =>
+    request<{ success: boolean; data: RentalCheckStatusView; paystackUrl?: string; paystackReference?: string; alreadyPaid?: boolean }>(
+      "POST",
+      `/api/rental-checks/${encodeURIComponent(reference)}/pay`,
+      { headers: rentalTokenHeader(token), body: JSON.stringify({ token }) },
+    ),
+
+  verify: (publicReference: string, token: string, paystackReference?: string) =>
+    request<{ success: boolean; data: RentalCheckStatusView; alreadyPaid?: boolean }>(
+      "POST",
+      "/api/rental-checks/pay/verify",
+      { headers: rentalTokenHeader(token), body: JSON.stringify({ publicReference, token, paystackReference }) },
+    ),
+
+  report: (reference: string, token: string) =>
+    request<{ success: boolean; data: RentalReport }>(
+      "GET",
+      `/api/rental-checks/${encodeURIComponent(reference)}/report?token=${encodeURIComponent(token)}`,
+      { headers: rentalTokenHeader(token) },
+    ),
+
+  metrics: () =>
+    request<{ success: boolean; data: RentalCheckMetrics }>("GET", "/api/rental-checks/metrics"),
+
+  list: () =>
+    request<{ success: boolean; data: RentalCheckAdmin[] }>("GET", "/api/rental-checks"),
+
+  admin: (reference: string) =>
+    request<{ success: boolean; data: RentalCheckAdmin }>(
+      "GET",
+      `/api/rental-checks/${encodeURIComponent(reference)}/admin`,
+    ),
+
+  review: (
+    reference: string,
+    body: {
+      riskScore?: number;
+      confidence?: string;
+      recommendation?: string;
+      reviewerNotes?: string;
+      evidence?: Record<string, RentalEvidenceItem>;
+      publish?: boolean;
+    },
+  ) =>
+    request<{ success: boolean; data: RentalCheckAdmin }>(
+      "PATCH",
+      `/api/rental-checks/${encodeURIComponent(reference)}/review`,
+      { body: JSON.stringify(body) },
+    ),
+};
 
 export const bookingsApi = {
   /** Bookings for the signed-in tenant. */
