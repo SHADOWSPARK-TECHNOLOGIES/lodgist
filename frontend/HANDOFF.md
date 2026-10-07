@@ -27,7 +27,13 @@ Live checks on 2026-10-07, no case submitted:
 - `https://lodgist.online/check` returned HTTP 200. Title: `Check a rental before you pay | Lodgist`. The page showed `₦5,000`.
 - `POST https://lodgist-api-production.up.railway.app/api/rental-checks` with `{}` returned HTTP 400 and fields `customerPhone`, `location`, `askingRent`. That request does not create a case.
 
-Not run: a valid case submit, a Paystack checkout, `frontend` tests, and `backend` tests. Those remain for the person who holds the keys, or for a later local run that does not write production.
+Local suites on 2026-10-07, in-memory only, no production write:
+
+- `cd frontend && npm test`: 22 passed, 0 failed.
+- `cd backend && npm test`: 107 passed, 0 failed.
+- The rental-check suite creates a case, returns 503 for pay while Paystack is unset, then accepts a fake ₦5,000 confirmation. The published report text does not say the home is verified.
+
+Not run: a live case submit and a live Paystack checkout. Those stay with a person who holds the host keys.
 
 ## LAST
 
