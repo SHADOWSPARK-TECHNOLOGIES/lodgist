@@ -73,9 +73,13 @@ Rollback the app first, then drop those five columns. Dropping them before rolli
 
 ## VERIFY
 
-backend npm test: 108 passed.
+backend npm test on 8635ab77: 108 passed, earlier this session.
 frontend npm test: 23 passed.
-Not run: production migration, a live Paystack charge, a browser click-through, an emulator.
+Local page check on 2026-10-07, next dev at 127.0.0.1:3010, this checkout only. Port 3000 was left alone because it is the ShadowSpark site.
+/check rendered "Save this case" and "Checkout is not open, so saving this case does not pay it." No "Continue to pay", no wa.me link, no file input. The WhatsApp words on that page are the customer phone field, not a payment link.
+/check/RSC-LOCALTEST, after scripts ran, showed "We could not load this case." No pay button. The API was not running, so this is the load-error state, not a paid state.
+/admin/rental-checks stayed on "Loading" in that headless pass. The reviewer buttons were not clicked.
+Not run: a tab-by-tab keyboard pass, a signed-in reviewer click-through, a restarted Postgres reload, a production migration, a live charge, a deploy.
 
 ## NEXT
 
