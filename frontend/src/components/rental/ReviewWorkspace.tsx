@@ -50,6 +50,8 @@ export default function ReviewWorkspace() {
   const [evidence, setEvidence] = useState(emptyEvidence);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
+  const [transferRef, setTransferRef] = useState("");
+  const [paymentNote, setPaymentNote] = useState("");
 
   const load = async () => {
     const [metricBody, listBody] = await Promise.all([rentalChecksApi.metrics(), rentalChecksApi.list()]);
@@ -71,6 +73,8 @@ export default function ReviewWorkspace() {
     setEvidence({ ...emptyEvidence(), ...(item.evidence || {}) });
     setSaved("");
     setError("");
+    setTransferRef("");
+    setPaymentNote("");
   };
 
   const save = async (publish: boolean) => {
@@ -91,6 +95,34 @@ export default function ReviewWorkspace() {
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save the review.");
+    }
+  };
+
+  const recordReference = async () => {
+    if (!selected) return;
+    setError("");
+    setSaved("");
+    try {
+      const result = await rentalChecksApi.recordPaymentReference(selected.publicReference, transferRef);
+      setSelected(result.data);
+      setSaved(result.alreadyPaid ? "Fee already confirmed." : "Reference recorded. The fee is not confirmed.");
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not record the reference.");
+    }
+  };
+
+  const reviewPayment = async (action: "confirm" | "reject") => {
+    if (!selected) return;
+    setError("");
+    setSaved("");
+    try {
+      const result = await rentalChecksApi.reviewPayment(selected.publicReference, { action, note: paymentNote });
+      setSelected(result.data);
+      setSaved(result.alreadyPaid ? "Fee already confirmed." : action === "confirm" ? "Fee confirmed." : "Reference rejected.");
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not review the fee.");
     }
   };
 
@@ -148,7 +180,25 @@ export default function ReviewWorkspace() {
             <p className="text-sm text-white">Agent: {selected.agentName || "Not supplied"} · {selected.agentPhone || "No phone"}</p>
             <p className="text-sm text-white">Customer: {selected.customerName || "Name not supplied"} · {selected.customerPhone}</p>
             {selected.listingUrl && <p className="text-sm break-all text-white">{selected.listingUrl}</p>}
-            <p className="text-sm text-white">Payment {selected.paymentStatus}. Review {selected.reviewStatus}.</p>
+            <p className="text-sm text-white">Check fee {formatNaira(selected.amountNgn)}. Payment {selected.paymentStatus}. This is not rent.</p>
+            <p className="text-sm text-white">
+              Transfer reference: {selected.manualPaymentRef || "None on file"}
+            </p>
+            {selected.paymentReviewNote && <p className="text-sm text-white">Payment note: {selected.paymentReviewNote}</p>}
+            <label className="block text-sm text-white">
+              Record a reference the customer already sent. This does not confirm the money.
+              <input className="input mt-1" value={transferRef} onChange={(e) => setTransferRef(e.target.value)} />
+            </label>
+            <label className="block text-sm text-white">
+              Receipt note
+              <input className="input mt-1" value={paymentNote} onChange={(e) => setPaymentNote(e.target.value)} />
+            </label>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button className="btn btn-secondary" type="button" onClick={recordReference}>Record reference</button>
+              <button className="btn btn-primary" type="button" onClick={() => reviewPayment("confirm")}>Confirm receipt</button>
+              <button className="btn btn-secondary" type="button" onClick={() => reviewPayment("reject")}>Reject reference</button>
+            </div>
+            <p className="text-sm text-white">Report review {selected.reviewStatus}.</p>
             {selected.paymentDetails && (
               <p className="text-sm text-white">
                 Payment evidence: {selected.paymentDetails.bankName || "Bank not supplied"} · {selected.paymentDetails.accountName || "Account name not supplied"} · {selected.paymentDetails.accountNumber || "Account number not supplied"}

@@ -2,25 +2,22 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const { requireAuth, requireRole } = require("../middleware/auth");
 const logger = require("../utils/logger");
-const PaystackService = require("../services/paystackService");
 const {
-  PRODUCT_NAME,
-  PRICE_NGN,
   validateIntake,
   validateReview,
+  validateManualPaymentRef,
+  submitManualPayment,
+  reviewManualPayment,
   createRentalCheck,
   tokenMatches,
   publicStatus,
   buildReport,
   adminView,
   summarizeMetrics,
-  verifyAmountAccepted,
-  paidPaymentUpdate,
-  paystackCustomerEmail,
 } = require("../services/rentalCheck");
 
 const SAVED_MESSAGE =
-  "Case saved. Pay ₦5,000 for the Rental Safety Check. Payment does not verify the home.";
+  "Case saved. The check fee is ₦5,000. Online checkout is not open. Saving this case does not pay the fee or verify the home.";
 
 function readToken(req) {
   const header = req.headers["x-rental-check-token"];
@@ -30,24 +27,22 @@ function readToken(req) {
   return "";
 }
 
-function publicBase() {
-  return String(process.env.FRONTEND_URL || process.env.WHATSAPP_PUBLIC_URL || "").trim().replace(/\/$/, "");
-}
-
-function optionalUserId(req) {
+function optionalUser(req) {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ") || !process.env.JWT_SECRET) return null;
   try {
-    const decoded = jwt.verify(header.slice(7), process.env.JWT_SECRET);
-    return decoded && decoded.id ? decoded.id : null;
+    return jwt.verify(header.slice(7), process.env.JWT_SECRET);
   } catch {
     return null;
   }
 }
 
-function rentalChecksRouter(prisma, deps = {}) {
+function isStudioAdmin(user) {
+  return Boolean(user && user.role === "STUDIO_ADMIN");
+}
+
+function rentalChecksRouter(prisma) {
   const router = express.Router();
-  const paystack = deps.paystack || PaystackService;
 
   router.post("/", async (req, res) => {
     const parsed = validateIntake(req.body);
@@ -59,7 +54,8 @@ function rentalChecksRouter(prisma, deps = {}) {
       });
     }
     try {
-      const userId = optionalUserId(req);
+      const user = optionalUser(req);
+      const userId = user && user.id ? user.id : null;
       const { check, accessToken } = await createRentalCheck(prisma, {
         ...parsed.data,
         userId,
@@ -137,32 +133,11 @@ function rentalChecksRouter(prisma, deps = {}) {
       if (check.paymentStatus === "PAID") {
         return res.json({ success: true, data: publicStatus(check), alreadyPaid: true });
       }
-      if (!process.env.PAYSTACK_SECRET_KEY) {
-        return res.status(503).json({
-          success: false,
-          error: "Online payment is not configured.",
-          code: "PAYSTACK_UNAVAILABLE",
-        });
-      }
-      const reference = check.paystackReference || paystackReference;
-      if (!reference) {
-        return res.status(409).json({ success: false, error: "Payment has not been started for this case." });
-      }
-      const verified = await paystack.verifyPayment(reference);
-      if (!verifyAmountAccepted(verified)) {
-        return res.status(402).json({
-          success: false,
-          error: "Paystack has not confirmed a ₦5,000 payment for this case.",
-        });
-      }
-      const updated = await prisma.rentalCheck.update({
-        where: { id: check.id },
-        data: {
-          ...paidPaymentUpdate(check),
-          paystackReference: verified.reference || reference,
-        },
+      return res.status(409).json({
+        success: false,
+        error: "A Paystack return does not confirm this fee. Staff confirm a transfer reference.",
+        code: "MANUAL_REVIEW_REQUIRED",
       });
-      return res.json({ success: true, data: publicStatus(updated) });
     } catch (error) {
       logger.error("Rental check verify failed", { message: error.message });
       return res.status(502).json({ success: false, error: "We could not confirm payment with Paystack." });
@@ -221,46 +196,59 @@ function rentalChecksRouter(prisma, deps = {}) {
       if (check.status === "CANCELLED") {
         return res.status(409).json({ success: false, error: "This case is cancelled." });
       }
-      if (!process.env.PAYSTACK_SECRET_KEY) {
-        return res.status(503).json({
-          success: false,
-          error: "Online payment is not configured. Your case is saved.",
-          code: "PAYSTACK_UNAVAILABLE",
-        });
-      }
-      const base = publicBase();
-      const callbackUrl = base
-        ? `${base}/check/${encodeURIComponent(check.publicReference)}?token=${encodeURIComponent(token)}`
-        : undefined;
-      const payment = await paystack.initializePayment({
-        email: paystackCustomerEmail(check),
-        amount: PRICE_NGN,
-        reference: check.publicReference,
-        idempotencyKey: `rental-check-${check.id}`,
-        metadata: {
-          type: "rental_safety_check",
-          publicReference: check.publicReference,
-          product: PRODUCT_NAME,
-        },
-        ...(callbackUrl ? { callbackUrl } : {}),
-      });
-      const updated = await prisma.rentalCheck.update({
-        where: { id: check.id },
-        data: {
-          paystackReference: payment.reference,
-          status: "AWAITING_PAYMENT",
-          paymentStatus: "PENDING",
-        },
-      });
-      return res.json({
-        success: true,
-        data: publicStatus(updated),
-        paystackUrl: payment.authorization_url,
-        paystackReference: payment.reference,
+      return res.status(503).json({
+        success: false,
+        error: "Online checkout is not available. Saving a case does not pay the fee.",
+        code: "PAYSTACK_UNAVAILABLE",
       });
     } catch (error) {
       logger.error("Rental check pay init failed", { message: error.message });
-      return res.status(502).json({ success: false, error: "We could not start payment." });
+      return res.status(502).json({ success: false, error: "We could not start checkout." });
+    }
+  });
+
+  router.post("/:reference/payment-reference", async (req, res) => {
+    const parsed = validateManualPaymentRef(req.body);
+    if (!parsed.ok) return res.status(parsed.status).json({ success: false, error: parsed.error });
+    try {
+      const check = await prisma.rentalCheck.findUnique({ where: { publicReference: req.params.reference } });
+      const user = optionalUser(req);
+      const allowed = check && (isStudioAdmin(user) || tokenMatches(check, readToken(req)));
+      if (!allowed) return res.status(401).json({ success: false, error: "This case link is not valid." });
+      const decision = submitManualPayment(check, parsed.ref);
+      if (!decision.ok) return res.status(decision.status).json({ success: false, error: decision.error });
+      const current = decision.data
+        ? await prisma.rentalCheck.update({ where: { id: check.id }, data: decision.data })
+        : check;
+      const view = isStudioAdmin(user) ? adminView(current) : publicStatus(current);
+      return res.json({
+        success: true,
+        data: view,
+        alreadyPaid: Boolean(decision.alreadyPaid),
+        alreadySubmitted: Boolean(decision.alreadySubmitted),
+      });
+    } catch (error) {
+      logger.error("Rental check reference submit failed", { message: error.message });
+      return res.status(500).json({ success: false, error: "We could not save this reference." });
+    }
+  });
+
+  router.patch("/:reference/payment-review", requireAuth, requireRole("STUDIO_ADMIN"), async (req, res) => {
+    try {
+      const check = await prisma.rentalCheck.findUnique({ where: { publicReference: req.params.reference } });
+      const decision = reviewManualPayment(check, {
+        action: req.body && req.body.action,
+        note: req.body && req.body.note,
+        reviewerId: req.user.id,
+      });
+      if (!decision.ok) return res.status(decision.status).json({ success: false, error: decision.error });
+      const current = decision.data
+        ? await prisma.rentalCheck.update({ where: { id: check.id }, data: decision.data })
+        : check;
+      return res.json({ success: true, data: adminView(current), alreadyPaid: Boolean(decision.alreadyPaid) });
+    } catch (error) {
+      logger.error("Rental check payment review failed", { message: error.message });
+      return res.status(500).json({ success: false, error: "We could not save this payment review." });
     }
   });
 

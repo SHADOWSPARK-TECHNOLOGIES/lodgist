@@ -261,55 +261,83 @@ test("create, pay, verify, review, and report follow the paid path", async () =>
 
     const unpaid = await json(server, `/api/rental-checks/${ref}/pay`, { method: "POST", headers: { "Content-Type": "application/json", "x-rental-check-token": token }, body: "{}" });
     assert.equal(unpaid.status, 503);
+    assert.equal(unpaid.body.code, "PAYSTACK_UNAVAILABLE");
     assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
 
-    process.env.PAYSTACK_SECRET_KEY = "sk_test_present";
-    const started = await json(server, `/api/rental-checks/${ref}/pay`, {
+    process.env.PAYSTACK_SECRET_KEY = "sk_test_not_used";
+    const stillClosed = await json(server, `/api/rental-checks/${ref}/pay`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-rental-check-token": token },
       body: JSON.stringify({ status: "success" }),
     });
-    assert.equal(started.status, 200);
-    assert.equal(started.body.paystackUrl, "https://paystack.test/pay");
-    assert.equal(prisma.checks[0].status, "AWAITING_PAYMENT");
-    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
+    assert.equal(stillClosed.status, 503);
+    assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
 
     const lied = await json(server, "/api/rental-checks/pay/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-rental-check-token": token },
       body: JSON.stringify({ publicReference: ref, status: "success", token }),
     });
-    assert.equal(lied.status, 402);
+    assert.equal(lied.status, 409);
+    assert.equal(lied.body.code, "MANUAL_REVIEW_REQUIRED");
+    assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
+
+    const submitted = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
+      body: JSON.stringify({ manualPaymentRef: "TRF-1001", success: true, screenshot: null }),
+    });
+    assert.equal(submitted.status, 200);
+    assert.equal(submitted.body.data.paymentStatus, "PENDING");
+    assert.equal(submitted.body.data.paymentReferenceSubmitted, true);
+    assert.equal(submitted.body.data.manualPaymentRef, undefined);
+    assert.equal(prisma.checks[0].status, "AWAITING_PAYMENT");
+    const submittedAt = prisma.checks[0].paymentSubmittedAt;
+
+    const againRef = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
+      body: JSON.stringify({ manualPaymentRef: "TRF-1001" }),
+    });
+    assert.equal(againRef.body.alreadySubmitted, true);
+    assert.equal(prisma.checks[0].paymentSubmittedAt, submittedAt);
+
+    const renter = jwt.sign({ id: 9, email: "ada@example.com", name: "Ada", role: "TENANT" }, process.env.JWT_SECRET);
+    const forbiddenPay = await json(server, `/api/rental-checks/${ref}/payment-review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${renter}` },
+      body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(forbiddenPay.status, 403);
     assert.equal(prisma.checks[0].paymentStatus, "PENDING");
 
-    verified = { status: "success", amount: 100, currency: "NGN", reference: "LODG-ESC-RSC-1" };
-    const wrongAmount = await json(server, "/api/rental-checks/pay/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
-      body: JSON.stringify({ publicReference: ref, token }),
-    });
-    assert.equal(wrongAmount.status, 402);
-
-    verified = { status: "success", amount: 5000, currency: "NGN", reference: "LODG-ESC-RSC-1" };
-    const paid = await json(server, "/api/rental-checks/pay/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
-      body: JSON.stringify({ publicReference: ref, token }),
+    const paid = await json(server, `/api/rental-checks/${ref}/payment-review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` },
+      body: JSON.stringify({ action: "confirm", note: "Transfer seen" }),
     });
     assert.equal(paid.status, 200);
     assert.equal(paid.body.data.paymentStatus, "PAID");
     assert.equal(paid.body.data.status, "UNDER_REVIEW");
-    const again = await json(server, "/api/rental-checks/pay/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
-      body: JSON.stringify({ publicReference: ref, token }),
+    assert.equal(paid.body.data.paymentReviewedBy, 1);
+    const paidAt = prisma.checks[0].paidAt;
+    const again = await json(server, `/api/rental-checks/${ref}/payment-review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` },
+      body: JSON.stringify({ action: "confirm" }),
     });
     assert.equal(again.body.alreadyPaid, true);
+    assert.equal(prisma.checks[0].paidAt, paidAt);
+
+    const reloaded = await json(server, `/api/rental-checks/${ref}`);
+    assert.equal(reloaded.status, 200);
+    assert.equal(reloaded.body.data.paymentStatus, "PAID");
+    assert.equal(reloaded.body.data.manualPaymentRef, undefined);
+    assert.equal(reloaded.body.data.paymentReferenceSubmitted, true);
 
     const early = await json(server, `/api/rental-checks/${ref}/report?token=${encodeURIComponent(token)}`);
     assert.equal(early.status, 409);
 
-    const renter = jwt.sign({ id: 9, email: "ada@example.com", name: "Ada", role: "TENANT" }, process.env.JWT_SECRET);
     const forbidden = await json(server, `/api/rental-checks/${ref}/review`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${renter}` },
@@ -374,6 +402,78 @@ test("create, pay, verify, review, and report follow the paid path", async () =>
   }
 });
 
+test("a rejected reference can be replaced, and a screenshot or another token cannot pay the fee", async () => {
+  const prisma = memoryPrisma();
+  const server = await listen(appFor(prisma));
+  try {
+    const created = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(intake),
+    });
+    const ref = created.body.data.publicReference;
+    const token = created.body.data.accessToken;
+    const other = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...intake, customerPhone: "08030000000" }),
+    });
+    const otherToken = other.body.data.accessToken;
+
+    const stolen = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": otherToken },
+      body: JSON.stringify({ manualPaymentRef: "TRF-OTHER" }),
+    });
+    assert.equal(stolen.status, 401);
+    assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
+
+    const shot = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
+      body: JSON.stringify({ manualPaymentRef: "TRF-1", screenshot: "data:image/png;base64,abc" }),
+    });
+    assert.equal(shot.status, 400);
+    assert.equal(prisma.checks[0].manualPaymentRef, undefined);
+
+    const card = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
+      body: JSON.stringify({ manualPaymentRef: "4111111111111111" }),
+    });
+    assert.equal(card.status, 400);
+
+    const submitted = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
+      body: JSON.stringify({ manualPaymentRef: "TRF-OLD" }),
+    });
+    assert.equal(submitted.status, 200);
+    const rejected = await json(server, `/api/rental-checks/${ref}/payment-review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` },
+      body: JSON.stringify({ action: "reject", note: "Amount did not match" }),
+    });
+    assert.equal(rejected.status, 200);
+    assert.equal(rejected.body.data.paymentStatus, "FAILED");
+    assert.equal(rejected.body.data.manualPaymentRef, null);
+    assert.match(rejected.body.data.paymentReviewNote, /TRF-OLD/);
+    assert.match(rejected.body.data.paymentReviewNote, /Amount did not match/);
+
+    const replaced = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` },
+      body: JSON.stringify({ manualPaymentRef: "TRF-NEW" }),
+    });
+    assert.equal(replaced.status, 200);
+    assert.equal(replaced.body.data.paymentStatus, "PENDING");
+    assert.equal(replaced.body.data.manualPaymentRef, "TRF-NEW");
+    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
+  } finally {
+    server.close();
+  }
+});
+
 test("webhook accepts a signed rental charge once and rejects a bad signature or amount", async () => {
   const prisma = memoryPrisma();
   prisma.checks.push({
@@ -420,8 +520,8 @@ test("webhook accepts a signed rental charge once and rejects a bad signature or
       body: raw,
     });
     assert.equal(ok.status, 200);
-    assert.equal(prisma.checks[0].paymentStatus, "PAID");
-    assert.equal(prisma.checks[0].status, "UNDER_REVIEW");
+    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
+    assert.equal(prisma.checks[0].status, "AWAITING_PAYMENT");
     assert.equal(prisma.listingWrites, 0);
 
     const duplicate = await fetch(`http://127.0.0.1:${server.address().port}/api/payments/webhook`, {
@@ -431,7 +531,7 @@ test("webhook accepts a signed rental charge once and rejects a bad signature or
     });
     const duplicateBody = await duplicate.json();
     assert.equal(duplicateBody.message, "Already processed");
-    assert.equal(prisma.checks[0].paymentStatus, "PAID");
+    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
   } finally {
     server.close();
   }

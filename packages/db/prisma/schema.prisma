@@ -785,6 +785,12 @@ model RentalCheck {
   reviewStatus      RentalCheckReviewStatus    @default(NOT_STARTED)
   paystackReference String?                    @unique
   amountNgn         Int                        @default(5000)
+  // Transfer reference for the check fee. Not rent, not a deposit, and not a receipt until staff confirm it.
+  manualPaymentRef  String?
+  paymentSubmittedAt DateTime?
+  paymentReviewedBy Int?
+  paymentReviewedAt DateTime?
+  paymentReviewNote String?
   paidAt            DateTime?
   riskScore         Int?
   confidence        RentalCheckConfidence?

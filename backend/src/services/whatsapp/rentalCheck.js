@@ -123,13 +123,13 @@ async function finishDraft(prisma, { phone, fields, user, profileName }) {
   await prisma.rentalCheckDraft.deleteMany({ where: { phone } });
   const url = caseUrl(check.publicReference);
   const link = url
-    ? `Pay ₦${PRICE_NGN.toLocaleString("en-NG")} here: ${url}`
-    : "The payment link is not configured on this number yet. Keep the case reference and open Lodgist.";
+    ? `Case link: ${url}`
+    : "The case link is not configured on this number yet. Keep the case reference.";
   return {
     handled: true,
     replyText:
-      `Case ${check.publicReference} is saved.\n${link}\n` +
-      "This payment is for the check. It does not mean the house has been verified.\n" +
+      `Case ${check.publicReference} is saved. The check fee is ₦${PRICE_NGN.toLocaleString("en-NG")}. Online checkout is not open on this chat.\n${link}\n` +
+      "Saving the case does not pay the fee, and it does not verify the house.\n" +
       `Reply STATUS ${check.publicReference} to see progress.`,
   };
 }

@@ -22,8 +22,6 @@ const express = require("express");
 const crypto = require("crypto");
 const {
   isRentalPaystackReference,
-  chargeAmountAccepted,
-  paidPaymentUpdate,
 } = require("../services/rentalCheck");
 
 
@@ -434,41 +432,14 @@ async function handleTransferFailed(prisma, data, eventId) {
   }
 }
 
-async function handleRentalChargeSuccess(prisma, data) {
-  if (!prisma.rentalCheck || !data?.reference) return;
-  if (!chargeAmountAccepted(data)) {
-    console.warn("[Paystack Webhook] Rental check charge rejected: amount or currency");
-    return;
-  }
-  try {
-    const check = await prisma.rentalCheck.findFirst({ where: { paystackReference: data.reference } });
-    if (!check) {
-      console.warn("[Paystack Webhook] No rental check for charge.success");
-      return;
-    }
-    if (check.paymentStatus === "PAID" || check.status === "CANCELLED") return;
-    await prisma.rentalCheck.update({
-      where: { id: check.id },
-      data: paidPaymentUpdate(check),
-    });
-    console.log(`[Paystack Webhook] Rental check ${check.publicReference} → UNDER_REVIEW`);
-  } catch (error) {
-    console.error("[Paystack Webhook] Error in rental charge.success:", error);
-  }
+async function handleRentalChargeSuccess(_prisma, data) {
+  if (!data?.reference) return;
+  console.warn("[Paystack Webhook] Rental check charge ignored. Staff confirm a transfer reference.");
 }
 
-async function handleRentalChargeFailed(prisma, data) {
-  if (!prisma.rentalCheck || !data?.reference) return;
-  try {
-    const check = await prisma.rentalCheck.findFirst({ where: { paystackReference: data.reference } });
-    if (!check || check.paymentStatus === "PAID" || check.status === "CANCELLED") return;
-    await prisma.rentalCheck.update({
-      where: { id: check.id },
-      data: { paymentStatus: "FAILED", status: "AWAITING_PAYMENT" },
-    });
-  } catch (error) {
-    console.error("[Paystack Webhook] Error in rental charge.failed:", error);
-  }
+async function handleRentalChargeFailed(_prisma, data) {
+  if (!data?.reference) return;
+  console.warn("[Paystack Webhook] Rental check charge.failed ignored. It does not reject a transfer reference.");
 }
 
 module.exports = createPaymentsRouter;

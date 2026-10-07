@@ -313,6 +313,20 @@ export const rentalChecksApi = {
       { headers: rentalTokenHeader(token) },
     ),
 
+  recordPaymentReference: (reference: string, manualPaymentRef: string) =>
+    request<{ success: boolean; data: RentalCheckAdmin; alreadyPaid?: boolean; alreadySubmitted?: boolean }>(
+      "POST",
+      `/api/rental-checks/${encodeURIComponent(reference)}/payment-reference`,
+      { body: JSON.stringify({ manualPaymentRef }) },
+    ),
+
+  reviewPayment: (reference: string, body: { action: "confirm" | "reject"; note?: string }) =>
+    request<{ success: boolean; data: RentalCheckAdmin; alreadyPaid?: boolean }>(
+      "PATCH",
+      `/api/rental-checks/${encodeURIComponent(reference)}/payment-review`,
+      { body: JSON.stringify(body) },
+    ),
+
   metrics: () =>
     request<{ success: boolean; data: RentalCheckMetrics }>("GET", "/api/rental-checks/metrics"),
 
