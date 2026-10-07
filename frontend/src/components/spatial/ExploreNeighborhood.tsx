@@ -133,6 +133,7 @@ export default function ExploreNeighborhood({
           loading={loading}
           unavailable={unavailable}
           tileTemplate={process.env.NEXT_PUBLIC_MAP_TILE_URL || null}
+          tileAttribution={process.env.NEXT_PUBLIC_MAP_ATTRIBUTION || null}
           onClose={() => setOpen(false)}
           returnLabel="Back to this home"
           onReturn={() => {

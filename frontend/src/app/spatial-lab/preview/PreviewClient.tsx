@@ -65,6 +65,7 @@ export default function PreviewClient() {
         loading={false}
         unavailable={!built}
         tileTemplate={process.env.NEXT_PUBLIC_MAP_TILE_URL || null}
+        tileAttribution={process.env.NEXT_PUBLIC_MAP_ATTRIBUTION || null}
         onClose={() => setOpen(false)}
         returnLabel="Return to this fixture"
         onReturn={() => {

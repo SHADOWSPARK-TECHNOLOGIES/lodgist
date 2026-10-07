@@ -18,6 +18,7 @@ const {
   campusById,
   FIXTURE_AMENITIES,
   CAMPUSES,
+  tileLayer,
 } = require("./spatialLab");
 
 const PRIVATE = { lat: 5.497123, lng: 7.033812 };
@@ -117,14 +118,26 @@ test("approximate directions omit private and snapped coordinates", () => {
     destination: campus,
   });
   assert.equal(urlLeaksCoordinates(exactUrl, [PRIVATE]), false);
+
+  const fixturePinUrl = externalDirectionsUrl({
+    precision: "exact",
+    originLabel: "DEV fixture pin",
+    originExact: { lat: 5.4221, lng: 7.0426 },
+    allowExactOrigin: true,
+    fixturePin: true,
+    destination: campus,
+  });
+  assert.match(decodeURIComponent(fixturePinUrl), new RegExp(campus.name));
+  assert.equal(urlLeaksCoordinates(fixturePinUrl, [{ lat: campus.lat, lng: campus.lng }]), false);
+  assert.match(fixturePinUrl, /5\.4221,7\.0426/);
 });
 
 test("straight-line distance is labelled straight-line and has no travel time", () => {
   const campus = CAMPUSES[0];
   const meters = straightLineMeters({ lat: 5.4214, lng: 7.0419 }, campus);
   const label = straightLineLabel(meters);
-  assert.match(label, /straight-line/);
-  assert.equal(/min|hour|km\/h|speed/i.test(label), false);
+  assert.match(label, /straight-line to campus center/);
+  assert.equal(/entrance|min|hour|km\/h|speed/i.test(label), false);
   assert.equal(straightLineLabel(null), null);
   assert.equal(straightLineMeters({ lat: "5.4", lng: 7 }, campus), null);
 });
@@ -194,4 +207,54 @@ test("fixtures stay out of public spatial results", () => {
   const merged = [preview, publicHome()].map((record) => buildPublicSpatialContext(record)).filter(Boolean);
   assert.equal(merged.length, 1);
   assert.equal(merged[0].listingId, 42);
+});
+
+test("a configured tile template is a mercator grid of the public focus", () => {
+  const template = "http://127.0.0.1:9/tiles/{z}/{x}/{y}.png";
+  const focus = { precision: "approximate", label: "Near Nekede, Owerri West", lat: 5.495, lng: 7.035, radiusM: 500 };
+  const layer = tileLayer({ focus, template, attribution: "© Example tiles", width: 640, height: 280 });
+  assert.ok(layer);
+  assert.equal(layer.attribution, "© Example tiles");
+  assert.ok(layer.tiles.length >= 4);
+  const center = { x: layer.width / 2, y: layer.height / 2 };
+  const hit = layer.tiles.some((tile) => (
+    center.x >= tile.left && center.x < tile.left + 256 &&
+    center.y >= tile.top && center.y < tile.top + 256
+  ));
+  assert.equal(hit, true);
+  const dumped = JSON.stringify(layer);
+  assert.equal(dumped.includes("5.497123"), false);
+  assert.equal(dumped.includes("7.033812"), false);
+  assert.equal(dumped.includes("5.495"), false);
+  layer.tiles.forEach((tile) => {
+    assert.match(tile.url, /^http:\/\/127\.0\.0\.1:9\/tiles\/\d+\/\d+\/\d+\.png$/);
+  });
+  const xs = new Set(layer.tiles.map((tile) => tile.x));
+  const ys = new Set(layer.tiles.map((tile) => tile.y));
+  assert.ok(xs.size >= 2);
+  assert.ok(ys.size >= 2);
+
+  assert.equal(tileLayer({
+    focus: { precision: "unknown", label: "Location not published" },
+    template,
+    attribution: "© Example tiles",
+    width: 640,
+    height: 280,
+  }), null);
+  assert.equal(tileLayer({ focus, template, attribution: "  ", width: 640, height: 280 }), null);
+  assert.equal(tileLayer({
+    focus,
+    template: "http://tiles.example/{z}/{x}/{y}.png",
+    attribution: "© Example tiles",
+    width: 640,
+    height: 280,
+  }), null);
+});
+
+test("a road result names the campus area center and not an entrance", () => {
+  const copy = describeRoute({ status: "ok", distanceM: 2100, durationS: 360, origin: "approximate" });
+  assert.match(copy.primary, /2\.1 km by road, 6 min/);
+  assert.match(copy.primary, /campus area center, not an entrance/);
+  assert.match(copy.detail, /not a route to a campus entrance/);
+  assert.equal(/to the campus entrance/i.test(copy.primary), false);
 });

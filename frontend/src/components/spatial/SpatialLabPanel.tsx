@@ -14,6 +14,7 @@ type Props = {
   onReturn: () => void;
   returnLabel: string;
   tileTemplate: string | null;
+  tileAttribution: string | null;
 };
 
 export default function SpatialLabPanel({
@@ -27,6 +28,7 @@ export default function SpatialLabPanel({
   onReturn,
   returnLabel,
   tileTemplate,
+  tileAttribution,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -66,6 +68,7 @@ export default function SpatialLabPanel({
           onReturn={onReturn}
           returnLabel={returnLabel}
           tileTemplate={tileTemplate}
+          tileAttribution={tileAttribution}
         />
       </div>
     </div>
