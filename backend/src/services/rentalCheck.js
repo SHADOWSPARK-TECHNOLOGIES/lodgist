@@ -37,6 +37,9 @@ const RECOMMENDATIONS = new Set(["LOWER_RISK", "UNCERTAIN", "HIGH_RISK"]);
 const PAYMENT_METHODS = new Set(["bank_transfer", "cash", "pos", "unknown", "other"]);
 const SECRET_KEYS = new Set(["cvv", "cvc", "pin", "otp", "password", "cardnumber", "pan", "secret", "card"]);
 const BANNED_CLAIM = [/100\s*%\s*verified/i, /fraud[-\s]?free/i, /guaranteed/i, /\bsafe\b/i];
+// 13-19 digit runs with optional single spaces or dashes between digits. Luhn filters most phone numbers.
+const CARD_RUN = /\d(?:[ -]?\d){12,18}/g;
+const SECRET_LABEL_WITH_DIGITS = /\b(?:pin|otp|cvv|cvc|password)\b\D{0,12}\d{3,8}\b/i;
 
 const NEXT_ACTIONS = {
   LOWER_RISK: [
@@ -70,6 +73,32 @@ function clip(value, max) {
 
 function hasBannedClaim(text) {
   return BANNED_CLAIM.some((pattern) => pattern.test(String(text || "")));
+}
+
+function luhnValid(number) {
+  let sum = 0;
+  let double = false;
+  for (let i = number.length - 1; i >= 0; i -= 1) {
+    let digit = number.charCodeAt(i) - 48;
+    if (double) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    double = !double;
+  }
+  return sum % 10 === 0;
+}
+
+function containsPaymentSecret(text) {
+  const value = String(text || "");
+  if (!value) return false;
+  if (SECRET_LABEL_WITH_DIGITS.test(value)) return true;
+  const runs = value.match(CARD_RUN) || [];
+  return runs.some((run) => {
+    const number = run.replace(/\D/g, "");
+    return number.length >= 13 && number.length <= 19 && luhnValid(number);
+  });
 }
 
 function tokenSecret() {
@@ -147,7 +176,7 @@ function validatePaymentDetails(value) {
   if (accountName && accountName.error) return { ok: false };
   if (narration && narration.error) return { ok: false };
   const blob = `${narration || ""} ${bankName || ""} ${accountName || ""}`;
-  if (/\d{13,19}/.test(blob)) return { ok: false };
+  if (/\d{13,19}/.test(blob) || containsPaymentSecret(blob)) return { ok: false };
   if (hasBannedClaim(blob)) return { ok: false };
   return {
     ok: true,
@@ -216,7 +245,7 @@ function validateIntake(body) {
   if (source.customerNotes != null && String(source.customerNotes).trim() !== "") {
     const notes = clip(source.customerNotes, 2000);
     if (!notes || notes.error) errors.push("customerNotes");
-    else if (hasBannedClaim(notes)) errors.push("customerNotes");
+    else if (hasBannedClaim(notes) || containsPaymentSecret(notes)) errors.push("customerNotes");
     else customerNotes = notes;
   }
 
@@ -537,5 +566,6 @@ module.exports = {
   defaultEvidence,
   paystackCustomerEmail,
   hasBannedClaim,
+  containsPaymentSecret,
   isReferenceCollision,
 };

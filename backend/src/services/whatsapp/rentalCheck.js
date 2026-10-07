@@ -6,6 +6,7 @@ const {
   createRentalCheck,
   phonesMatch,
   issueAccessToken,
+  containsPaymentSecret,
 } = require("../rentalCheck");
 
 const STEPS = ["listing_url", "location", "asking_rent", "agent_name", "agent_phone", "notes", "payment_details"];
@@ -87,11 +88,16 @@ function applyStep(fields, step, text) {
       next.agentPhone = phone;
     }
   } else if (step === "notes") {
-    next.customerNotes = skip ? null : value.slice(0, 2000);
+    if (skip) next.customerNotes = null;
+    else if (containsPaymentSecret(value)) {
+      return { error: "Do not send card numbers, PINs, or OTPs. Send the notes again without them, or reply SKIP." };
+    } else next.customerNotes = value.slice(0, 2000);
   } else if (step === "payment_details") {
     if (skip) next.paymentDetails = null;
     else {
-      if (/\d{13,19}/.test(value)) return { error: "Do not send card numbers. Reply with a bank and account name, or SKIP." };
+      if (/\d{13,19}/.test(value) || containsPaymentSecret(value)) {
+        return { error: "Do not send card numbers, PINs, or OTPs. Reply with a bank and account name, or SKIP." };
+      }
       next.paymentDetails = { method: "bank_transfer", narration: value.slice(0, 300) };
     }
   }
