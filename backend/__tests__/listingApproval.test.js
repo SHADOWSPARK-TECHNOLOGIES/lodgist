@@ -37,6 +37,7 @@ function matches(where, row) {
   if (typeof where.reviewStatus === "string" && row.reviewStatus !== where.reviewStatus) return false;
   if (typeof where.isFlaggedForFraud === "boolean" && Boolean(row.isFlaggedForFraud) !== where.isFlaggedForFraud) return false;
   if (where.id != null && row.id !== where.id) return false;
+  if (where.ownerId != null && row.ownerId !== where.ownerId) return false;
   if (where.riskState && where.riskState.equals === null && row.riskState != null) return false;
   if (where.riskState && Array.isArray(where.riskState.in) && !where.riskState.in.includes(row.riskState)) return false;
   if (isSampleWhere(where) && !(row.totalMoveInCost && row.totalMoveInCost.sample === true)) return false;
@@ -544,6 +545,155 @@ test("refresh token does not open the management listing filter", async () => {
     assert.equal(res.status, 200);
     assert.equal(seen.where.reviewStatus, "APPROVED");
     assert.notEqual(seen.where.status, "REJECTED");
+  } finally {
+    server.close();
+  }
+});
+
+function assertNoPublicInternals(row) {
+  assert.equal(Object.hasOwn(row, "ownerId"), false);
+  assert.equal(Object.hasOwn(row, "fraudReason"), false);
+  if (row.owner && typeof row.owner === "object") {
+    assert.equal(Object.hasOwn(row.owner, "id"), false);
+  }
+}
+
+test("public list, search, and detail omit ownerId, owner.id, and fraudReason", async () => {
+  const { prisma } = memory([
+    home({
+      id: 4,
+      reviewStatus: "APPROVED",
+      fraudReason: "price far below area",
+      owner: { id: 8, name: "Ada", truthIndex: 40 },
+    }),
+    home({
+      id: 5,
+      ownerId: 9,
+      reviewStatus: "APPROVED",
+      fraudReason: "duplicate photos",
+      owner: { id: 9, name: "Emeka", truthIndex: 10 },
+      title: "Flat near campus",
+    }),
+  ]);
+  const server = await listen(buildApp(prisma));
+  try {
+    const list = await call(server, "GET", "/api/listings");
+    assert.equal(list.status, 200);
+    assert.deepEqual(list.body.data.map((row) => row.id).sort(), [4, 5]);
+    for (const row of list.body.data) assertNoPublicInternals(row);
+
+    const search = await call(server, "GET", "/api/listings?search=campus");
+    assert.equal(search.status, 200);
+    for (const row of search.body.data) assertNoPublicInternals(row);
+
+    const query = await call(server, "GET", "/api/listings?q=Nekede");
+    assert.equal(query.status, 200);
+    for (const row of query.body.data) assertNoPublicInternals(row);
+
+    const detail = await call(server, "GET", "/api/listings/4");
+    assert.equal(detail.status, 200);
+    assertNoPublicInternals(detail.body.data);
+    assert.equal(detail.body.data.owner.name, "Ada");
+
+    const other = await call(server, "GET", "/api/listings/5", {
+      bearer: token({ id: 8, email: "ada@example.com", name: "Ada", role: "LANDLORD" }),
+    });
+    assert.equal(other.status, 200);
+    assertNoPublicInternals(other.body.data);
+
+    const owner = await call(server, "GET", "/api/listings/4", { bearer: OWNER });
+    assert.equal(owner.status, 200);
+    assert.equal(owner.body.data.ownerId, 8);
+    assert.equal(owner.body.data.owner.id, 8);
+    assert.equal(owner.body.data.fraudReason, "price far below area");
+
+    const admin = await call(server, "GET", "/api/listings/5", { bearer: ADMIN });
+    assert.equal(admin.status, 200);
+    assert.equal(admin.body.data.ownerId, 9);
+    assert.equal(admin.body.data.owner.id, 9);
+    assert.equal(admin.body.data.fraudReason, "duplicate photos");
+  } finally {
+    server.close();
+  }
+});
+
+test("a landlord status filter returns only that landlord's listings", async () => {
+  const { prisma } = memory([
+    home({ id: 4, ownerId: 8, status: "PENDING", reviewStatus: "NOT_REVIEWED" }),
+    home({ id: 5, ownerId: 9, status: "PENDING", reviewStatus: "NOT_REVIEWED", title: "Other pending flat" }),
+    home({ id: 6, ownerId: 8, status: "REJECTED", reviewStatus: "NOT_REVIEWED", title: "Ada rejected" }),
+  ]);
+  const otherLandlord = token({ id: 9, email: "emeka@example.com", name: "Emeka", role: "LANDLORD" });
+  const tenant = token({ id: 3, email: "t@example.com", name: "T", role: "TENANT" });
+  const server = await listen(buildApp(prisma));
+  try {
+    const ownPending = await call(server, "GET", "/api/listings?status=PENDING", { bearer: OWNER });
+    assert.equal(ownPending.status, 200);
+    assert.deepEqual(ownPending.body.data.map((row) => row.id), [4]);
+    assert.equal(ownPending.body.data[0].ownerId, 8);
+
+    const ownRejected = await call(server, "GET", "/api/listings?status=REJECTED", { bearer: OWNER });
+    assert.deepEqual(ownRejected.body.data.map((row) => row.id), [6]);
+
+    const otherPending = await call(server, "GET", "/api/listings?status=PENDING", { bearer: otherLandlord });
+    assert.deepEqual(otherPending.body.data.map((row) => row.id), [5]);
+
+    const adminPending = await call(server, "GET", "/api/listings?status=PENDING", { bearer: ADMIN });
+    assert.deepEqual(adminPending.body.data.map((row) => row.id).sort(), [4, 5]);
+
+    const anon = await call(server, "GET", "/api/listings?status=PENDING");
+    assert.deepEqual(anon.body.data, []);
+    const tenantRejected = await call(server, "GET", "/api/listings?status=REJECTED", { bearer: tenant });
+    assert.deepEqual(tenantRejected.body.data, []);
+  } finally {
+    server.close();
+  }
+});
+
+test("non-public listing detail is visible only to its owner or a STUDIO_ADMIN", async () => {
+  const { prisma } = memory([
+    home({ id: 4, ownerId: 8, status: "PENDING", reviewStatus: "NOT_REVIEWED", fraudReason: "held" }),
+  ]);
+  const otherLandlord = token({ id: 9, email: "emeka@example.com", name: "Emeka", role: "LANDLORD" });
+  const tenant = token({ id: 3, email: "t@example.com", name: "T", role: "TENANT" });
+  const server = await listen(buildApp(prisma));
+  try {
+    const missing = await call(server, "GET", "/api/listings/404");
+    assert.equal(missing.status, 404);
+    assert.equal(missing.body.error, "Listing not found");
+
+    for (const bearer of [undefined, otherLandlord, tenant]) {
+      const hidden = await call(server, "GET", "/api/listings/4", bearer ? { bearer } : {});
+      assert.equal(hidden.status, 404);
+      assert.equal(hidden.body.error, "Listing not found");
+    }
+
+    const owner = await call(server, "GET", "/api/listings/4", { bearer: OWNER });
+    assert.equal(owner.status, 200);
+    assert.equal(owner.body.data.id, 4);
+    assert.equal(owner.body.data.ownerId, 8);
+    assert.equal(owner.body.data.fraudReason, "held");
+
+    const admin = await call(server, "GET", "/api/listings/4", { bearer: ADMIN });
+    assert.equal(admin.status, 200);
+    assert.equal(admin.body.data.id, 4);
+    assert.equal(admin.body.data.owner.id, 8);
+  } finally {
+    server.close();
+  }
+});
+
+test("a token with any type claim is rejected as an access token", async () => {
+  const { calls, prisma } = memory([home()]);
+  const server = await listen(buildApp(prisma));
+  try {
+    const typedAdmin = token({ id: 2, role: "STUDIO_ADMIN", type: "refresh" });
+    const service = token({ id: 2, role: "STUDIO_ADMIN", type: "service" });
+    const pending = await call(server, "GET", "/api/admin/listings/pending", { bearer: typedAdmin });
+    assert.equal(pending.status, 401);
+    const approve = await call(server, "POST", "/api/admin/listings/4/approve", { bearer: service });
+    assert.equal(approve.status, 401);
+    assert.equal(calls.update, 0);
   } finally {
     server.close();
   }
