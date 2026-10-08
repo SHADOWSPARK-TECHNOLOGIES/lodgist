@@ -3,6 +3,7 @@ const { analyzeListing } = require("../services/listingScamDetection");
 const { isShareable, parsePreferredDate } = require("../services/whatsapp/tools");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const logger = require("../utils/logger");
+const { presentListingImages } = require("../services/objectStorage");
 
 // Renters only. Landlords, agents, and admins book through /api/bookings.
 const TENANT_ROLES = new Set(["USER", "TENANT"]);
@@ -276,9 +277,8 @@ function listingsRouter(prisma) {
         select: {
           ...LISTING_PUBLIC_SELECT,
           images: {
-            where: { isPrimary: true },
-            take: 1,
-            select: { url: true, altText: true },
+            orderBy: { order: "asc" },
+            select: { id: true, url: true, altText: true, isPrimary: true, order: true },
           },
           property: {
             select: {
@@ -330,18 +330,19 @@ function listingsRouter(prisma) {
       const visible = browse.mode === "public"
         ? listings.filter((listing) => isEligiblePublicListing(listing))
         : listings;
-      const data = visible.map((listing) => {
+      const data = await Promise.all(visible.map(async (listing) => {
         const { fraudSignals, _count, ...rest } = listing;
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
         return {
           ...rest,
+          images: await presentListingImages(rest.images),
           ...publicDiscovery(listing),
           averageRating: ratingMap[listing.id] ?? null,
           reviewCount: _count.reviews,
           bookingCount: _count.bookings,
           fraudSignalScore: latestFraudScore,
         };
-      });
+      }));
 
       res.json({
         success: true,
@@ -381,7 +382,7 @@ function listingsRouter(prisma) {
           ...LISTING_PUBLIC_SELECT,
           images: {
             orderBy: { order: "asc" },
-            select: { url: true, altText: true, isPrimary: true },
+            select: { id: true, url: true, altText: true, isPrimary: true, order: true },
           },
           property: {
             select: {
@@ -435,6 +436,7 @@ function listingsRouter(prisma) {
       });
 
       const { _count, fraudSignals, property, ...listingData } = listing;
+      listingData.images = await presentListingImages(listingData.images);
       const latestFraudSignal = fraudSignals?.[0] ?? null;
       let publicProperty = null;
       let approx = null;
@@ -767,12 +769,13 @@ function listingsRouter(prisma) {
           reviewStatus: "NOT_REVIEWED",
         },
         include: {
-          images: { select: { url: true, altText: true, isPrimary: true } },
+          images: { select: { id: true, url: true, altText: true, isPrimary: true, order: true } },
           property: { select: { id: true, city: true, state: true } },
           owner: { select: { id: true, name: true } },
         },
       });
 
+      newListing.images = await presentListingImages(newListing.images);
       res.status(201).json({ success: true, data: newListing });
     } catch (error) {
       console.error("Error creating listing:", error);
@@ -814,11 +817,12 @@ function listingsRouter(prisma) {
         where: { id: listingId },
         data: updateData,
         include: {
-          images: { select: { url: true, altText: true, isPrimary: true } },
+          images: { select: { id: true, url: true, altText: true, isPrimary: true, order: true } },
           owner: { select: { id: true, name: true } },
         },
       });
 
+      updatedListing.images = await presentListingImages(updatedListing.images);
       res.json({ success: true, data: updatedListing });
     } catch (error) {
       console.error("Error updating listing:", error);

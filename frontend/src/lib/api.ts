@@ -13,6 +13,7 @@ import type {
   EscrowInitiateResponse,
   User,
   Listing,
+  ListingPhotoRecord,
   Review,
   EscrowTransaction,
   TruthIndexScore,
@@ -102,6 +103,35 @@ async function request<T>(
   }
 
   return body as T;
+}
+
+async function requestForm<T>(path: string, body: FormData): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(apiUrl(path), {
+    method: "POST",
+    body,
+    headers,
+  });
+
+  let parsed: unknown;
+  try {
+    parsed = await res.json();
+  } catch {
+    parsed = null;
+  }
+
+  if (!res.ok) {
+    const message =
+      (parsed as Record<string, string>)?.error ||
+      (parsed as Record<string, string>)?.message ||
+      `Request failed with status ${res.status}`;
+    throw new ApiError(message, res.status, parsed);
+  }
+
+  return parsed as T;
 }
 
 // ─── Auth API ──────────────────────────────────────────────────────────────
@@ -225,6 +255,17 @@ export const listingsApi = {
   /** Delete a listing */
   delete: (id: number) =>
     request<ApiResponse>("DELETE", `/api/listings/${id}`),
+
+  /** Store one listing photo. The server picks the object key. */
+  uploadPhoto: (id: number, file: File) => {
+    const body = new FormData();
+    body.append("photo", file);
+    return requestForm<ApiResponse<ListingPhotoRecord>>(`/api/listings/${id}/photos`, body);
+  },
+
+  /** Remove one stored listing photo. */
+  deletePhoto: (id: number, imageId: number) =>
+    request<ApiResponse>("DELETE", `/api/listings/${id}/photos/${imageId}`),
 
   /** Ask to view a verified listing. Requester comes from the auth token. */
   requestViewing: (

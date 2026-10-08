@@ -9,6 +9,7 @@ import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import RequestViewing from '@/components/ListingDetail/RequestViewing';
 import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
+import ListingPhotos from '@/components/ListingPhotos';
 import { canRequestViewing, decisionFacts, hasTrustScore, isLodgistReviewed, isPublicListing, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
 import ExploreNeighborhood from '@/components/spatial/ExploreNeighborhood';
 import { invoiceRequestMessage } from '@/lib/invoiceRequest';
@@ -146,13 +147,13 @@ export default function ListingDetailPage() {
         <p className="text-sm mt-2" style={{ color: 'var(--color-orange)' }}>{detail.sampleTitle}</p>
       )}
 
-      <div className="h-56 rounded-xl mt-6 mb-6 flex items-center justify-center overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
-        {listing.images?.[0]?.url ? (
-          <img src={listing.images[0].url} alt={listing.title} className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>No photo yet</span>
-        )}
-      </div>
+      <ListingPhotos
+        listingId={listing.id}
+        title={listing.title}
+        images={listing.images}
+        canManage={Boolean(user && (user.role === "STUDIO_ADMIN" || user.id === listing.ownerId))}
+        onImages={(images) => setListing({ ...listing, images })}
+      />
 
       <section className="card mb-4" aria-labelledby="campus-heading">
         <h2 id="campus-heading" className="font-poppins font-semibold text-white mb-2">Area and campus</h2>

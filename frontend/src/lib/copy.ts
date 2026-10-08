@@ -158,6 +158,14 @@ export const detail = {
   askInvoiceNote: "This asks an agent for an invoice. It does not mean a payment is completed.",
   unverified: "Not verified by Lodgist",
   source: "Source",
+  photos: "Photos",
+  noPhoto: "No photo yet",
+  addPhoto: "Add a photo",
+  addingPhoto: "Saving photo…",
+  removePhoto: "Remove photo",
+  photoHint: "JPEG, PNG, or WebP. Up to 8 photos, 8 MB each.",
+  photoFailed: "We could not save that photo.",
+  photoNotSaved: "Nothing was saved.",
   rentMissing: "Not listed",
   sampleMoveIn: "Example figure, not a bill",
   noScore: "No Trust Score yet",
@@ -282,6 +290,7 @@ export const neighborhood = {
 
 export const listingCard = {
   noPhoto: "No photo yet",
+  photoCount: (count: number) => `${count} photos`,
   listedBy: "Listed by",
   trust: "Trust score",
   view: "View house",

@@ -3,6 +3,7 @@
 import { useState, useOptimistic, useCallback } from "react";
 import { listingsApi } from "@/lib/api";
 import { formatYearlyRent, listingCard } from "@/lib/copy";
+import { photoAlt, storedPhotos } from "@/lib/listingPhotos";
 import type { Listing } from "@/lib/types";
 
 interface ListingCardProps {
@@ -40,7 +41,8 @@ export default function ListingCard({
     [listing.id, listing.status, onStatusChange, setOptimisticStatus]
   );
 
-  const primaryImage = listing.images?.find((img) => img.isPrimary)?.url || listing.images?.[0]?.url;
+  const photos = storedPhotos(listing.images);
+  const primary = photos[0];
   const statusColors: Record<string, string> = {
     available: "bg-green-100 text-green-800",
     rented: "bg-blue-100 text-blue-800",
@@ -54,10 +56,15 @@ export default function ListingCard({
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
       <div className="aspect-video bg-gray-100 relative">
-        {primaryImage ? (
-          <img src={primaryImage} alt={listing.title} className="w-full h-full object-cover" loading="lazy" />
+        {primary ? (
+          <img src={primary.url} alt={photoAlt(primary, listing.title)} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="flex items-center justify-center h-full text-gray-400 text-sm">{listingCard.noPhoto}</div>
+        )}
+        {photos.length > 1 && (
+          <span className="absolute bottom-2 left-2 px-2 py-0.5 text-xs font-medium rounded-full bg-gray-900/80 text-white">
+            {listingCard.photoCount(photos.length)}
+          </span>
         )}
         <span className={`absolute top-2 right-2 px-2 py-0.5 text-xs font-medium rounded-full ${statusColors[optimisticStatus.status] || "bg-gray-100 text-gray-800"} ${optimisticStatus.pending ? "animate-pulse" : ""}`}>
           {listingCard.status[optimisticStatus.status] ?? optimisticStatus.status}
