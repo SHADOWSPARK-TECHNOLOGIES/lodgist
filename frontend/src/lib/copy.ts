@@ -158,6 +158,14 @@ export const detail = {
   unverified: "Not verified by Lodgist",
   labelsExplain: "Lodgist-reviewed means a Lodgist admin approved this listing to be shown. Verified by Lodgist means an admin recorded an evidence check. Neither label is a guarantee of the home, the landlord, its safety, or its title. Inspect before you pay.",
   source: "Source",
+  photos: "Photos",
+  noPhoto: "No photo yet",
+  addPhoto: "Add a photo",
+  addingPhoto: "Saving photo…",
+  removePhoto: "Remove photo",
+  photoHint: "JPEG, PNG, or WebP. Up to 8 photos, 8 MB each.",
+  photoFailed: "We could not save that photo.",
+  photoNotSaved: "Nothing was saved.",
   rentMissing: "Not listed",
   sampleMoveIn: "Example figure, not a bill",
   noScore: "No Trust Score yet",
@@ -286,6 +294,7 @@ export const neighborhood = {
 
 export const listingCard = {
   noPhoto: "No photo yet",
+  photoCount: (count: number) => `${count} photos`,
   listedBy: "Listed by",
   trust: "Trust score",
   view: "View house",

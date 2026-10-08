@@ -6,12 +6,14 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node --test __tests__/escrow.test.js __tests__/escrowCheckoutDormant.test.js __tests__/bookingPayment.test.js __tests__/listings.test.js __tests__/listingApproval.test.js __tests__/leads.test.js __tests__/advertiserLeads.test.js __tests__/health.test.js __tests__/notifySignup.test.js __tests__/paymentBadge.test.js __tests__/paystackWebhook.test.js __tests__/privacy.test.js __tests__/viewingRequests.test.js __tests__/whatsapp.test.js __tests__/whatsappAi.test.js __tests__/rentalChecks.test.js"
+    "test": "node --test __tests__/escrow.test.js __tests__/escrowCheckoutDormant.test.js __tests__/bookingPayment.test.js __tests__/listings.test.js __tests__/listingPhotos.test.js __tests__/listingApproval.test.js __tests__/leads.test.js __tests__/advertiserLeads.test.js __tests__/health.test.js __tests__/notifySignup.test.js __tests__/paymentBadge.test.js __tests__/paystackWebhook.test.js __tests__/privacy.test.js __tests__/viewingRequests.test.js __tests__/whatsapp.test.js __tests__/whatsappAi.test.js __tests__/rentalChecks.test.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1147.0",
+    "@aws-sdk/s3-request-presigner": "^3.1147.0",
     "@google-cloud/vertexai": "^1.12.0",
     "@google/genai": "^1.52.0",
     "@simplewebauthn/server": "^13.3.0",
@@ -27,6 +29,7 @@
     "morgan": "^1.10.1",
     "openai": "^6.35.0",
     "pg": "^8.20.0",
+    "sharp": "^0.35.5",
     "winston": "^3.19.0"
   },
   "pnpm": {
