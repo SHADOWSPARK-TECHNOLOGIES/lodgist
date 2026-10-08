@@ -40,7 +40,6 @@ If uncertain: write to NEEDS-HUMAN.md and skip. Do not guess.
        a new branch named `cursor/overnight-2026-09-27`
   F11. No reading .env, .env.*, or *.authkey contents
   F12. No resolving or visiting non-canonical hosts
-  F13. No actions on Track B (Vercel, morontomornica7 workspace)
 
 If unsure: forbidden. Stop.
 
