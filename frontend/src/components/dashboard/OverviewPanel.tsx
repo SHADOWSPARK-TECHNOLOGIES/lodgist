@@ -5,6 +5,7 @@
 // recent activity.
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { truthIndexApi } from "@/lib/api";
 import { auth, dashboard, overview } from "@/lib/copy";
@@ -17,7 +18,6 @@ export default function OverviewPanel() {
 
   useEffect(() => {
     if (!user) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     truthIndexApi
       .get(user.id)
       .then((res) => {
@@ -104,21 +104,21 @@ export default function OverviewPanel() {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">{overview.quick}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <a
+          <Link
             href="/listings"
             className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
           >
             <span className="text-xl">🔍</span>
             <span className="text-sm font-medium text-gray-700">{overview.browse}</span>
-          </a>
+          </Link>
           {user.role === "LANDLORD" && (
-            <a
+            <Link
               href="/listings/new"
               className="flex items-center gap-3 px-4 py-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition"
             >
               <span className="text-xl">➕</span>
               <span className="text-sm font-medium text-gray-700">{overview.newListing}</span>
-            </a>
+            </Link>
           )}
           <button
             onClick={() => truthIndexApi.recalculate()}

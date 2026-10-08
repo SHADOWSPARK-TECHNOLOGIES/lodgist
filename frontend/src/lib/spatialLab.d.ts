@@ -1,4 +1,4 @@
-export type LocationPrecision = "exact" | "approximate" | "unknown";
+export type LocationPrecision = "exact" | "approximate" | "area-only" | "unknown";
 
 export interface Campus {
   id: string;
@@ -23,6 +23,11 @@ export interface SpatialFocusApproximate {
   radiusM: number;
 }
 
+export interface SpatialFocusAreaOnly {
+  precision: "area-only";
+  label: string;
+}
+
 export interface SpatialFocusExact {
   precision: "exact";
   fixturePin: true;
@@ -31,7 +36,7 @@ export interface SpatialFocusExact {
   lng: number;
 }
 
-export type SpatialFocus = SpatialFocusUnknown | SpatialFocusApproximate | SpatialFocusExact;
+export type SpatialFocus = SpatialFocusUnknown | SpatialFocusAreaOnly | SpatialFocusApproximate | SpatialFocusExact;
 
 export interface Amenity {
   id: string;
@@ -61,11 +66,12 @@ export interface PublicSpatialContext {
   inventory: "public";
   listingId: number;
   title: string;
-  focus: SpatialFocusUnknown | SpatialFocusApproximate;
+  focus: SpatialFocusUnknown | SpatialFocusAreaOnly | SpatialFocusApproximate;
   disclaimer: string;
   evidenceVerified: false;
   reviewForDisplay: boolean;
   allowExactOrigin: false;
+  locationState: "approximate" | "area-only" | "unknown";
 }
 
 export interface PreviewModel {
@@ -88,6 +94,7 @@ export interface ProviderConfig {
   osrmBaseUrl: string | null;
   overpassUrl: string | null;
   tileUrl: string | null;
+  attribution: string | null;
 }
 
 export const DISCLAIMER: string;
@@ -97,9 +104,22 @@ export const CATEGORY_LABEL: Record<"shop" | "pharmacy" | "clinic" | "transport"
 export const CAMPUSES: Campus[];
 
 export function parseCoordinate(lat: unknown, lng: unknown): { lat: number; lng: number } | null;
-export function focusFromPublicListing(listing: object): SpatialFocusUnknown | SpatialFocusApproximate;
+export function focusFromPublicListing(listing: object): SpatialFocusUnknown | SpatialFocusAreaOnly | SpatialFocusApproximate;
+export function exactPinPermitted(focus: object | null, allowExactOrigin?: boolean): boolean;
 export function spatialPublicationDecision(listing: object | null): { published: boolean; reason: string };
 export function buildPublicSpatialContext(listing: object): PublicSpatialContext | null;
+export function adaptSpatialListing(input: object | null): {
+  id: number;
+  purpose: string;
+  category: string | null;
+  publicationStatus: "public";
+  locationState: "approximate" | "area-only" | "unknown";
+  publicLocation: SpatialFocusUnknown | SpatialFocusAreaOnly | SpatialFocusApproximate;
+} | null;
+export function anonymousListingRequest(apiBase: string, id: string): {
+  url: string;
+  init: { cache: "no-store"; headers: { Accept: string } };
+};
 export function straightLineMeters(a: { lat: number; lng: number } | null, b: { lat: number; lng: number } | null): number | null;
 export function straightLineLabel(meters: number | null): string | null;
 export function externalDirectionsUrl(input: {
@@ -131,4 +151,8 @@ export function mapGeometry(focus: SpatialFocus): { kind: "none" } | { kind: "ar
 export function buildPreviewModel(scenario?: string, campusId?: string): PreviewModel | null;
 export function campusById(id: string | null | undefined): Campus | null;
 export function fillTileTemplate(template: string | null, tile: { z: number; x: number; y: number }): string | null;
+export function publicTileTemplate(env?: Record<string, string | undefined>): string | null;
+export function publicSubject(value?: string | null): string;
+export function focusableElements(root: ParentNode | null): HTMLElement[];
+export function nextDialogFocus(elements: HTMLElement[], current: EventTarget | null, backwards: boolean): HTMLElement | null;
 export function isFixtureRecord(record: object | null): boolean;

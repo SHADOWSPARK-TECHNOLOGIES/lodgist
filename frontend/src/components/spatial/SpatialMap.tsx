@@ -108,9 +108,10 @@ export default function SpatialMap({ focus, campus, amenities, tileTemplate }: P
           )}
         </svg>
         <p className="spatial-map-caption">
+          {focus.precision === "area-only" && "Known area only. No coordinates were published, so no pin was placed."}
           {geometry.kind === "area" && "Published area. The circle is not a building pin."}
           {geometry.kind === "pin" && "DEV fixture pin. Not a surveyed building."}
-          {geometry.kind === "none" && "No pin. This home has no published location."}
+          {focus.precision !== "area-only" && geometry.kind === "none" && "No pin. This home has no published location."}
         </p>
       </div>
       {tileUrls.length > 0 && !tilesFailed ? (
@@ -126,7 +127,9 @@ export default function SpatialMap({ focus, campus, amenities, tileTemplate }: P
         <p className="spatial-note">
           {tilesFailed
             ? "Map imagery could not load. The distance sketch above still works."
-            : geometry.kind === "none"
+            : focus.precision === "area-only"
+              ? "No photograph. A named area is published, but no coordinate was published."
+              : geometry.kind === "none"
               ? "No photograph. This home has no published location."
               : "Distance sketch. Not a photograph. Map imagery is not configured."}
         </p>

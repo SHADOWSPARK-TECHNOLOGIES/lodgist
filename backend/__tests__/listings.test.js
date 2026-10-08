@@ -921,3 +921,172 @@ test("approxLocation snaps to a 0.005° grid and rejects bad input", () => {
   assert.equal(approxLocation(91, 7.03), null);
   assert.equal(approxLocation(5.48, 181), null);
 });
+
+test("signed-in and anonymous callers do not receive exact coordinates", async () => {
+  const property = {
+    id: 9,
+    city: "Owerri",
+    state: "Imo",
+    lga: "Owerri West",
+    latitude: 5.497123,
+    longitude: 7.033812,
+    address: "12 Hidden Road",
+  };
+  const seen = {};
+  function appFor(listing) {
+    return buildApp({
+      listing: {
+        findUnique: async (args) => {
+          seen.select = args.select;
+          const selected = args.select && args.select.property && args.select.property.select;
+          const projected = {};
+          if (selected && listing.property) {
+            Object.keys(selected).forEach((key) => {
+              if (selected[key]) projected[key] = listing.property[key];
+            });
+          }
+          return { ...listing, property: listing.property ? projected : null };
+        },
+      },
+      review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+    });
+  }
+  const published = {
+    id: 1,
+    title: "Home",
+    status: "VERIFIED",
+    reviewStatus: "APPROVED",
+    riskState: "UNVERIFIED",
+    isFlaggedForFraud: false,
+    price: 1,
+    images: [],
+    property,
+    owner: { id: 1, name: "Ada" },
+    fraudSignals: [],
+    _count: { reviews: 0, bookings: 0 },
+  };
+  const unpublished = { ...published, reviewStatus: "NOT_REVIEWED", status: "PENDING" };
+  const renter = jwt.sign({ id: 5, email: "renter@example.com", name: "Renter", role: "USER" }, process.env.JWT_SECRET);
+  const admin = jwt.sign({ id: 9, email: "admin@example.com", name: "Admin", role: "STUDIO_ADMIN" }, process.env.JWT_SECRET);
+
+  async function hit(listing, token) {
+    const server = await listen(appFor(listing));
+    try {
+      const { port } = server.address();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`http://127.0.0.1:${port}/api/listings/1`, { headers });
+      const text = await res.text();
+      return { status: res.status, text, body: JSON.parse(text) };
+    } finally {
+      server.close();
+    }
+  }
+
+  function assertNoExact(text, body) {
+    assert.equal(text.includes("5.497123"), false);
+    assert.equal(text.includes("7.033812"), false);
+    assert.equal(text.includes("\"latitude\""), false);
+    assert.equal(text.includes("\"longitude\""), false);
+    assert.equal(text.includes("12 Hidden Road"), false);
+    if (body && body.data && body.data.property) {
+      assert.equal(body.data.property.latitude, undefined);
+      assert.equal(body.data.property.longitude, undefined);
+      assert.equal(body.data.property.address, undefined);
+    }
+  }
+
+  const anonHidden = await hit(unpublished, null);
+  assert.equal(anonHidden.status, 404);
+  assertNoExact(anonHidden.text, anonHidden.body);
+
+  const renterHidden = await hit(unpublished, renter);
+  assert.equal(renterHidden.status, 404);
+  assertNoExact(renterHidden.text, renterHidden.body);
+
+  const renterPublic = await hit(published, renter);
+  assert.equal(renterPublic.status, 200);
+  assertNoExact(renterPublic.text, renterPublic.body);
+  assert.equal(renterPublic.body.data.property.city, "Owerri");
+
+  const adminPublic = await hit(published, admin);
+  assert.equal(adminPublic.status, 200);
+  assertNoExact(adminPublic.text, adminPublic.body);
+
+  const adminHidden = await hit(unpublished, admin);
+  assert.equal(adminHidden.status, 200);
+  assertNoExact(adminHidden.text, adminHidden.body);
+  assert.equal(seen.select.property.select.address, undefined);
+  assert.equal(seen.select.property.select.landmark, undefined);
+  assert.equal(adminHidden.body.data.property.city, "Owerri");
+  assert.deepEqual(adminHidden.body.data.approxLocation, { lat: 5.495, lng: 7.035, radius_m: 500 });
+});
+
+test("an owning landlord can open an unpublished listing without exact coordinates", async () => {
+  const property = {
+    id: 9,
+    city: "Owerri",
+    state: "Imo",
+    lga: "Owerri West",
+    latitude: 5.497123,
+    longitude: 7.033812,
+    address: "12 Hidden Road",
+  };
+  const unpublished = {
+    id: 1,
+    title: "Home",
+    status: "PENDING",
+    reviewStatus: "NOT_REVIEWED",
+    riskState: "UNVERIFIED",
+    isFlaggedForFraud: false,
+    price: 1,
+    ownerId: 8,
+    images: [],
+    property,
+    owner: { id: 8, name: "Ada" },
+    fraudSignals: [],
+    _count: { reviews: 0, bookings: 0 },
+  };
+  function appFor() {
+    return buildApp({
+      listing: {
+        findUnique: async (args) => {
+          const selected = args.select && args.select.property && args.select.property.select;
+          const projected = {};
+          if (selected) {
+            Object.keys(selected).forEach((key) => {
+              if (selected[key]) projected[key] = property[key];
+            });
+          }
+          return { ...unpublished, property: projected };
+        },
+      },
+      review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+    });
+  }
+  const owner = jwt.sign({ id: 8, email: "owner@example.com", name: "Ada", role: "LANDLORD" }, process.env.JWT_SECRET);
+  const other = jwt.sign({ id: 9, email: "other@example.com", name: "Other", role: "LANDLORD" }, process.env.JWT_SECRET);
+  async function hit(token) {
+    const server = await listen(appFor());
+    try {
+      const { port } = server.address();
+      const res = await fetch(`http://127.0.0.1:${port}/api/listings/1`, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      const text = await res.text();
+      return { status: res.status, text, body: JSON.parse(text) };
+    } finally {
+      server.close();
+    }
+  }
+  const denied = await hit(other);
+  assert.equal(denied.status, 404);
+  assert.equal(denied.text.includes("5.497123"), false);
+  assert.equal(denied.text.includes("12 Hidden Road"), false);
+  const allowed = await hit(owner);
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.text.includes("5.497123"), false);
+  assert.equal(allowed.text.includes("7.033812"), false);
+  assert.equal(allowed.body.data.property.latitude, undefined);
+  assert.equal(allowed.body.data.property.address, undefined);
+  assert.deepEqual(allowed.body.data.approxLocation, { lat: 5.495, lng: 7.035, radius_m: 500 });
+});

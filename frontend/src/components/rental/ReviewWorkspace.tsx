@@ -61,7 +61,17 @@ export default function ReviewWorkspace() {
 
   useEffect(() => {
     if (!isLoaded || user?.role !== "STUDIO_ADMIN") return;
-    load().catch((err: unknown) => setError(err instanceof ApiError ? err.message : "Could not load cases."));
+    let cancelled = false;
+    Promise.all([rentalChecksApi.metrics(), rentalChecksApi.list()])
+      .then(([metricBody, listBody]) => {
+        if (cancelled) return;
+        setMetrics(metricBody.data);
+        setCases(listBody.data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : "Could not load cases.");
+      });
+    return () => { cancelled = true; };
   }, [isLoaded, user]);
 
   const openCase = (item: RentalCheckAdmin) => {
