@@ -31,7 +31,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: { default: 'Lodgist — places in Nigeria you can check', template: '%s | Lodgist' },
   description: "Search houses in Nigeria. See what Lodgist checked before you pay. Curated by ShadowSpark Technologies.",
-  keywords: ['property Nigeria', 'rent Imo State', 'verified listings', 'Lagos apartments', 'no agent fee', 'Owerri property'],
+  keywords: ['property Nigeria', 'rent Imo State', 'reviewed listings', 'Lagos apartments', 'no agent fee', 'Owerri property'],
   authors: [{ name: 'ShadowSpark Technologies' }],
   openGraph: {
     type: 'website', locale: 'en_NG', url: siteUrl, siteName: 'Lodgist',

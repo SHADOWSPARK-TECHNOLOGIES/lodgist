@@ -7,12 +7,14 @@
  * record a rent payment as "received" that was never actually collected, which
  * harms both tenant and landlord and is a fraud liability.
  *
- * Until live keys are provisioned, the sanctioned path is manual verification:
- *   PATCH /api/bookings/:id/manual-payment   (tenant/agent submits bank-transfer ref)
+ * Checkout is shelved (8 Oct 2026). Callers must check paystackEnabled()
+ * before initializePayment. PAYSTACK_ENABLED must be the string "true" and
+ * PAYSTACK_SECRET_KEY must be set. A missing key must not mark a payment paid.
+ * The sanctioned path is manual verification:
+ *   PATCH /api/bookings/:id/manual-payment   (tenant submits a reference, including a WhatsApp arrangement)
  *   PATCH /api/bookings/:id/verify-payment   (admin approves/rejects, logs reasoning)
  * A human confirms real funds moved before any booking is marked CONFIRMED.
- * When keys are added (PAYSTACK_SECRET_KEY / PAYSTACK_PUBLIC_KEY), this service
- * starts working with no code change.
+ * The webhook HMAC-SHA512 check stays in place for when checkout is turned back on.
  *
  * Endpoints used:
  *   POST /transaction/initialize   — Create a payment link

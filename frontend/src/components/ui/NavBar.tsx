@@ -63,8 +63,8 @@ export function NavBar() {
           )}
         </div>
 
-        <button className="md:hidden p-2 rounded-lg hover:bg-white/5" onClick={() => setOpen(!open)}
-          aria-label="Toggle menu">
+        <button type="button" className="md:hidden inline-flex items-center justify-center min-w-11 min-h-11 p-3 rounded-lg hover:bg-white/5" onClick={() => setOpen(!open)}
+          aria-label="Toggle menu" aria-expanded={open}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
             {open
               ? <path d="M4 4L16 16M16 4L4 16" strokeLinecap="round"/>

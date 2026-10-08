@@ -182,7 +182,7 @@ export default function ReviewWorkspace() {
             {selected.listingUrl && <p className="text-sm break-all text-white">{selected.listingUrl}</p>}
             <p className="text-sm text-white">Check fee {formatNaira(selected.amountNgn)}. Payment {selected.paymentStatus}. This is not rent.</p>
             <p className="text-sm text-white">
-              Transfer reference: {selected.manualPaymentRef || "None on file"}
+              Payment reference: {selected.manualPaymentRef || "None on file"}
             </p>
             {selected.paymentReviewNote && <p className="text-sm text-white">Payment note: {selected.paymentReviewNote}</p>}
             <label className="block text-sm text-white">

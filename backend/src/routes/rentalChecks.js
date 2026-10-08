@@ -1,6 +1,5 @@
 const express = require("express");
-const jwt = require("jsonwebtoken");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const logger = require("../utils/logger");
 const {
   validateIntake,
@@ -17,7 +16,7 @@ const {
 } = require("../services/rentalCheck");
 
 const SAVED_MESSAGE =
-  "Case saved. The check fee is ₦5,000. Online checkout is not open. Saving this case does not pay the fee or verify the home.";
+  "Case saved. The check fee is ₦5,000. Saving this case does not pay the fee. Arrange it on WhatsApp from the case page. The Lodgist team confirms payment. This does not verify the home.";
 
 function readToken(req) {
   const header = req.headers["x-rental-check-token"];
@@ -27,16 +26,6 @@ function readToken(req) {
   return "";
 }
 
-function optionalUser(req) {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith("Bearer ") || !process.env.JWT_SECRET) return null;
-  try {
-    return jwt.verify(header.slice(7), process.env.JWT_SECRET);
-  } catch {
-    return null;
-  }
-}
-
 function isStudioAdmin(user) {
   return Boolean(user && user.role === "STUDIO_ADMIN");
 }
@@ -44,7 +33,7 @@ function isStudioAdmin(user) {
 function rentalChecksRouter(prisma) {
   const router = express.Router();
 
-  router.post("/", async (req, res) => {
+  router.post("/", optionalAuth, async (req, res) => {
     const parsed = validateIntake(req.body);
     if (!parsed.ok) {
       return res.status(400).json({
@@ -54,7 +43,7 @@ function rentalChecksRouter(prisma) {
       });
     }
     try {
-      const user = optionalUser(req);
+      const user = req.user || null;
       const userId = user && user.id ? user.id : null;
       const { check, accessToken } = await createRentalCheck(prisma, {
         ...parsed.data,
@@ -198,7 +187,7 @@ function rentalChecksRouter(prisma) {
       }
       return res.status(503).json({
         success: false,
-        error: "Online checkout is not available. Saving a case does not pay the fee.",
+        error: "Online checkout is not open. Arrange this fee on WhatsApp. The Lodgist team confirms it.",
         code: "PAYSTACK_UNAVAILABLE",
       });
     } catch (error) {
@@ -207,12 +196,12 @@ function rentalChecksRouter(prisma) {
     }
   });
 
-  router.post("/:reference/payment-reference", async (req, res) => {
+  router.post("/:reference/payment-reference", optionalAuth, async (req, res) => {
     const parsed = validateManualPaymentRef(req.body);
     if (!parsed.ok) return res.status(parsed.status).json({ success: false, error: parsed.error });
     try {
       const check = await prisma.rentalCheck.findUnique({ where: { publicReference: req.params.reference } });
-      const user = optionalUser(req);
+      const user = req.user || null;
       const allowed = check && (isStudioAdmin(user) || tokenMatches(check, readToken(req)));
       if (!allowed) return res.status(401).json({ success: false, error: "This case link is not valid." });
       const decision = submitManualPayment(check, parsed.ref);
@@ -290,7 +279,8 @@ function rentalChecksRouter(prisma) {
     try {
       const check = await prisma.rentalCheck.findUnique({ where: { publicReference: req.params.reference } });
       if (!check) return res.status(404).json({ success: false, error: "Case not found." });
-      return res.json({ success: true, data: publicStatus(check) });
+      const includePayer = tokenMatches(check, readToken(req));
+      return res.json({ success: true, data: publicStatus(check, { includePayer }) });
     } catch (error) {
       logger.error("Rental check status failed", { message: error.message });
       return res.status(500).json({ success: false, error: "We could not load this case." });

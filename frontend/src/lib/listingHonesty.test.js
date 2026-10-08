@@ -129,3 +129,20 @@ test("Lodgist review and payment do not complete verification checks", () => {
   assert.match(facts.lastVerification, /Not verified by Lodgist/);
   assert.equal(canRequestViewing(listing), true);
 });
+
+test("the verified badge fails closed on rejected, archived, flagged, or unknown rows", () => {
+  const base = { status: "PENDING", reviewStatus: "APPROVED", evidenceVerified: true };
+  assert.equal(isEvidenceVerified(base), true);
+  assert.equal(isEvidenceVerified({ ...base, status: "REJECTED" }), false);
+  assert.equal(isEvidenceVerified({ ...base, status: "ARCHIVED" }), false);
+  assert.equal(isEvidenceVerified({ ...base, isFlaggedForFraud: true }), false);
+  assert.equal(isEvidenceVerified({ ...base, riskState: "FLAGGED" }), false);
+  assert.equal(isEvidenceVerified({ ...base, riskState: "SUSPENDED" }), false);
+  assert.equal(isEvidenceVerified({ ...base, evidenceVerified: "true" }), false);
+  assert.equal(isEvidenceVerified({ reviewStatus: "APPROVED" }), false);
+  assert.equal(isEvidenceVerified(null), false);
+  assert.equal(verificationLabel({ ...base, status: "REJECTED" }), "Not verified by Lodgist");
+  assert.equal(reviewLabel({ reviewStatus: "UNKNOWN" }), "Not reviewed by Lodgist");
+  assert.equal(reviewLabel(undefined), "Not reviewed by Lodgist");
+  assert.equal(decisionFacts({ ...base, status: "REJECTED" }).verified, false);
+});

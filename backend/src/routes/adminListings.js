@@ -1,5 +1,6 @@
 const express = require("express");
 const { requireAuth, requireRole } = require("../middleware/auth");
+const asyncHandler = require("../middleware/asyncHandler");
 const logger = require("../utils/logger");
 const {
   isExampleListing,
@@ -134,7 +135,7 @@ function adminListingsRouter(prisma) {
     return res.json({ success: true, data: adminView({ ...existing, ...updated }) });
   }
 
-  router.get("/pending", async (_req, res) => {
+  router.get("/pending", asyncHandler(async (_req, res) => {
     try {
       const rows = await prisma.listing.findMany({
         where: {
@@ -155,9 +156,9 @@ function adminListingsRouter(prisma) {
       });
       return res.status(500).json({ success: false, error: "We could not load pending listings. Try again." });
     }
-  });
+  }));
 
-  router.post("/:id/approve", async (req, res) => {
+  router.post("/:id/approve", asyncHandler(async (req, res) => {
     const id = parseListingId(req.params.id);
     if (!id) return res.status(400).json({ success: false, error: "Invalid listing ID" });
     try {
@@ -175,7 +176,7 @@ function adminListingsRouter(prisma) {
         status: nextStatus,
         rejectionReason: null,
       };
-      return writeListing(existing, {
+      return await writeListing(existing, {
         reviewStatus: "APPROVED",
         status: nextStatus,
         rejectionReason: null,
@@ -189,9 +190,9 @@ function adminListingsRouter(prisma) {
       });
       return res.status(500).json({ success: false, error: "We could not publish this listing. Try again." });
     }
-  });
+  }));
 
-  router.post("/:id/reject", async (req, res) => {
+  router.post("/:id/reject", asyncHandler(async (req, res) => {
     const id = parseListingId(req.params.id);
     if (!id) return res.status(400).json({ success: false, error: "Invalid listing ID" });
     const parsed = rejectionReason(req.body);
@@ -199,19 +200,32 @@ function adminListingsRouter(prisma) {
     try {
       const existing = await loadListing(id);
       if (!existing) return res.status(404).json({ success: false, error: "Listing not found" });
-      if (existing.status === "REJECTED" && existing.rejectionReason === parsed.reason && existing.reviewStatus === "NOT_REVIEWED") {
+      if (
+        existing.status === "REJECTED" &&
+        existing.rejectionReason === parsed.reason &&
+        existing.reviewStatus === "NOT_REVIEWED" &&
+        existing.evidenceVerified !== true
+      ) {
         return res.json({ success: true, unchanged: true, data: adminView(existing) });
       }
+      // Rejecting also clears the verified badge, so a later approve cannot
+      // bring "Verified by Lodgist" back without a fresh verify action.
       const merged = {
         ...existing,
         status: "REJECTED",
         reviewStatus: "NOT_REVIEWED",
         rejectionReason: parsed.reason,
+        evidenceVerified: false,
+        verifiedAt: null,
+        verifiedById: null,
       };
-      return writeListing(existing, {
+      return await writeListing(existing, {
         status: "REJECTED",
         reviewStatus: "NOT_REVIEWED",
         rejectionReason: parsed.reason,
+        evidenceVerified: false,
+        verifiedAt: null,
+        verifiedById: null,
         adminAudit: appendAudit(existing, auditEntry(merged, "reject", req.user.id, parsed.reason)),
       }, res);
     } catch (error) {
@@ -222,9 +236,9 @@ function adminListingsRouter(prisma) {
       });
       return res.status(500).json({ success: false, error: "We could not reject this listing. Try again." });
     }
-  });
+  }));
 
-  router.post("/:id/verify", async (req, res) => {
+  router.post("/:id/verify", asyncHandler(async (req, res) => {
     const id = parseListingId(req.params.id);
     if (!id) return res.status(400).json({ success: false, error: "Invalid listing ID" });
     try {
@@ -243,7 +257,7 @@ function adminListingsRouter(prisma) {
         verifiedAt,
         verifiedById: req.user.id,
       };
-      return writeListing(existing, {
+      return await writeListing(existing, {
         evidenceVerified: true,
         verifiedAt,
         verifiedById: req.user.id,
@@ -257,9 +271,9 @@ function adminListingsRouter(prisma) {
       });
       return res.status(500).json({ success: false, error: "We could not record this verification. Try again." });
     }
-  });
+  }));
 
-  router.post("/:id/unverify", async (req, res) => {
+  router.post("/:id/unverify", asyncHandler(async (req, res) => {
     const id = parseListingId(req.params.id);
     if (!id) return res.status(400).json({ success: false, error: "Invalid listing ID" });
     try {
@@ -274,7 +288,7 @@ function adminListingsRouter(prisma) {
         verifiedAt: null,
         verifiedById: null,
       };
-      return writeListing(existing, {
+      return await writeListing(existing, {
         evidenceVerified: false,
         verifiedAt: null,
         verifiedById: null,
@@ -288,7 +302,7 @@ function adminListingsRouter(prisma) {
       });
       return res.status(500).json({ success: false, error: "We could not clear this verification. Try again." });
     }
-  });
+  }));
 
   return router;
 }

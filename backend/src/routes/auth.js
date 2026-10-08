@@ -463,21 +463,10 @@ module.exports = (prisma) => {
   });
 
   // GET /api/auth/passkeys — List user's registered passkeys
-  router.get("/passkeys", async (req, res) => {
+  router.get("/passkeys", requireAuth, async (req, res) => {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({
-          success: false,
-          error: "Authentication required",
-        });
-      }
-
-      const token = authHeader.slice(7);
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
       const passkeys = await prisma.passkeyCredential.findMany({
-        where: { userId: decoded.id },
+        where: { userId: req.user.id },
         select: {
           id: true,
           credentialId: true,
@@ -501,19 +490,8 @@ module.exports = (prisma) => {
   });
 
   // DELETE /api/auth/passkeys/:credentialId — Remove a passkey
-  router.delete("/passkeys/:credentialId", async (req, res) => {
+  router.delete("/passkeys/:credentialId", requireAuth, async (req, res) => {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({
-          success: false,
-          error: "Authentication required",
-        });
-      }
-
-      const token = authHeader.slice(7);
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
       const { credentialId } = req.params;
 
       // Verify ownership
@@ -521,7 +499,7 @@ module.exports = (prisma) => {
         where: { credentialId },
       });
 
-      if (!credential || credential.userId !== decoded.id) {
+      if (!credential || credential.userId !== req.user.id) {
         return res.status(404).json({
           success: false,
           error: "Passkey not found",

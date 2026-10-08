@@ -32,10 +32,20 @@ function reviewLabel(listing) {
   return isLodgistReviewed(listing) ? REVIEWED_LABEL : NOT_REVIEWED_LABEL;
 }
 
-/** Completed checks are not implied by review, listing status, risk, or payment. */
+const CLOSED_STATUS = new Set(["REJECTED", "ARCHIVED"]);
+
+/**
+ * Completed checks are not implied by review, listing status, risk, or payment.
+ * Fails closed: a rejected, archived, fraud-flagged, flagged, or suspended row
+ * never shows the verified badge, even if a stale evidence flag is still set.
+ */
 function isEvidenceVerified(listing) {
   if (!listing || typeof listing !== "object" || isExampleListing(listing)) return false;
-  return listing.evidenceVerified === true;
+  if (listing.evidenceVerified !== true) return false;
+  if (CLOSED_STATUS.has(listing.status)) return false;
+  if (listing.isFlaggedForFraud === true) return false;
+  if (BLOCKED_RISK.has(listing.riskState)) return false;
+  return true;
 }
 
 /** Public discovery: Lodgist-reviewed, non-sample PENDING or VERIFIED, and not fraud / flagged / suspended. */
