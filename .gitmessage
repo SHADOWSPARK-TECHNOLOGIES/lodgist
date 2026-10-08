@@ -27,7 +27,6 @@
 #   verification  Land registry, trust safety engine, fraud detection
 #   listings      Listing CRUD, search, detail pages
 #   docs          README, BETA_STATUS, AGENTS, plans
-#   ci            GitHub Actions, Amplify, Vercel config
 #   config        Env vars, tooling config, workspace settings
 #   packages      Shared packages (ai-core, db, etc.)
 #

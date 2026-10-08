@@ -1,13 +1,7 @@
-# GitHub Actions — Required Secrets
+# Deployment secrets
 
-Go to: [github.com/Shadow7user/lodgist → Settings → Secrets → Actions](https://github.com/Shadow7user/lodgist/settings/secrets/actions)
-
-Add these secrets:
-
-| Secret Name      | Where to get it                          |
-|------------------|------------------------------------------|
-| DATABASE_URL     | Vercel dashboard → Environment Variables |
-| DIRECT_URL       | Vercel dashboard → Environment Variables |
-| NEXTAUTH_SECRET  | Vercel dashboard → Environment Variables |
-| NEXTAUTH_URL     | Your production domain                   |
-| VERCEL_TOKEN     | vercel.com → Settings → Tokens           |
+Production frontend and API configuration belongs to the corresponding Railway
+service in the production environment. Keep credentials server-side; expose only
+intentional public frontend variables. GitHub Actions secrets are required only
+when a current workflow explicitly consumes them. Do not copy application secrets
+into GitHub or documentation by default.

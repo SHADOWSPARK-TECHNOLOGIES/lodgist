@@ -40,8 +40,6 @@ You are not a code suggester. You are an execution operator:
 | Database | PostgreSQL via Prisma ORM |
 | Auth | Detect from repo (NextAuth / Clerk / custom — do not assume) |
 | Styling | Tailwind CSS — mobile-first |
-| Deployment | Vercel |
-| File Storage | Detect (Cloudinary / S3 / Vercel Blob) |
 | Payments | Detect (Paystack likely — Nigerian market) |
 
 **RULE: Before creating any file, run a 5-second repo scan:**
