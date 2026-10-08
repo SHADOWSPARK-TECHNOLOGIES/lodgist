@@ -19,6 +19,22 @@
 const jwt = require("jsonwebtoken");
 
 /**
+ * Live access tokens are minted without a `type` claim (register, login,
+ * passkey, and refresh). Refresh tokens set `type: "refresh"` and are signed
+ * with the same JWT_SECRET, so the claim is the only separator.
+ *
+ * Allowlist: accept a payload only when `type` is absent. That keeps tokens
+ * already in the wild working. Requiring `type: "access"` would reject them.
+ * Any present type, including "refresh", is rejected.
+ *
+ * @param {object} decoded
+ * @returns {boolean}
+ */
+function isUserAccessToken(decoded) {
+  return Boolean(decoded) && typeof decoded === "object" && decoded.type == null;
+}
+
+/**
  * requireAuth - Verifies the Bearer JWT token from the Authorization header.
  *
  * On success, attaches decoded payload to `req.user` with shape:
@@ -40,9 +56,7 @@ function requireAuth(req, res, next) {
 
     const token = authHeader.slice(7); // Remove "Bearer " prefix
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    // Refresh tokens are valid JWTs with type:"refresh" and no role. They must
-    // not be accepted as access tokens.
-    if (decoded.type === "refresh") {
+    if (!isUserAccessToken(decoded)) {
       return res.status(401).json({
         success: false,
         error: "Invalid token",
@@ -145,17 +159,15 @@ function optionalAuth(req, res, next) {
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      if (decoded.type === "refresh") {
-        next();
-        return;
+      if (isUserAccessToken(decoded)) {
+        req.user = {
+          id: decoded.id,
+          email: decoded.email,
+          name: decoded.name,
+          role: decoded.role,
+          isHNW: decoded.isHNW || false,
+        };
       }
-      req.user = {
-        id: decoded.id,
-        email: decoded.email,
-        name: decoded.name,
-        role: decoded.role,
-        isHNW: decoded.isHNW || false,
-      };
     }
   } catch {
     // Silently ignore — auth is optional
@@ -163,4 +175,4 @@ function optionalAuth(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireRole, requireHNW, optionalAuth };
+module.exports = { requireAuth, requireRole, requireHNW, optionalAuth, isUserAccessToken };

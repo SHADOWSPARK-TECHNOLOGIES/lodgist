@@ -122,6 +122,81 @@ test("GET /api/escrow/:id is limited to the tenant, the landlord and admins", as
   }
 });
 
+test("optionalAuth calls next once for a refresh token", () => {
+  const { optionalAuth } = require("../src/middleware/auth");
+  const refresh = jwt.sign({ id: 3, type: "refresh" }, process.env.JWT_SECRET);
+  const req = { headers: { authorization: `Bearer ${refresh}` } };
+  let calls = 0;
+  assert.throws(() => {
+    optionalAuth(req, {}, () => {
+      calls += 1;
+      throw new Error("downstream");
+    });
+  }, /downstream/);
+  assert.equal(calls, 1);
+  assert.equal(req.user, undefined);
+});
+
+test("passkey list and delete reject refresh, bad, and expired tokens", async () => {
+  const rows = [{
+    id: 1,
+    credentialId: "cred-1",
+    userId: 3,
+    name: "Phone",
+    deviceType: "singleDevice",
+    backedUp: false,
+    createdAt: "2026-10-01T00:00:00.000Z",
+    lastUsedAt: null,
+  }];
+  let deleted = 0;
+  const prisma = {
+    passkeyCredential: {
+      findMany: async ({ where }) => rows.filter((row) => row.userId === where.userId),
+      findUnique: async ({ where }) => rows.find((row) => row.credentialId === where.credentialId) || null,
+      delete: async () => {
+        deleted += 1;
+        return {};
+      },
+    },
+  };
+  const router = authRouter(prisma);
+  const refresh = `Bearer ${jwt.sign({ id: 3, type: "refresh" }, process.env.JWT_SECRET)}`;
+  const bad = "Bearer not-a-jwt";
+  const expired = `Bearer ${jwt.sign({ id: 3, role: "LANDLORD", exp: Math.floor(Date.now() / 1000) - 60 }, process.env.JWT_SECRET)}`;
+  const typed = `Bearer ${jwt.sign({ id: 3, role: "LANDLORD", type: "access" }, process.env.JWT_SECRET)}`;
+  const access = token({ id: 3, email: "ada@example.com", name: "Ada", role: "LANDLORD" });
+
+  const listRefresh = await call(router, "/api/auth", "/api/auth/passkeys", { headers: { Authorization: refresh } });
+  assert.equal(listRefresh.status, 401);
+  const deleteRefresh = await call(router, "/api/auth", "/api/auth/passkeys/cred-1", {
+    method: "DELETE",
+    headers: { Authorization: refresh },
+  });
+  assert.equal(deleteRefresh.status, 401);
+  assert.equal(deleted, 0);
+
+  for (const authorization of [bad, expired, typed]) {
+    const listed = await call(router, "/api/auth", "/api/auth/passkeys", { headers: { Authorization: authorization } });
+    assert.equal(listed.status, 401, authorization.slice(0, 16));
+    const removed = await call(router, "/api/auth", "/api/auth/passkeys/cred-1", {
+      method: "DELETE",
+      headers: { Authorization: authorization },
+    });
+    assert.equal(removed.status, 401);
+  }
+  assert.equal(deleted, 0);
+
+  const listed = await call(router, "/api/auth", "/api/auth/passkeys", { headers: { Authorization: access } });
+  assert.equal(listed.status, 200);
+  assert.equal(JSON.parse(listed.text).data.length, 1);
+  const removed = await call(router, "/api/auth", "/api/auth/passkeys/cred-1", {
+    method: "DELETE",
+    headers: { Authorization: access },
+  });
+  assert.equal(removed.status, 200);
+  assert.equal(deleted, 1);
+});
+
 test("passkey registration requires sign-in and only for your own account", async () => {
   let touched = false;
   const prisma = new Proxy({}, { get: () => new Proxy({}, { get: () => async () => { touched = true; return null; } }) });

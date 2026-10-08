@@ -88,9 +88,9 @@ const LISTING_STATUSES = new Set(["PENDING", "VERIFIED", "REJECTED", "ARCHIVED"]
 // FLAGGED or SUSPENDED. reviewStatus APPROVED is review-for-display only.
 // There is no DRAFT status. Sample rows (`totalMoveInCost.sample`) are JSON,
 // so findMany still drops them in JS; public `pagination.total` subtracts the
-// same sample match so count and data stay aligned. Admin and landlord keep a
-// wider result only when they pass an explicit status on this route.
-const MANAGEMENT_ROLES = new Set(["STUDIO_ADMIN", "LANDLORD"]);
+// same sample match so count and data stay aligned. A STUDIO_ADMIN who passes
+// an explicit status sees every listing in that status. A LANDLORD who passes
+// one sees only listings they own.
 const PUBLIC_LISTING_STATUSES = ["PENDING", "VERIFIED"];
 const ELIGIBLE_RISK_STATES = ["UNVERIFIED", "UNDER_REVIEW", "VERIFIED"];
 const BLOCKED_RISK_STATES = new Set(["FLAGGED", "SUSPENDED"]);
@@ -159,6 +159,25 @@ function isEligiblePublicListing(listing) {
   return true;
 }
 
+function viewerCanSeeListingInternals(user, listing) {
+  if (!user || !listing) return false;
+  if (user.role === "STUDIO_ADMIN") return true;
+  return user.id != null && listing.ownerId === user.id;
+}
+
+// Shared by public list, search, and detail. ownerId, owner.id, and fraudReason
+// stay only when the viewer is that listing's owner or a STUDIO_ADMIN.
+function redactPublicListing(payload, user, source) {
+  if (viewerCanSeeListingInternals(user, source)) return payload;
+  const { ownerId: _ownerId, fraudReason: _fraudReason, owner, ...rest } = payload;
+  if (owner && typeof owner === "object") {
+    const { id: _id, ...ownerRest } = owner;
+    return { ...rest, owner: ownerRest };
+  }
+  if (owner !== undefined) return { ...rest, owner };
+  return rest;
+}
+
 // Listing has no source column. Public responses say "Direct submission"
 // until a real attribution field exists. This does not mark the home verified.
 function publicDiscovery(listing) {
@@ -215,9 +234,13 @@ async function countPublicBrowse(prisma, where, mode) {
 
 function applyPublicBrowseFilter(where, user, statusQuery) {
   const explicit = explicitListingStatus(statusQuery);
-  const management = Boolean(user && MANAGEMENT_ROLES.has(user.role));
-  if (management && explicit) {
+  if (user && explicit && user.role === "STUDIO_ADMIN") {
     where.status = explicit;
+    return { mode: "management", where };
+  }
+  if (user && explicit && user.role === "LANDLORD") {
+    where.status = explicit;
+    where.ownerId = user.id;
     return { mode: "management", where };
   }
   where.status = { in: PUBLIC_LISTING_STATUSES };
@@ -367,7 +390,7 @@ function listingsRouter(prisma) {
       const data = visible.map((listing) => {
         const { fraudSignals, _count, verifiedById: _verifiedById, adminAudit: _adminAudit, rejectionReason: _rejectionReason, ...rest } = listing;
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
-        return {
+        return redactPublicListing({
           ...rest,
           ...publicDiscovery(listing),
           ...verifiedPublicFields(listing),
@@ -375,7 +398,7 @@ function listingsRouter(prisma) {
           reviewCount: _count.reviews,
           bookingCount: _count.bookings,
           fraudSignalScore: latestFraudScore,
-        };
+        }, req.user, listing);
       });
 
       res.json({
@@ -457,8 +480,9 @@ function listingsRouter(prisma) {
         return res.status(404).json({ error: "Listing not found" });
       }
 
-      const management = Boolean(req.user && MANAGEMENT_ROLES.has(req.user.role));
-      if (!management && !isEligiblePublicListing(listing)) {
+      const isAdmin = Boolean(req.user && req.user.role === "STUDIO_ADMIN");
+      const isOwner = Boolean(req.user && listing.ownerId != null && listing.ownerId === req.user.id);
+      if (!isAdmin && !isOwner && !isEligiblePublicListing(listing)) {
         return res.status(404).json({ error: "Listing not found" });
       }
 
@@ -481,7 +505,7 @@ function listingsRouter(prisma) {
 
       res.json({
         success: true,
-        data: {
+        data: redactPublicListing({
           ...listingData,
           ...publicDiscovery(listing),
           ...verifiedPublicFields(listing),
@@ -491,7 +515,7 @@ function listingsRouter(prisma) {
           reviewCount: ratingAgg._count,
           bookingCount: _count.bookings,
           latestFraudSignal,
-        },
+        }, req.user, listing),
       });
     } catch (error) {
       logger.error("Error fetching single listing", {

@@ -625,6 +625,42 @@ test("whatsapp CHECK collects a case and REPORT stays behind the sender phone", 
   assert.equal(/\bsafe\b/i.test(help.replyText), false);
 });
 
+test("a refresh token is not an access token on rental-check routes", async () => {
+  const prisma = memoryPrisma();
+  const server = await listen(appFor(prisma));
+  try {
+    const refresh = jwt.sign({ id: 9, type: "refresh" }, process.env.JWT_SECRET);
+    const created = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${refresh}` },
+      body: JSON.stringify(intake),
+    });
+    assert.equal(created.status, 201);
+    assert.equal(prisma.checks[0].userId, null);
+
+    const access = jwt.sign({ id: 9, email: "ada@example.com", name: "Ada", role: "TENANT" }, process.env.JWT_SECRET);
+    const attributed = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${access}` },
+      body: JSON.stringify({ ...intake, customerPhone: "08030000000" }),
+    });
+    assert.equal(attributed.status, 201);
+    assert.equal(prisma.checks[1].userId, 9);
+
+    const ref = created.body.data.publicReference;
+    const staffRefresh = jwt.sign({ id: 1, role: "STUDIO_ADMIN", type: "refresh" }, process.env.JWT_SECRET);
+    const blocked = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${staffRefresh}` },
+      body: JSON.stringify({ manualPaymentRef: "TRF-1001" }),
+    });
+    assert.equal(blocked.status, 401);
+    assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
+  } finally {
+    server.close();
+  }
+});
+
 test("whatsapp duplicate message id does not open two cases", async () => {
   const prisma = memoryPrisma();
   const payload = {
