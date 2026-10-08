@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import ArrangeWhatsAppPayment from "@/components/ArrangeWhatsAppPayment";
 import { ApiError, rentalChecksApi } from "@/lib/api";
+import { arrangePayment, supportWhatsAppLink } from "@/lib/copy";
 import type { RentalCheckStatusView, RentalReport } from "@/lib/types";
 import { formatNaira, lockedRecommendation } from "@/lib/rentalCheck";
+import { paymentWhatsAppText, whatsappArrangementRef } from "@/lib/whatsappPayment";
 
 export default function CheckStatus() {
   const params = useParams<{ reference: string }>();
@@ -19,7 +22,7 @@ export default function CheckStatus() {
     let cancelled = false;
     async function load() {
       try {
-        const current = await rentalChecksApi.status(reference);
+        const current = await rentalChecksApi.status(reference, token || undefined);
         if (cancelled) return;
         setStatus(current.data);
         if (token && current.data.reportReady) {
@@ -53,13 +56,37 @@ export default function CheckStatus() {
             <p>Payment: {status.paymentStatus}</p>
             <p>Review: {status.reviewStatus}</p>
             <p>Fee: {formatNaira(status.amountNgn)}. This is the check fee, not rent and not a deposit.</p>
-            <p>Online checkout is not open. This page cannot mark the fee paid.</p>
             {status.paymentStatus === "PAID" ? (
               <p>Staff confirmed the fee. That does not verify the home.</p>
-            ) : status.paymentReferenceSubmitted ? (
-              <p>A reference is on file. Staff have not confirmed the money.</p>
             ) : (
-              <p>No transfer reference is on file.</p>
+              <ArrangeWhatsAppPayment
+                href={supportWhatsAppLink(paymentWhatsAppText({
+                  what: "Rental Safety Check",
+                  amountNgn: status.amountNgn,
+                  reference: status.publicReference,
+                  listing: status.location || undefined,
+                  name: status.customerName || undefined,
+                }))}
+                label={arrangePayment.rentalCta}
+                busyLabel={arrangePayment.opening}
+                note={arrangePayment.rentalNote}
+                missingLabel={arrangePayment.missing}
+                prepare={async () => {
+                  if (!token) throw new Error(arrangePayment.needLink);
+                  if (status.paymentStatus === "PENDING") return;
+                  await rentalChecksApi.recordPaymentReference(
+                    reference,
+                    whatsappArrangementRef(reference),
+                    token,
+                  );
+                }}
+              />
+            )}
+            {status.paymentStatus !== "PAID" && status.paymentReferenceSubmitted && (
+              <p>{arrangePayment.queued}</p>
+            )}
+            {status.paymentStatus !== "PAID" && !status.paymentReferenceSubmitted && (
+              <p>No payment reference is on file yet.</p>
             )}
             <p>Payment of the fee does not verify the home.</p>
           </div>

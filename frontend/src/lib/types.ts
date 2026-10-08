@@ -400,6 +400,10 @@ export interface RentalCheckStatusView {
   reportReady: boolean;
   createdAt: string;
   accessToken?: string;
+  /** Present only when the case token matches. */
+  customerName?: string | null;
+  /** Present only when the case token matches. */
+  location?: string | null;
 }
 
 export interface RentalReportSection {

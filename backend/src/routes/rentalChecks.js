@@ -17,7 +17,7 @@ const {
 } = require("../services/rentalCheck");
 
 const SAVED_MESSAGE =
-  "Case saved. The check fee is ₦5,000. Online checkout is not open. Saving this case does not pay the fee or verify the home.";
+  "Case saved. The check fee is ₦5,000. Saving this case does not pay the fee. Arrange it on WhatsApp from the case page. The Lodgist team confirms payment. This does not verify the home.";
 
 function readToken(req) {
   const header = req.headers["x-rental-check-token"];
@@ -198,7 +198,7 @@ function rentalChecksRouter(prisma) {
       }
       return res.status(503).json({
         success: false,
-        error: "Online checkout is not available. Saving a case does not pay the fee.",
+        error: "Online checkout is not open. Arrange this fee on WhatsApp. The Lodgist team confirms it.",
         code: "PAYSTACK_UNAVAILABLE",
       });
     } catch (error) {
@@ -290,7 +290,8 @@ function rentalChecksRouter(prisma) {
     try {
       const check = await prisma.rentalCheck.findUnique({ where: { publicReference: req.params.reference } });
       if (!check) return res.status(404).json({ success: false, error: "Case not found." });
-      return res.json({ success: true, data: publicStatus(check) });
+      const includePayer = tokenMatches(check, readToken(req));
+      return res.json({ success: true, data: publicStatus(check, { includePayer }) });
     } catch (error) {
       logger.error("Rental check status failed", { message: error.message });
       return res.status(500).json({ success: false, error: "We could not load this case." });
