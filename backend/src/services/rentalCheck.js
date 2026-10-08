@@ -303,8 +303,8 @@ function paidPaymentUpdate(check) {
   };
 }
 
-function publicStatus(check) {
-  return {
+function publicStatus(check, options) {
+  const view = {
     product: PRODUCT_NAME,
     publicReference: check.publicReference,
     status: check.status,
@@ -315,6 +315,11 @@ function publicStatus(check) {
     reportReady: check.status === "REPORT_READY" || check.status === "DELIVERED",
     createdAt: check.createdAt,
   };
+  if (options && options.includePayer) {
+    view.customerName = check.customerName || null;
+    view.location = check.location || null;
+  }
+  return view;
 }
 
 function validateManualPaymentRef(body) {

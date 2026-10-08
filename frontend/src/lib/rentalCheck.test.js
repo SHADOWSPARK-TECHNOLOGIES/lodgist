@@ -17,19 +17,34 @@ test("homepage asks people to check a rental before they pay", () => {
   assert.match(copy, /Found a house online\? Before you send money, let Lodgist check it\./);
 });
 
-test("the public case page does not treat checkout, WhatsApp, or a file as payment", () => {
+test("the case page arranges the fee on WhatsApp and does not call Paystack", () => {
   const status = read("src/components/rental/CheckStatus.tsx");
   const intake = read("src/components/rental/CheckIntake.tsx");
   const review = read("src/components/rental/ReviewWorkspace.tsx");
   const api = read("src/lib/api.ts");
+  const listing = read("src/app/listings/[id]/page.tsx");
+  assert.match(status, /arrangePayment\.rentalCta/);
+  assert.match(status, /recordPaymentReference/);
+  assert.match(status, /whatsappArrangementRef/);
+  assert.match(status, /paymentWhatsAppText/);
   assert.equal(status.includes("rentalChecksApi.pay"), false);
   assert.equal(status.includes("paystackUrl"), false);
-  assert.equal(status.includes("wa.me"), false);
+  assert.equal(status.includes("payment is complete"), false);
+  assert.match(intake, /arrange payment on WhatsApp/);
+  assert.match(intake, /Lodgist team confirms/);
   assert.equal(intake.includes("Continue to pay"), false);
   assert.match(review, /reviewPayment/);
   assert.match(review, /recordPaymentReference/);
   assert.match(api, /\/payment-reference/);
   assert.match(api, /\/payment-review/);
+  assert.match(api, /submitManualPayment/);
+  assert.equal(api.includes("initiate-payment"), false);
+  assert.equal(api.includes("/escrow/initiate"), false);
+  assert.equal(/\/pay[`"']/.test(api), false);
+  assert.equal(api.includes("pay/verify"), false);
+  assert.match(listing, /submitManualPayment/);
+  assert.match(listing, /arrangePayment\.bookingCta/);
+  assert.equal(listing.includes("initiate-payment"), false);
   assert.equal(/fraud-free|100% verified|guaranteed|\bsafe\b/i.test(status + intake + review), false);
 });
 

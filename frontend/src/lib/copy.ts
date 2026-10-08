@@ -1,9 +1,8 @@
-/** Meta app WA bake 2026-09-29 (+2349045770572). Digits from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when the env var is unset. */
+import { supportDigits } from "./whatsappPayment";
+
+/** Digits from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when unset, empty, or the rejected test number. */
 export function supportWhatsAppDigits(): string | null {
-  const raw = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP;
-  if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
-  return digits.length > 0 ? digits : null;
+  return supportDigits(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP);
 }
 
 /** wa.me link, or null when support WhatsApp is not configured. */
@@ -347,7 +346,18 @@ export const milestones = {
   title: "Payments along the way",
   empty: "No staged payments on this listing.",
   noneYet: "Nothing paid yet",
-  complete: "Finish this on WhatsApp",
+  complete: "Arrange on WhatsApp",
+};
+
+export const arrangePayment = {
+  rentalCta: "Arrange this fee on WhatsApp",
+  bookingCta: "Arrange this booking payment on WhatsApp",
+  opening: "Opening WhatsApp",
+  rentalNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. Opening WhatsApp does not mark the fee paid.",
+  bookingNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. This does not mark the booking paid.",
+  queued: "This fee is in the review queue. Staff have not confirmed the money.",
+  needLink: "Open the case link we sent you so this fee can enter the review queue.",
+  missing: "WhatsApp support is not set up on this site yet.",
 };
 
 export const about = {

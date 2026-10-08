@@ -222,6 +222,48 @@ test("cases get distinct references and retry a reference collision", async () =
   assert.equal(prisma.checks.length, 2);
 });
 
+test("a WhatsApp arrangement reference waits for staff and does not mark the fee paid", async () => {
+  const prisma = memoryPrisma();
+  const server = await listen(appFor(prisma));
+  try {
+    const created = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...intake, customerName: "Ada Okonkwo" }),
+    });
+    const ref = created.body.data.publicReference;
+    const token = created.body.data.accessToken;
+    const queued = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
+      body: JSON.stringify({ manualPaymentRef: `WHATSAPP ${ref}` }),
+    });
+    assert.equal(queued.status, 200);
+    assert.equal(queued.body.data.paymentStatus, "PENDING");
+    assert.equal(queued.body.data.paymentReferenceSubmitted, true);
+    assert.equal(queued.body.data.manualPaymentRef, undefined);
+    assert.equal(prisma.checks[0].status, "AWAITING_PAYMENT");
+    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
+
+    const named = await json(server, `/api/rental-checks/${ref}`, {
+      headers: { "x-rental-check-token": token },
+    });
+    assert.equal(named.body.data.customerName, "Ada Okonkwo");
+    assert.equal(named.body.data.location, "Nekede, Owerri");
+
+    const confirmed = await json(server, `/api/rental-checks/${ref}/payment-review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` },
+      body: JSON.stringify({ action: "confirm", note: "Arranged on WhatsApp" }),
+    });
+    assert.equal(confirmed.status, 200);
+    assert.equal(confirmed.body.data.paymentStatus, "PAID");
+    assert.equal(prisma.checks[0].paymentStatus, "PAID");
+  } finally {
+    server.close();
+  }
+});
+
 test("create, pay, verify, review, and report follow the paid path", async () => {
   const prisma = memoryPrisma();
   let verified = { status: "failed", amount: 5000, currency: "NGN", reference: "LODG-ESC-RSC-1" };
@@ -244,7 +286,15 @@ test("create, pay, verify, review, and report follow the paid path", async () =>
     const ref = created.body.data.publicReference;
     const token = created.body.data.accessToken;
     assert.equal(created.body.data.status, "SUBMITTED");
+    assert.equal(created.body.data.customerName, undefined);
+    assert.equal(created.body.data.location, undefined);
     assert.equal(JSON.stringify(created.body).toLowerCase().includes("verified home"), false);
+
+    const owned = await json(server, `/api/rental-checks/${ref}`, {
+      headers: { "x-rental-check-token": token },
+    });
+    assert.equal(owned.body.data.location, "Nekede, Owerri");
+    assert.equal(owned.body.data.customerName, null);
 
     const bad = await json(server, "/api/rental-checks", {
       method: "POST",

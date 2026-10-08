@@ -1,6 +1,9 @@
 // Escrow routes (src/routes/escrow.js): auth + liveness gate, PENDING → HELD →
 // RELEASED, LODG-ESC- references, Paystack balance check, 5% commission and
 // party-scoped reads. Prisma and Paystack are plain in-memory fakes.
+// This file exercises the shelved Paystack path with the flag explicitly on.
+process.env.PAYSTACK_ENABLED = "true";
+process.env.PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY || "sk_test_mocked_secret_key";
 process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 
 const { test } = require("node:test");
