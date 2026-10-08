@@ -199,19 +199,32 @@ function adminListingsRouter(prisma) {
     try {
       const existing = await loadListing(id);
       if (!existing) return res.status(404).json({ success: false, error: "Listing not found" });
-      if (existing.status === "REJECTED" && existing.rejectionReason === parsed.reason && existing.reviewStatus === "NOT_REVIEWED") {
+      if (
+        existing.status === "REJECTED" &&
+        existing.rejectionReason === parsed.reason &&
+        existing.reviewStatus === "NOT_REVIEWED" &&
+        existing.evidenceVerified !== true
+      ) {
         return res.json({ success: true, unchanged: true, data: adminView(existing) });
       }
+      // Rejecting also clears the verified badge, so a later approve cannot
+      // bring "Verified by Lodgist" back without a fresh verify action.
       const merged = {
         ...existing,
         status: "REJECTED",
         reviewStatus: "NOT_REVIEWED",
         rejectionReason: parsed.reason,
+        evidenceVerified: false,
+        verifiedAt: null,
+        verifiedById: null,
       };
       return writeListing(existing, {
         status: "REJECTED",
         reviewStatus: "NOT_REVIEWED",
         rejectionReason: parsed.reason,
+        evidenceVerified: false,
+        verifiedAt: null,
+        verifiedById: null,
         adminAudit: appendAudit(existing, auditEntry(merged, "reject", req.user.id, parsed.reason)),
       }, res);
     } catch (error) {

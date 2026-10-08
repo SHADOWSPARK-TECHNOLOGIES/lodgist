@@ -32,7 +32,8 @@ export default function ListingsPage() {
       .finally(() => setLoading(false));
   }, [search, maxRent, reloadKey]);
 
-  const askHref = supportWhatsAppLink("I need a home. Area: ");
+  const area = search.trim();
+  const askHref = supportWhatsAppLink(area ? `I need a home. Area: ${area}` : "I need a home.");
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-navy)' }}>
@@ -43,16 +44,22 @@ export default function ListingsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          <label className="sr-only" htmlFor="area-search">{copy.searchPlaceholder}</label>
-          <input id="area-search" className="input max-w-sm" placeholder={copy.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} />
-          <label className="sr-only" htmlFor="max-rent">{copy.maxRent}</label>
-          <input id="max-rent" className="input max-w-[12rem]" inputMode="numeric" placeholder={copy.maxRent} value={maxRent} onChange={e => setMaxRent(e.target.value)} />
+          <div className="w-full max-w-sm">
+            <label className="label" htmlFor="area-search">{copy.searchLabel}</label>
+            <input id="area-search" className="input" placeholder={copy.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
+          <div className="w-full max-w-[12rem]">
+            <label className="label" htmlFor="max-rent">{copy.maxRent}</label>
+            <input id="max-rent" className="input" inputMode="numeric" value={maxRent} onChange={e => setMaxRent(e.target.value)} />
+          </div>
         </div>
-        {!loading && !failed && <p className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.count(listings.length)}</p>}
+        <p role="status" aria-live="polite" className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
+          {loading ? copy.loading : failed ? '' : copy.count(listings.length)}
+        </p>
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1,2,3,4,5,6].map(i => (
+            {[1,2].map(i => (
               <div key={i} className="card">
                 <div className="skeleton h-48 w-full mb-4" />
                 <div className="skeleton h-4 w-3/4 mb-2" />
@@ -95,7 +102,7 @@ export default function ListingsPage() {
                 </div>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-poppins font-semibold text-white text-sm mb-1">{listing.title}</h3>
+                    <h2 className="font-poppins font-semibold text-white text-sm mb-1">{listing.title}</h2>
                     <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       {listing.property?.city ?? listing.property?.state ?? ''}
                     </p>
@@ -104,7 +111,7 @@ export default function ListingsPage() {
                         {formatYearlyRent(listing.price)}
                       </p>
                     )}
-                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'var(--color-teal)' : 'rgba(255,255,255,0.45)' }}>
+                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)' }}>
                       {reviewLabel(listing)}
                     </p>
                     <p className="text-xs mt-1" style={{ color: isEvidenceVerified(listing) ? 'var(--color-teal)' : 'var(--color-orange)' }}>
