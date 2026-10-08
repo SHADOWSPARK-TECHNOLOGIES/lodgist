@@ -457,7 +457,7 @@ test("session history is passed to the model", async () => {
 test("logs do not contain secret values", async () => {
   process.env.WHATSAPP_APP_SECRET = CANARY_APP_SECRET;
   process.env.WHATSAPP_API_TOKEN = CANARY_API_TOKEN;
-  process.env.WHATSAPP_PHONE_NUMBER_ID = "123456";
+  process.env.WHATSAPP_PHONE_NUMBER_ID = "100";
   process.env.ANTHROPIC_API_KEY = CANARY_ANTHROPIC;
   const originalFetch = global.fetch;
   global.fetch = async (url, init) => {
@@ -479,6 +479,7 @@ test("logs do not contain secret values", async () => {
       CANARY_APP_SECRET
     );
     assert.equal(res.status, 200);
+    assert.ok(prisma.state.messages.length >= 1);
     const logs = logLines.join("\n");
     assert.equal(logs.includes(CANARY_APP_SECRET), false);
     assert.equal(logs.includes(CANARY_API_TOKEN), false);
