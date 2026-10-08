@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "node --test __tests__/escrow.test.js __tests__/listings.test.js __tests__/leads.test.js __tests__/advertiserLeads.test.js __tests__/health.test.js __tests__/notifySignup.test.js __tests__/paymentBadge.test.js __tests__/paystackWebhook.test.js __tests__/privacy.test.js __tests__/viewingRequests.test.js __tests__/whatsapp.test.js __tests__/whatsappAi.test.js __tests__/rentalChecks.test.js"
+    "test": "node --test __tests__/escrow.test.js __tests__/listings.test.js __tests__/listingApproval.test.js __tests__/leads.test.js __tests__/advertiserLeads.test.js __tests__/health.test.js __tests__/notifySignup.test.js __tests__/paymentBadge.test.js __tests__/paystackWebhook.test.js __tests__/privacy.test.js __tests__/viewingRequests.test.js __tests__/whatsapp.test.js __tests__/whatsappAi.test.js __tests__/rentalChecks.test.js"
   },
   "keywords": [],
   "author": "",

@@ -81,6 +81,36 @@ test("a pending non-sample listing is labelled not verified and cannot request a
   assert.equal(canRequestViewing({ status: "PENDING", riskState: "UNVERIFIED" }), false);
 });
 
+test("the verified badge follows the evidence flag, not review or listing status", () => {
+  const reviewed = {
+    status: "VERIFIED",
+    riskState: "VERIFIED",
+    reviewStatus: "APPROVED",
+    evidenceVerified: false,
+  };
+  const recorded = {
+    ...reviewed,
+    evidenceVerified: true,
+    verifiedAt: "2026-10-08T12:00:00.000Z",
+    verifiedById: 2,
+  };
+  const sample = {
+    ...recorded,
+    totalMoveInCost: { sample: true, total: 1 },
+  };
+  assert.equal(isEvidenceVerified(reviewed), false);
+  assert.equal(verificationLabel(reviewed), "Not verified by Lodgist");
+  assert.equal(isEvidenceVerified(recorded), true);
+  assert.equal(verificationLabel(recorded), "Verified by Lodgist");
+  assert.equal(reviewLabel(recorded), "Lodgist-reviewed");
+  assert.equal(isPublicListing(recorded), true);
+  assert.equal(isEvidenceVerified(sample), false);
+  assert.equal(verificationLabel(sample), "Not verified by Lodgist");
+  const facts = decisionFacts(recorded);
+  assert.equal(facts.verified, true);
+  assert.match(facts.lastVerification, /Verified by Lodgist on 2026-10-08/);
+});
+
 test("Lodgist review and payment do not complete verification checks", () => {
   const listing = {
     status: "VERIFIED",

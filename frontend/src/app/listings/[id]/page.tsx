@@ -9,7 +9,7 @@ import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import RequestViewing from '@/components/ListingDetail/RequestViewing';
 import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
-import { canRequestViewing, decisionFacts, hasTrustScore, isLodgistReviewed, isPublicListing, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
+import { canRequestViewing, decisionFacts, hasTrustScore, isEvidenceVerified, isLodgistReviewed, isPublicListing, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
 import ExploreNeighborhood from '@/components/spatial/ExploreNeighborhood';
 import { invoiceRequestMessage } from '@/lib/invoiceRequest';
 import { campusDirections } from '@/lib/campusDirections';
@@ -138,7 +138,7 @@ export default function ListingDetailPage() {
       <p className="text-sm mt-3" style={{ color: isLodgistReviewed(listing) ? 'var(--color-teal)' : 'rgba(255,255,255,0.55)' }}>
         {reviewLabel(listing)}
       </p>
-      <p className="text-sm mt-1" style={{ color: 'var(--color-orange)' }}>
+      <p className="text-sm mt-1" style={{ color: isEvidenceVerified(listing) ? 'var(--color-teal)' : 'var(--color-orange)' }}>
         {verificationLabel(listing)}
       </p>
       <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.source}: {sourceLabel(listing)}</p>

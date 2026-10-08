@@ -194,6 +194,15 @@ model Listing {
   riskState         RiskState?      @default(UNVERIFIED)
   truthIndex        Int?
   reviewStatus      ListingReviewStatus @default(NOT_REVIEWED)
+  // Evidence review, separate from reviewStatus (publish) and status VERIFIED
+  // (viewing gate). Null or false is not "Verified by Lodgist".
+  // verifiedById is the acting user id. No foreign key: AdminAction is still
+  // unmigrated schema drift, and this migration only adds nullable columns.
+  evidenceVerified  Boolean?
+  verifiedAt        DateTime?
+  verifiedById      Int?
+  rejectionReason   String?
+  adminAudit        Json?
 
   // Nigerian real estate metadata
   totalMoveInCost Json?            // { base_rent, agency_fee, legal_fee, caution_fee, inspection_fee?, currency, total }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
 import { formatYearlyRent, listings as copy, supportWhatsAppLink } from '@/lib/copy';
-import { hasTrustScore, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
+import { hasTrustScore, isEvidenceVerified, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
 import LeadCapture from '@/components/LeadCapture';
 import type { Listing } from '@/lib/types';
 
@@ -107,7 +107,7 @@ export default function ListingsPage() {
                     <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'var(--color-teal)' : 'rgba(255,255,255,0.45)' }}>
                       {reviewLabel(listing)}
                     </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--color-orange)' }}>
+                    <p className="text-xs mt-1" style={{ color: isEvidenceVerified(listing) ? 'var(--color-teal)' : 'var(--color-orange)' }}>
                       {verificationLabel(listing)}
                     </p>
                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{sourceLabel(listing)}</p>

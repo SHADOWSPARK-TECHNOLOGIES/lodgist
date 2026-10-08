@@ -73,6 +73,8 @@ export interface Listing {
   reviewStatus?: "NOT_REVIEWED" | "APPROVED";
   reviewLabel?: string;
   verificationLabel?: string;
+  evidenceVerified?: boolean;
+  verifiedAt?: string | null;
   sourceLabel?: string;
   source?: string | null;
   sourceChannel?: string | null;
@@ -474,4 +476,42 @@ export interface RentalCheckMetrics {
   reportsDelivered: number;
   revenueNgn: number;
   averageCompletionMs: number | null;
+}
+
+export type PublicationState = "draft" | "pending_review" | "published" | "rejected";
+
+export interface ListingAuditEntry {
+  action: "approve" | "reject" | "verify" | "unverify";
+  adminId: number;
+  listingId: number;
+  at: string;
+  reason: string | null;
+  publicationState: PublicationState;
+  evidenceVerified: boolean;
+}
+
+export interface AdminListingReview {
+  id: number;
+  title: string;
+  description: string | null;
+  price: number;
+  currency: string;
+  status: string;
+  reviewStatus: "NOT_REVIEWED" | "APPROVED";
+  publicationState: PublicationState;
+  publiclyListed: boolean;
+  example: boolean;
+  evidenceVerified: boolean;
+  verifiedAt: string | null;
+  verifiedById: number | null;
+  verificationLabel: string;
+  reviewLabel: string;
+  rejectionReason: string | null;
+  riskState: string | null;
+  isFlaggedForFraud: boolean;
+  property: { city: string | null; state: string | null; lga: string | null } | null;
+  owner: { id: number; name: string } | null;
+  latestAudit: ListingAuditEntry | null;
+  createdAt: string;
+  updatedAt: string;
 }

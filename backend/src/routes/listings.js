@@ -33,6 +33,9 @@ const LISTING_PUBLIC_SELECT = {
   riskState: true,
   truthIndex: true,
   reviewStatus: true,
+  evidenceVerified: true,
+  verifiedAt: true,
+  verifiedById: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -107,8 +110,39 @@ function isExampleListing(listing) {
 
 // Review and verification are different. status VERIFIED, riskState VERIFIED,
 // reviewStatus APPROVED, and a successful payment are not completed checks.
-function isEvidenceVerified() {
-  return false;
+// The badge requires an admin-recorded flag plus reviewer and timestamp.
+function isEvidenceVerified(listing) {
+  if (!listing || typeof listing !== "object") return false;
+  if (isExampleListing(listing)) return false;
+  if (listing.evidenceVerified !== true) return false;
+  const reviewer = listing.verifiedById;
+  if (typeof reviewer !== "number" || !Number.isInteger(reviewer) || reviewer <= 0) return false;
+  if (listing.verifiedAt == null || listing.verifiedAt === "") return false;
+  const stamp = listing.verifiedAt instanceof Date ? listing.verifiedAt : new Date(listing.verifiedAt);
+  return !Number.isNaN(stamp.getTime());
+}
+
+function verifiedPublicFields(listing) {
+  const verified = isEvidenceVerified(listing);
+  return {
+    evidenceVerified: verified,
+    verifiedAt: verified ? listing.verifiedAt : null,
+  };
+}
+
+// Publication is not the verified badge. There is no separate draft column:
+// a new listing is pending review until a STUDIO_ADMIN approves it.
+function publicationState(listing) {
+  if (!listing || typeof listing !== "object") return "draft";
+  if (listing.status === "REJECTED") return "rejected";
+  if (isEligiblePublicListing(listing)) return "published";
+  if (
+    listing.reviewStatus !== "APPROVED" &&
+    (listing.status === "PENDING" || listing.status === "VERIFIED")
+  ) {
+    return "pending_review";
+  }
+  return "draft";
 }
 
 function reviewLabelFor(listing) {
@@ -331,11 +365,12 @@ function listingsRouter(prisma) {
         ? listings.filter((listing) => isEligiblePublicListing(listing))
         : listings;
       const data = visible.map((listing) => {
-        const { fraudSignals, _count, ...rest } = listing;
+        const { fraudSignals, _count, verifiedById: _verifiedById, adminAudit: _adminAudit, rejectionReason: _rejectionReason, ...rest } = listing;
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
         return {
           ...rest,
           ...publicDiscovery(listing),
+          ...verifiedPublicFields(listing),
           averageRating: ratingMap[listing.id] ?? null,
           reviewCount: _count.reviews,
           bookingCount: _count.bookings,
@@ -434,7 +469,7 @@ function listingsRouter(prisma) {
         _count: true,
       });
 
-      const { _count, fraudSignals, property, ...listingData } = listing;
+      const { _count, fraudSignals, property, verifiedById: _verifiedById, adminAudit: _adminAudit, rejectionReason: _rejectionReason, ...listingData } = listing;
       const latestFraudSignal = fraudSignals?.[0] ?? null;
       let publicProperty = null;
       let approx = null;
@@ -449,6 +484,7 @@ function listingsRouter(prisma) {
         data: {
           ...listingData,
           ...publicDiscovery(listing),
+          ...verifiedPublicFields(listing),
           property: publicProperty,
           approxLocation: approx,
           averageRating: ratingAgg._avg.rating,
@@ -862,4 +898,7 @@ module.exports.withPublicSampleMatch = withPublicSampleMatch;
 module.exports.countPublicBrowse = countPublicBrowse;
 module.exports.isExampleListing = isExampleListing;
 module.exports.isEligiblePublicListing = isEligiblePublicListing;
+module.exports.isEvidenceVerified = isEvidenceVerified;
+module.exports.publicationState = publicationState;
+module.exports.verifiedPublicFields = verifiedPublicFields;
 module.exports.publicDiscovery = publicDiscovery;

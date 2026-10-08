@@ -33,8 +33,9 @@ function reviewLabel(listing) {
 }
 
 /** Completed checks are not implied by review, listing status, risk, or payment. */
-function isEvidenceVerified() {
-  return false;
+function isEvidenceVerified(listing) {
+  if (!listing || typeof listing !== "object" || isExampleListing(listing)) return false;
+  return listing.evidenceVerified === true;
 }
 
 /** Public discovery: Lodgist-reviewed, non-sample PENDING or VERIFIED, and not fraud / flagged / suspended. */
@@ -84,7 +85,13 @@ function decisionFacts(listing) {
   const verified = isEvidenceVerified(listing);
   let lastVerification = "Not verified by Lodgist. No verification date is on file.";
   if (example) lastVerification = "Example only. This home has not been checked.";
-  else if (verified) lastVerification = "Verified. The verification date is not published on this listing.";
+  else if (verified) {
+    const stamp = listing.verifiedAt ? new Date(listing.verifiedAt) : null;
+    const dated = stamp && !Number.isNaN(stamp.getTime()) ? stamp.toISOString().slice(0, 10) : null;
+    lastVerification = dated
+      ? `Verified by Lodgist on ${dated}.`
+      : "Verified. The verification date is not published on this listing.";
+  }
 
   return {
     example,
@@ -93,7 +100,7 @@ function decisionFacts(listing) {
     moveInTotal: moveInTotal(listing),
     lastVerification,
     completed: verified
-      ? ["Listing status is verified. Itemised check results are not published."]
+      ? ["An admin recorded a verification review. Itemised check results are not published."]
       : [],
     outstanding: verified ? ["Physical inspection before you pay"] : OUTSTANDING_CHECKS.slice(),
   };
