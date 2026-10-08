@@ -128,7 +128,9 @@ async function finishDraft(prisma, { phone, fields, user, profileName }) {
   return {
     handled: true,
     replyText:
-      `Case ${check.publicReference} is saved. The check fee is ₦${PRICE_NGN.toLocaleString("en-NG")}. Online checkout is not open on this chat.\n${link}\n` +
+      `Case ${check.publicReference} is saved. The check fee is ₦${PRICE_NGN.toLocaleString("en-NG")}.\n` +
+      "Arrange that fee with the Lodgist team on WhatsApp. The team confirms payment. This chat does not confirm the fee.\n" +
+      `${link}\n` +
       "Saving the case does not pay the fee, and it does not verify the house.\n" +
       `Reply STATUS ${check.publicReference} to see progress.`,
   };

@@ -10,7 +10,6 @@ import type {
   PasskeyAuthenticationOptionsResponse,
   PasskeyRegistrationVerifyResponse,
   PasskeyListResponse,
-  EscrowInitiateResponse,
   User,
   Listing,
   Review,
@@ -23,7 +22,6 @@ import type {
   UpdateListingPayload,
   CreateReviewPayload,
   UpdateReviewPayload,
-  EscrowInitiatePayload,
   ViewingRequestResult,
   CreateLeadPayload,
   LeadSaved,
@@ -287,24 +285,11 @@ export const rentalChecksApi = {
       { body: JSON.stringify(payload) },
     ),
 
-  status: (reference: string) =>
+  status: (reference: string, token?: string) =>
     request<{ success: boolean; data: RentalCheckStatusView }>(
       "GET",
       `/api/rental-checks/${encodeURIComponent(reference)}`,
-    ),
-
-  pay: (reference: string, token: string) =>
-    request<{ success: boolean; data: RentalCheckStatusView; paystackUrl?: string; paystackReference?: string; alreadyPaid?: boolean }>(
-      "POST",
-      `/api/rental-checks/${encodeURIComponent(reference)}/pay`,
-      { headers: rentalTokenHeader(token), body: JSON.stringify({ token }) },
-    ),
-
-  verify: (publicReference: string, token: string, paystackReference?: string) =>
-    request<{ success: boolean; data: RentalCheckStatusView; alreadyPaid?: boolean }>(
-      "POST",
-      "/api/rental-checks/pay/verify",
-      { headers: rentalTokenHeader(token), body: JSON.stringify({ publicReference, token, paystackReference }) },
+      { headers: token ? rentalTokenHeader(token) : undefined },
     ),
 
   report: (reference: string, token: string) =>
@@ -314,11 +299,14 @@ export const rentalChecksApi = {
       { headers: rentalTokenHeader(token) },
     ),
 
-  recordPaymentReference: (reference: string, manualPaymentRef: string) =>
+  recordPaymentReference: (reference: string, manualPaymentRef: string, token?: string) =>
     request<{ success: boolean; data: RentalCheckAdmin; alreadyPaid?: boolean; alreadySubmitted?: boolean }>(
       "POST",
       `/api/rental-checks/${encodeURIComponent(reference)}/payment-reference`,
-      { body: JSON.stringify({ manualPaymentRef }) },
+      {
+        headers: token ? rentalTokenHeader(token) : undefined,
+        body: JSON.stringify(token ? { manualPaymentRef, token } : { manualPaymentRef }),
+      },
     ),
 
   reviewPayment: (reference: string, body: { action: "confirm" | "reject"; note?: string }) =>
@@ -391,6 +379,14 @@ export const adminListingsApi = {
 export const bookingsApi = {
   /** Bookings for the signed-in tenant. */
   mine: () => request<{ success: boolean; data: TenantBooking[] }>("GET", "/api/bookings/mine"),
+
+  /** Put a PENDING booking into the staff review queue. Does not mark it paid. */
+  submitManualPayment: (id: string, manualPaymentRef: string) =>
+    request<{ success: boolean; booking: TenantBooking }>(
+      "PATCH",
+      `/api/bookings/${encodeURIComponent(id)}/manual-payment`,
+      { body: JSON.stringify({ manualPaymentRef }) },
+    ),
 };
 
 // ─── Reviews API ───────────────────────────────────────────────────────────
@@ -444,12 +440,6 @@ export const truthIndexApi = {
 // ─── Escrow API ────────────────────────────────────────────────────────────
 
 export const escrowApi = {
-  /** Initiate an escrow transaction (triggers Paystack checkout) */
-  initiate: (payload: EscrowInitiatePayload) =>
-    request<EscrowInitiateResponse>("POST", "/api/escrow/initiate", {
-      body: JSON.stringify(payload),
-    }),
-
   /** Confirm payment (called after Paystack redirect) */
   confirm: (id: number) =>
     request<ApiResponse<EscrowTransaction>>("POST", `/api/escrow/${id}/confirm`),

@@ -3,17 +3,19 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { bookingsApi, listingsApi } from '@/lib/api';
+import ArrangeWhatsAppPayment from '@/components/ArrangeWhatsAppPayment';
+import { ApiError, bookingsApi, listingsApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import RequestViewing from '@/components/ListingDetail/RequestViewing';
-import { detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
+import { arrangePayment, detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
 import { canRequestViewing, decisionFacts, hasTrustScore, isEvidenceVerified, isLodgistReviewed, isPublicListing, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
 import ExploreNeighborhood from '@/components/spatial/ExploreNeighborhood';
 import { invoiceRequestMessage } from '@/lib/invoiceRequest';
 import { campusDirections } from '@/lib/campusDirections';
 import { safeNextPath } from '@/lib/returnPath';
+import { paymentWhatsAppText, whatsappArrangementRef } from '@/lib/whatsappPayment';
 import type { Listing, TenantBooking } from '@/lib/types';
 
 type MoveIn = {
@@ -125,6 +127,20 @@ export default function ListingDetailPage() {
         amount: typeof invoiceBooking.totalAmount === "number" ? invoiceBooking.totalAmount : listing.price,
       }))
     : null;
+  const bookingAmount = invoiceBooking && typeof invoiceBooking.totalAmount === "number" ? invoiceBooking.totalAmount : listing.price;
+  const bookingCanPay = Boolean(
+    invoiceBooking && (invoiceBooking.status === "PENDING" || invoiceBooking.status === "PENDING_VERIFICATION"),
+  );
+  const bookingPayHref = bookingCanPay && invoiceBooking
+    ? supportWhatsAppLink(paymentWhatsAppText({
+        what: "Booking",
+        amountNgn: bookingAmount,
+        currency: invoiceBooking.currency || "NGN",
+        reference: invoiceBooking.id,
+        listing: homeLabel,
+        name: user?.name || undefined,
+      }))
+    : null;
   const directions = campusDirections({
     place,
     approx: listing.approxLocation ?? null,
@@ -231,6 +247,27 @@ export default function ListingDetailPage() {
         <RequestViewing listingId={listing.id} loginHref={loginHref} askHref={askHref} />
       ) : (
         <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.viewingClosed}</p>
+      )}
+
+      {bookingCanPay && invoiceBooking && (
+        <div className="mb-4">
+          <ArrangeWhatsAppPayment
+            href={bookingPayHref}
+            label={arrangePayment.bookingCta}
+            busyLabel={arrangePayment.opening}
+            note={arrangePayment.bookingNote}
+            missingLabel={arrangePayment.missing}
+            prepare={async () => {
+              if (invoiceBooking.status !== "PENDING") return;
+              try {
+                await bookingsApi.submitManualPayment(invoiceBooking.id, whatsappArrangementRef(invoiceBooking.id));
+              } catch (err) {
+                if (err instanceof ApiError && err.status === 409) return;
+                throw err;
+              }
+            }}
+          />
+        </div>
       )}
 
       {invoiceHref && (
