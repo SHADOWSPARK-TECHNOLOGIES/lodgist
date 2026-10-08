@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { listingsApi } from '@/lib/api';
+import { isAbortError } from '@/lib/requestTimeout';
 import { TruthScore } from '@/components/ui/TruthScore';
 import { formatYearlyRent, listings as copy, supportWhatsAppLink } from '@/lib/copy';
 import { hasTrustScore, isEvidenceVerified, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
@@ -16,20 +17,36 @@ export default function ListingsPage() {
   const [maxRent, setMaxRent] = useState('');
   const [failed, setFailed] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const firstLoad = useRef(true);
 
+  // Typing waits 300 ms before fetching, and each new fetch aborts the previous
+  // one, so an older, slower response can never overwrite a newer result.
   useEffect(() => {
-    setLoading(true);
-    setFailed(false);
+    const controller = new AbortController();
+    const delay = firstLoad.current ? 0 : 300;
+    firstLoad.current = false;
     const maxPrice = maxRent.trim() === '' ? undefined : Number(maxRent);
-    listingsApi.list({
-      search,
-      page: 1,
-      limit: 12,
-      maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : undefined,
-    })
-      .then(res => setListings(publicListings(res.data ?? [])))
-      .catch(() => { setFailed(true); setListings([]); })
-      .finally(() => setLoading(false));
+    const timer = setTimeout(() => {
+      setLoading(true);
+      setFailed(false);
+      listingsApi.list({
+        search,
+        page: 1,
+        limit: 12,
+        maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : undefined,
+      }, { signal: controller.signal })
+        .then(res => { if (!controller.signal.aborted) setListings(publicListings(res.data ?? [])); })
+        .catch((err) => {
+          if (isAbortError(err) || controller.signal.aborted) return;
+          setFailed(true);
+          setListings([]);
+        })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [search, maxRent, reloadKey]);
 
   const area = search.trim();
@@ -53,6 +70,7 @@ export default function ListingsPage() {
             <input id="max-rent" className="input" inputMode="numeric" value={maxRent} onChange={e => setMaxRent(e.target.value)} />
           </div>
         </div>
+        <p className="text-xs mb-3 max-w-2xl" style={{ color: 'rgba(255,255,255,0.65)' }}>{copy.labelsLegend}</p>
         <p role="status" aria-live="polite" className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
           {loading ? copy.loading : failed ? '' : copy.count(listings.length)}
         </p>

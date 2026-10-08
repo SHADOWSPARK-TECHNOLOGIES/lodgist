@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 
 export default function AdvertisePage() {
   return (
-    <main className="container py-12">
+    <div className="container py-12">
       <div className="max-w-2xl mx-auto text-center mb-8">
         <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: "var(--color-orange)" }}>
           {copy.badge}
@@ -39,6 +39,6 @@ export default function AdvertisePage() {
           </ul>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

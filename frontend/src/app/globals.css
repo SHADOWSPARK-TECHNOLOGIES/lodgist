@@ -124,6 +124,13 @@ input, button, textarea, select { font: inherit; color: inherit; }
 .btn-teal:hover { background: rgba(26,188,156,0.10); }
 .btn-sm { padding: 0.5rem 1rem; font-size: 0.75rem; }
 .btn-lg { padding: 1rem 2rem; font-size: 1rem; }
+/* Destructive actions (reject, remove verification). Text #fca5a5 on the tinted
+   card is about 8:1; the #f87171 border is about 6:1 against navy. */
+.btn-danger {
+  background: rgba(248,113,113,0.10); color: #fca5a5;
+  border: 1.5px solid #f87171;
+}
+.btn-danger:hover { background: rgba(248,113,113,0.18); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
 
 .card {
@@ -185,6 +192,17 @@ button:focus-visible,
   transition: color 180ms, background 180ms;
 }
 .nav-link:hover { color: var(--color-text-primary); background: var(--color-surface-1); }
+/* Footer links: 44px tap height; white at 0.75 on navy is about 10:1. */
+.footer-link { display: inline-flex; align-items: center; min-height: 44px; font-size: 0.875rem; color: rgba(255,255,255,0.75); }
+
+/* Skip link: first focusable element, hidden until focused. */
+.skip-link {
+  position: absolute; left: 1rem; top: -100px; z-index: 100;
+  background: #fff; color: var(--color-navy); font-weight: 600;
+  padding: 0.75rem 1rem; border-radius: var(--radius-md); text-decoration: none;
+}
+.skip-link:focus, .skip-link:focus-visible { top: 1rem; outline: 2px solid var(--color-orange); outline-offset: 2px; }
+main[tabindex="-1"]:focus, main[tabindex="-1"]:focus-visible { outline: none; }
 
 .section { padding-block: clamp(3rem, 8vw, 4rem); }
 

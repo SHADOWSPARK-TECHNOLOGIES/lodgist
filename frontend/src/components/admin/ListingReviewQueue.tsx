@@ -142,7 +142,7 @@ export default function ListingReviewQueue() {
                 {listing.evidenceVerified && (
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="btn btn-danger"
                     disabled={busy}
                     onClick={() => {
                       if (!window.confirm(`Remove the Verified by Lodgist badge from "${listing.title}"?`)) return;
@@ -186,7 +186,7 @@ export default function ListingReviewQueue() {
                     <p id={`${reasonId}-error`} role="alert" className="text-sm mt-1" style={{ color: "var(--color-orange)" }}>{reasonError}</p>
                   )}
                 </div>
-                <button type="submit" className="btn btn-secondary" disabled={busy}>Reject<span className="sr-only"> {listing.title}</span></button>
+                <button type="submit" className="btn btn-danger" disabled={busy}>Reject<span className="sr-only"> {listing.title}</span></button>
               </form>
             </li>
           );

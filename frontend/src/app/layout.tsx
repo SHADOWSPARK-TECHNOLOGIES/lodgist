@@ -55,10 +55,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${poppins.variable} ${openSans.variable}`}>
       <body>
+        <a href="#main-content" className="skip-link">Skip to main content</a>
         <AuthProvider>
           <ToastProvider>
             <NavBar />
-            <main>{children}</main>
+            <main id="main-content" tabIndex={-1}>{children}</main>
             <SiteFooter />
             {supportWhatsApp && (
             <a href={supportWhatsApp}

@@ -37,6 +37,7 @@ import type {
   AdminListingReview,
 } from "./types";
 import { getToken } from "./auth";
+import { TIMEOUT_MESSAGE, isAbortError, timeoutSignal } from "./requestTimeout";
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 
@@ -79,17 +80,31 @@ async function request<T>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(apiUrl(path), {
-    method,
-    ...options,
-    headers,
-  });
-
+  // Give up after REQUEST_TIMEOUT_MS so loaders cannot hang forever. A caller
+  // abort (options.signal) is passed through and rethrown as an AbortError.
+  const timer = timeoutSignal(options.signal);
+  let res: Response;
   let body: unknown;
   try {
-    body = await res.json();
-  } catch {
-    body = null;
+    res = await fetch(apiUrl(path), {
+      method,
+      ...options,
+      headers,
+      signal: timer.signal,
+    });
+    try {
+      body = await res.json();
+    } catch (err) {
+      if (isAbortError(err)) throw err;
+      body = null;
+    }
+  } catch (err) {
+    if (isAbortError(err) && timer.timedOut()) {
+      throw new ApiError(TIMEOUT_MESSAGE, 408);
+    }
+    throw err;
+  } finally {
+    timer.cleanup();
   }
 
   if (!res.ok) {
@@ -189,7 +204,7 @@ export const listingsApi = {
     minPrice?: number;
     maxPrice?: number;
     search?: string;
-  }) => {
+  }, opts?: { signal?: AbortSignal }) => {
     const searchParams = new URLSearchParams();
     if (params?.page) searchParams.set("page", String(params.page));
     if (params?.limit) searchParams.set("limit", String(params.limit));
@@ -201,7 +216,8 @@ export const listingsApi = {
     const qs = searchParams.toString();
     return request<PaginatedResponse<Listing>>(
       "GET",
-      `/api/listings${qs ? `?${qs}` : ""}`
+      `/api/listings${qs ? `?${qs}` : ""}`,
+      { signal: opts?.signal },
     );
   },
 
