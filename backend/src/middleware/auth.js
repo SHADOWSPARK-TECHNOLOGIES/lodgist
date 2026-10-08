@@ -40,6 +40,14 @@ function requireAuth(req, res, next) {
 
     const token = authHeader.slice(7); // Remove "Bearer " prefix
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    // Refresh tokens are valid JWTs with type:"refresh" and no role. They must
+    // not be accepted as access tokens.
+    if (decoded.type === "refresh") {
+      return res.status(401).json({
+        success: false,
+        error: "Invalid token",
+      });
+    }
 
     // Attach user to request for downstream middleware/routes
     req.user = {
@@ -137,6 +145,10 @@ function optionalAuth(req, res, next) {
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const token = authHeader.slice(7);
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      if (decoded.type === "refresh") {
+        next();
+        return;
+      }
       req.user = {
         id: decoded.id,
         email: decoded.email,

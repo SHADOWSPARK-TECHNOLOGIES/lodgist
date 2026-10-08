@@ -38,6 +38,11 @@ export function NavBar() {
             </Link>
           ))}
           {user?.role === "STUDIO_ADMIN" && (
+            <Link href="/admin/listings" className={`nav-link ${pathname === "/admin/listings" ? "text-white bg-white/5" : ""}`}>
+              Listing review
+            </Link>
+          )}
+          {user?.role === "STUDIO_ADMIN" && (
             <Link href="/admin/rental-checks" className={`nav-link ${pathname === "/admin/rental-checks" ? "text-white bg-white/5" : ""}`}>
               Rental checks
             </Link>
@@ -75,6 +80,11 @@ export function NavBar() {
             <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
               className="nav-link text-base py-3">{l.label}</Link>
           ))}
+          {user?.role === "STUDIO_ADMIN" && (
+            <Link href="/admin/listings" onClick={() => setOpen(false)} className="nav-link text-base py-3">
+              Listing review
+            </Link>
+          )}
           {user?.role === "STUDIO_ADMIN" && (
             <Link href="/admin/rental-checks" onClick={() => setOpen(false)} className="nav-link text-base py-3">
               Rental checks

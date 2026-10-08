@@ -36,6 +36,7 @@ import type {
   RentalCheckAdmin,
   RentalCheckMetrics,
   RentalEvidenceItem,
+  AdminListingReview,
 } from "./types";
 import { getToken } from "./auth";
 
@@ -354,6 +355,36 @@ export const rentalChecksApi = {
       "PATCH",
       `/api/rental-checks/${encodeURIComponent(reference)}/review`,
       { body: JSON.stringify(body) },
+    ),
+};
+
+export const adminListingsApi = {
+  pending: () =>
+    request<{ success: boolean; data: AdminListingReview[] }>("GET", "/api/admin/listings/pending"),
+
+  approve: (id: number) =>
+    request<{ success: boolean; unchanged?: boolean; data: AdminListingReview }>(
+      "POST",
+      `/api/admin/listings/${id}/approve`,
+    ),
+
+  reject: (id: number, reason: string) =>
+    request<{ success: boolean; unchanged?: boolean; data: AdminListingReview }>(
+      "POST",
+      `/api/admin/listings/${id}/reject`,
+      { body: JSON.stringify({ reason }) },
+    ),
+
+  verify: (id: number) =>
+    request<{ success: boolean; unchanged?: boolean; data: AdminListingReview }>(
+      "POST",
+      `/api/admin/listings/${id}/verify`,
+    ),
+
+  unverify: (id: number) =>
+    request<{ success: boolean; unchanged?: boolean; data: AdminListingReview }>(
+      "POST",
+      `/api/admin/listings/${id}/unverify`,
     ),
 };
 
