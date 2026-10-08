@@ -45,49 +45,52 @@ function feeCategory(category?: string | null): 'residential' | 'commercial' | '
 
 export default function ListingDetailPage() {
   const params = useParams<{ id: string }>();
-  const id = Number(params.id);
+  return <ListingDetail key={params.id} id={Number(params.id)} />;
+}
+
+function ListingDetail({ id }: { id: number }) {
   const [listing, setListing] = useState<Listing | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Number.isFinite(id));
   const [failed, setFailed] = useState(false);
-  const [missing, setMissing] = useState(false);
+  const [missing, setMissing] = useState(!Number.isFinite(id));
   const [reloadKey, setReloadKey] = useState(0);
   const { user } = useAuth();
-  const [invoiceBooking, setInvoiceBooking] = useState<TenantBooking | null>(null);
+  const [invoiceResult, setInvoiceResult] = useState<{
+    userId: number;
+    listingId: number;
+    booking: TenantBooking | null;
+  } | null>(null);
+  const invoiceBooking = user && listing && invoiceResult?.userId === user.id
+    && invoiceResult.listingId === listing.id ? invoiceResult.booking : null;
 
   useEffect(() => {
-    if (!Number.isFinite(id)) {
-      setMissing(true);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setFailed(false);
-    setMissing(false);
+    if (!Number.isFinite(id)) return;
+    let cancelled = false;
     listingsApi.get(id)
       .then((res) => {
+        if (cancelled) return;
         if (!res.data) setMissing(true);
         else setListing(res.data);
       })
       .catch((err: { status?: number }) => {
+        if (cancelled) return;
         if (err?.status === 404) setMissing(true);
         else setFailed(true);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [id, reloadKey]);
 
   useEffect(() => {
-    if (!user || !listing) {
-      setInvoiceBooking(null);
-      return;
-    }
+    if (!user || !listing) return;
     let cancelled = false;
     bookingsApi.mine()
       .then((res) => {
         if (cancelled) return;
         const match = (res.data ?? []).find((row) => row.listingId === listing.id && row.status !== "CANCELLED");
-        setInvoiceBooking(match ?? null);
+        setInvoiceResult({ userId: user.id, listingId: listing.id, booking: match ?? null });
       })
-      .catch(() => { if (!cancelled) setInvoiceBooking(null); });
+      .catch(() => { if (!cancelled) setInvoiceResult(null); });
     return () => { cancelled = true; };
   }, [user, listing]);
 
@@ -104,7 +107,7 @@ export default function ListingDetailPage() {
     return (
       <div className="container py-16 text-center">
         <h1 className="font-poppins font-semibold text-white text-xl mb-4">{failed ? detail.loadError : detail.missing}</h1>
-        {failed && <button type="button" className="btn btn-primary" onClick={() => setReloadKey((n) => n + 1)}>{detail.retry}</button>}
+        {failed && <button type="button" className="btn btn-primary" onClick={() => { setReloadKey((n) => n + 1); setLoading(true); setFailed(false); setMissing(false); }}>{detail.retry}</button>}
         <div className="mt-4"><Link href="/listings" className="nav-link">{detail.back}</Link></div>
       </div>
     );

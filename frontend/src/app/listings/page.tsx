@@ -19,8 +19,7 @@ export default function ListingsPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    setLoading(true);
-    setFailed(false);
+    let cancelled = false;
     const maxPrice = maxRent.trim() === '' ? undefined : Number(maxRent);
     listingsApi.list({
       search,
@@ -28,9 +27,10 @@ export default function ListingsPage() {
       limit: 12,
       maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : undefined,
     })
-      .then(res => setListings(publicListings(res.data ?? [])))
-      .catch(() => { setFailed(true); setListings([]); })
-      .finally(() => setLoading(false));
+      .then(res => { if (!cancelled) setListings(publicListings(res.data ?? [])); })
+      .catch(() => { if (!cancelled) { setFailed(true); setListings([]); } })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [search, maxRent, reloadKey]);
 
   const area = search.trim();
@@ -47,11 +47,11 @@ export default function ListingsPage() {
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <div className="w-full max-w-sm">
             <label className="label" htmlFor="area-search">{copy.searchLabel}</label>
-            <input id="area-search" className="input" placeholder={copy.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} />
+            <input id="area-search" className="input" placeholder={copy.searchPlaceholder} value={search} onChange={e => { setSearch(e.target.value); setLoading(true); setFailed(false); }} />
           </div>
           <div className="w-full max-w-[12rem]">
             <label className="label" htmlFor="max-rent">{copy.maxRent}</label>
-            <input id="max-rent" className="input" inputMode="numeric" value={maxRent} onChange={e => setMaxRent(e.target.value)} />
+            <input id="max-rent" className="input" inputMode="numeric" value={maxRent} onChange={e => { setMaxRent(e.target.value); setLoading(true); setFailed(false); }} />
           </div>
         </div>
         <p role="status" aria-live="polite" className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
@@ -73,7 +73,7 @@ export default function ListingsPage() {
             <h2 className="font-poppins font-semibold text-white text-lg mb-2">{copy.loadErrorTitle}</h2>
             <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>{copy.loadErrorBody}</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button type="button" className="btn btn-primary" onClick={() => setReloadKey(k => k + 1)}>{copy.retry}</button>
+              <button type="button" className="btn btn-primary" onClick={() => { setReloadKey(k => k + 1); setLoading(true); setFailed(false); }}>{copy.retry}</button>
               {askHref && <a href={askHref} className="btn btn-secondary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>}
             </div>
           </div>

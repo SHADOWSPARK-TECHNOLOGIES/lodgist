@@ -23,18 +23,20 @@ export default function ListingReviewQueue() {
   const [loaded, setLoaded] = useState(false);
   const [reasonErrors, setReasonErrors] = useState<Record<number, string>>({});
 
-  const load = async () => {
-    const body = await adminListingsApi.pending();
-    setRows(body.data);
-  };
-
   useEffect(() => {
     if (!isLoaded || user?.role !== "STUDIO_ADMIN") return;
-    load()
-      .catch((err: unknown) => {
-        setError(err instanceof ApiError ? err.message : "Could not load listings.");
+    let cancelled = false;
+    adminListingsApi.pending()
+      .then((body) => {
+        if (!cancelled) setRows(body.data);
       })
-      .finally(() => setLoaded(true));
+      .catch((err: unknown) => {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : "Could not load listings.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoaded(true);
+      });
+    return () => { cancelled = true; };
   }, [isLoaded, user]);
 
   // The pressed button can become disabled or disappear after an action, which

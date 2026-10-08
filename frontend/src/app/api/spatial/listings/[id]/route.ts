@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  anonymousListingRequest,
   buildPublicSpatialContext,
   campusById,
   loadAmenities,
@@ -21,7 +22,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   let listing: object | null = null;
   try {
-    const response = await fetch(`${apiBase()}/api/listings/${id}`, { cache: "no-store" });
+    const upstream = anonymousListingRequest(apiBase(), id);
+    const response = await fetch(upstream.url, upstream.init);
     if (response.status === 404) {
       return NextResponse.json({ success: false, error: "unavailable" }, { status: 404 });
     }

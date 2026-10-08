@@ -31,21 +31,19 @@ function kilometres(from, to) {
   return 2 * earth * Math.asin(Math.sqrt(a));
 }
 
-function areaMapUrl(pin) {
-  return `https://www.openstreetmap.org/?mlat=${pin.lat}&mlon=${pin.lng}#map=16/${pin.lat}/${pin.lng}`;
-}
-
-function campusMapUrl(pin) {
-  return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_foot&route=${pin.lat},${pin.lng};${NEKEDE.lat},${NEKEDE.lng}`;
+function areaSearchUrl(placeText) {
+  if (!placeText || placeText === "Area is not listed.") return null;
+  return `https://www.openstreetmap.org/search?query=${encodeURIComponent(placeText)}`;
 }
 
 function campusDirections({ place, approx }) {
   const placeText = typeof place === "string" && place.trim() ? place.trim() : "Area is not listed.";
   const pin = validApprox(approx);
+  const mapUrl = areaSearchUrl(placeText);
   if (!pin) {
     return {
       placeText,
-      mapUrl: null,
+      mapUrl,
       pinNote: "No map pin is on file.",
       distanceText: "Distance to campus is not measured yet.",
     };
@@ -53,20 +51,20 @@ function campusDirections({ place, approx }) {
   if (!isNekede(placeText)) {
     return {
       placeText,
-      mapUrl: areaMapUrl(pin),
-      pinNote: "The pin is an area of about 500 m, not the door.",
+      mapUrl,
+      pinNote: "A published area is not the door. This link uses the area name, not a coordinate.",
       distanceText: "Distance to campus is not measured for this area yet.",
     };
   }
   const km = kilometres(pin, NEKEDE);
   const distanceText =
     km < 1
-      ? `Under 1 km from the 500 m area to ${NEKEDE.name}. This is not a door-to-gate measurement.`
-      : `About ${Math.round(km)} km from the 500 m area to ${NEKEDE.name}. This is not a door-to-gate measurement.`;
+      ? `Under 1 km straight-line from the 500 m area to ${NEKEDE.name}. This is not a road distance or a door-to-gate measurement.`
+      : `About ${Math.round(km)} km straight-line from the 500 m area to ${NEKEDE.name}. This is not a road distance or a door-to-gate measurement.`;
   return {
     placeText,
-    mapUrl: campusMapUrl(pin),
-    pinNote: "The pin is an area of about 500 m, not the door.",
+    mapUrl,
+    pinNote: "The published point is an area of about 500 m, not the door. The link uses the area name, not that point.",
     distanceText,
   };
 }

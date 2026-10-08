@@ -21,8 +21,6 @@ function SearchContent() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
       .then(res => { if (!cancelled) setListings(publicListings(res.data)); })
       .catch(() => { if (!cancelled) setError(copy.fetchError); })
@@ -45,7 +43,7 @@ function SearchContent() {
         <form onSubmit={handleSearch} className="mb-4 max-w-xl" role="search">
           <label className="label" htmlFor="search-area">{copy.label}</label>
           <div className="flex gap-2">
-            <input id="search-area" type="text" className="input flex-1" placeholder={copy.placeholder} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input id="search-area" type="text" className="input flex-1" placeholder={copy.placeholder} value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setLoading(true); setError(null); }} />
             <button type="submit" className="btn btn-primary">{copy.button}</button>
           </div>
         </form>

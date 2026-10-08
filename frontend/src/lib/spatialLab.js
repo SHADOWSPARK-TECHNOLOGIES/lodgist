@@ -92,35 +92,54 @@ function isFixtureRecord(record) {
   return record.fixture === true || record.devFixture === true || record.inventory === "excluded";
 }
 
-function placeLabel(listing) {
+function areaLabel(listing) {
   const property = listing && listing.property;
-  if (!property || typeof property !== "object") return "Location not published";
+  if (!property || typeof property !== "object") return null;
   const parts = [property.lga, property.city, property.state].filter((part) => typeof part === "string" && part.trim());
-  return parts.length ? parts.join(", ") : "Location not published";
+  return parts.length ? parts.join(", ") : null;
+}
+
+function validRadius(radius) {
+  return typeof radius === "number" && Number.isFinite(radius) && radius > 0 && radius <= 20000;
 }
 
 /**
- * Public listings never become an exact pin. A snapped area center is an
- * approximate circle only when radius_m is an explicit finite radius.
+ * Public location policy. An exact pin is permitted only for an explicit
+ * fixture pin. A snapped area center, a named area, or a private coordinate
+ * is never promoted to an exact building location.
+ */
+function exactPinPermitted(focus, allowExactOrigin) {
+  return Boolean(
+    focus
+    && focus.precision === "exact"
+    && focus.fixturePin === true
+    && allowExactOrigin === true
+    && parseCoordinate(focus.lat, focus.lng),
+  );
+}
+
+/**
+ * EXACT is not produced here. APPROXIMATE requires an explicit public point
+ * and radius. AREA_ONLY keeps a known place name and no coordinate.
+ * UNKNOWN invents neither a name nor a coordinate.
  */
 function focusFromPublicListing(listing) {
-  const label = placeLabel(listing);
+  const label = areaLabel(listing);
   const approx = listing && listing.approxLocation;
-  if (!approx || typeof approx !== "object") {
-    return { precision: "unknown", label };
+  if (approx && typeof approx === "object") {
+    const point = parseCoordinate(approx.lat, approx.lng);
+    if (point && validRadius(approx.radius_m)) {
+      return {
+        precision: "approximate",
+        label: label || "Published area",
+        lat: point.lat,
+        lng: point.lng,
+        radiusM: approx.radius_m,
+      };
+    }
   }
-  const point = parseCoordinate(approx.lat, approx.lng);
-  const radius = approx.radius_m;
-  if (!point || typeof radius !== "number" || !Number.isFinite(radius) || radius <= 0 || radius > 20000) {
-    return { precision: "unknown", label };
-  }
-  return {
-    precision: "approximate",
-    label,
-    lat: point.lat,
-    lng: point.lng,
-    radiusM: radius,
-  };
+  if (label) return { precision: "area-only", label };
+  return { precision: "unknown", label: "Location not published" };
 }
 
 function spatialPublicationDecision(listing) {
@@ -155,6 +174,7 @@ function buildPublicSpatialContext(listing) {
     evidenceVerified: false,
     reviewForDisplay: listing.reviewStatus === "APPROVED",
     allowExactOrigin: false,
+    locationState: focus.precision,
   };
   const keys = new Set();
   ownKeys(context, keys);
@@ -164,6 +184,37 @@ function buildPublicSpatialContext(listing) {
     }
   });
   return context;
+}
+
+/**
+ * Shared boundary for Rent, Buy, and Land. Purpose is accepted only when the
+ * caller supplies it. Category is not treated as a transaction purpose, and
+ * authorizedLocation is never copied into the public result.
+ */
+function adaptSpatialListing(input) {
+  const source = input && typeof input === "object" ? input : null;
+  const listing = source && source.listing && typeof source.listing === "object" ? source.listing : source;
+  if (!spatialPublicationDecision(listing).published) return null;
+  const focus = focusFromPublicListing(listing);
+  const purpose = source && typeof source.purpose === "string" && source.purpose.trim()
+    ? source.purpose.trim()
+    : "unspecified";
+  return {
+    id: listing.id,
+    purpose,
+    category: typeof listing.category === "string" ? listing.category : null,
+    publicationStatus: "public",
+    locationState: focus.precision,
+    publicLocation: focus,
+  };
+}
+
+function anonymousListingRequest(apiBase, id) {
+  const base = String(apiBase || "").replace(/\/$/, "");
+  return {
+    url: `${base}/api/listings/${id}`,
+    init: { cache: "no-store", headers: { Accept: "application/json" } },
+  };
 }
 
 function straightLineMeters(a, b) {
@@ -200,7 +251,12 @@ function externalDirectionsUrl(input) {
   if (!dest || !destination.name) return null;
   const destParam = `${dest.lat},${dest.lng}`;
   const exact = input.originExact && parseCoordinate(input.originExact.lat, input.originExact.lng);
-  const allowExact = input.allowExactOrigin === true && input.precision === "exact" && input.fixturePin === true && exact;
+  const allowExact = exactPinPermitted({
+    precision: input.precision,
+    fixturePin: input.fixturePin,
+    lat: exact && exact.lat,
+    lng: exact && exact.lng,
+  }, input.allowExactOrigin);
   if (allowExact) {
     return `https://www.google.com/maps/dir/?api=1&origin=${exact.lat},${exact.lng}&destination=${encodeURIComponent(destParam)}&destination_place=${encodeURIComponent(destination.name)}`;
   }
@@ -226,7 +282,20 @@ function readProviderConfig(env) {
     osrmBaseUrl: read("OSRM_BASE_URL").replace(/\/$/, "") || null,
     overpassUrl: read("OVERPASS_INTERPRETER_URL") || null,
     tileUrl: read("NEXT_PUBLIC_MAP_TILE_URL") || null,
+    attribution: read("NEXT_PUBLIC_MAP_ATTRIBUTION") || null,
   };
+}
+
+function publicSubject(value) {
+  if (typeof value !== "string") return "home";
+  const subject = value.trim().toLowerCase();
+  return /^[a-z]{3,12}$/.test(subject) ? subject : "home";
+}
+
+function publicTileTemplate(env) {
+  const config = readProviderConfig(env);
+  if (!config.tileUrl || !config.attribution) return null;
+  return config.tileUrl;
 }
 
 function describeRoute(result) {
@@ -235,7 +304,9 @@ function describeRoute(result) {
       "needs-campus": "Select a campus. A road route is not shown yet.",
       unconfigured: "No routing provider is configured.",
       failed: "The routing provider did not return a route.",
-      unavailable: "This home has no published location to route from.",
+      unavailable: result && result.origin === "area-only"
+        ? "A named area is published, but there is no coordinate to route from."
+        : "This home has no published location to route from.",
     }[result && result.status] || "No routing provider is configured.";
     return { primary: ROUTING_UNAVAILABLE, detail, distanceM: null, durationS: null };
   }
@@ -252,6 +323,19 @@ function describeRoute(result) {
   };
 }
 
+function providerSignal() {
+  return typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function"
+    ? AbortSignal.timeout(8000)
+    : undefined;
+}
+
+function routeMetrics(route) {
+  if (!route || typeof route.distance !== "number" || typeof route.duration !== "number") return null;
+  if (!Number.isFinite(route.distance) || !Number.isFinite(route.duration)) return null;
+  if (route.distance < 0 || route.duration < 0) return null;
+  return { distanceM: route.distance, durationS: route.duration };
+}
+
 async function loadRoute({ focus, campus, config, fetchImpl }) {
   const empty = (status) => ({ status, distanceM: null, durationS: null, origin: focus && focus.precision });
   if (!campus) return empty("needs-campus");
@@ -263,16 +347,17 @@ async function loadRoute({ focus, campus, config, fetchImpl }) {
   if (!dest) return empty("failed");
   const path = `/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=false`;
   try {
-    const response = await fetchImpl(`${provider.osrmBaseUrl}${path}`, { cache: "no-store" });
+    const response = await fetchImpl(`${provider.osrmBaseUrl}${path}`, { cache: "no-store", signal: providerSignal() });
     if (!response.ok) return empty("failed");
     const body = await response.json();
+    if (body && body.code && body.code !== "Ok") return empty("failed");
     const route = body && Array.isArray(body.routes) ? body.routes[0] : null;
-    if (!route || typeof route.distance !== "number" || typeof route.duration !== "number") return empty("failed");
-    if (!Number.isFinite(route.distance) || !Number.isFinite(route.duration)) return empty("failed");
+    const metrics = routeMetrics(route);
+    if (!metrics) return empty("failed");
     return {
       status: "ok",
-      distanceM: route.distance,
-      durationS: route.duration,
+      distanceM: metrics.distanceM,
+      durationS: metrics.durationS,
       origin: focus.precision,
     };
   } catch {
@@ -341,6 +426,7 @@ async function loadAmenities({ focus, config, fetchImpl, allowFixtures }) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: `data=${encodeURIComponent(query)}`,
       cache: "no-store",
+      signal: providerSignal(),
     });
     if (!response.ok) return amenityResult("failed", [], "OpenStreetMap");
     const parsed = parseOverpass(await response.json());
@@ -376,7 +462,7 @@ function mapGeometry(focus) {
   if (focus && focus.precision === "approximate" && point && typeof focus.radiusM === "number") {
     return { kind: "area", lat: point.lat, lng: point.lng, radiusM: focus.radiusM };
   }
-  if (focus && focus.precision === "exact" && focus.fixturePin === true && point) {
+  if (exactPinPermitted(focus, true) && point) {
     return { kind: "pin", lat: point.lat, lng: point.lng };
   }
   return { kind: "none" };
@@ -391,6 +477,9 @@ function previewFocus(scenario) {
       lat: FIXTURE_PIN.lat,
       lng: FIXTURE_PIN.lng,
     };
+  }
+  if (scenario === "area-only") {
+    return { precision: "area-only", label: "Owerri West, Imo" };
   }
   if (scenario === "unknown" || scenario === "unavailable") {
     return { precision: "unknown", label: "Location not published" };
@@ -407,13 +496,13 @@ function previewFocus(scenario) {
 function previewAmenities(scenario) {
   if (scenario === "no-amenities") return amenityResult("empty", [], "DEV fixture");
   if (scenario === "amenities-failed") return amenityResult("failed", [], "DEV fixture");
-  if (scenario === "unknown" || scenario === "unavailable") return amenityResult("unavailable", [], null);
+  if (scenario === "unknown" || scenario === "unavailable" || scenario === "area-only") return amenityResult("unavailable", [], null);
   return amenityResult("ok", FIXTURE_AMENITIES.map((item) => ({ ...item })), "DEV fixture");
 }
 
 function previewRouteStatus(scenario) {
   if (scenario === "routing-failed") return "failed";
-  if (scenario === "unknown" || scenario === "unavailable") return "unavailable";
+  if (scenario === "unknown" || scenario === "unavailable" || scenario === "area-only") return "unavailable";
   return "unconfigured";
 }
 
@@ -445,6 +534,22 @@ function buildPreviewModel(scenario, campusId) {
   };
 }
 
+function focusableElements(root) {
+  if (!root || typeof root.querySelectorAll !== "function") return [];
+  return Array.from(root.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"))
+    .filter((element) => element && !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
+}
+
+function nextDialogFocus(elements, current, backwards) {
+  if (!Array.isArray(elements) || elements.length === 0) return null;
+  const index = elements.indexOf(current);
+  if (index < 0) return backwards ? elements[elements.length - 1] : elements[0];
+  const next = index + (backwards ? -1 : 1);
+  if (next < 0) return elements[elements.length - 1];
+  if (next >= elements.length) return elements[0];
+  return elements[next];
+}
+
 function fillTileTemplate(template, tile) {
   if (typeof template !== "string" || !template.includes("{z}") || !template.includes("{x}") || !template.includes("{y}")) {
     return null;
@@ -469,8 +574,11 @@ module.exports = {
   parseCoordinate,
   isFixtureRecord,
   focusFromPublicListing,
+  exactPinPermitted,
   spatialPublicationDecision,
   buildPublicSpatialContext,
+  adaptSpatialListing,
+  anonymousListingRequest,
   straightLineMeters,
   straightLineLabel,
   externalDirectionsUrl,
@@ -486,4 +594,8 @@ module.exports = {
   buildPreviewModel,
   campusById,
   fillTileTemplate,
+  publicTileTemplate,
+  publicSubject,
+  focusableElements,
+  nextDialogFocus,
 };
