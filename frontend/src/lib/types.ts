@@ -394,6 +394,7 @@ export interface RentalCheckStatusView {
   paymentStatus: string;
   reviewStatus: string;
   amountNgn: number;
+  paymentReferenceSubmitted: boolean;
   reportReady: boolean;
   createdAt: string;
   accessToken?: string;
@@ -450,12 +451,17 @@ export interface RentalCheckAdmin {
   paymentStatus: string;
   reviewStatus: string;
   amountNgn: number;
+  manualPaymentRef: string | null;
+  paymentSubmittedAt: string | null;
+  paymentReviewedBy: number | null;
+  paymentReviewedAt: string | null;
+  paymentReviewNote: string | null;
+  paidAt: string | null;
   riskScore: number | null;
   confidence: RentalConfidence | null;
   recommendation: RentalRecommendation | null;
   reviewerNotes: string | null;
   evidence: Record<string, RentalEvidenceItem> | null;
-  paidAt: string | null;
   createdAt: string;
   reportPublishedAt: string | null;
   deliveredAt: string | null;

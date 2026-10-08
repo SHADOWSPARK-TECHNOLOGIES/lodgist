@@ -11,27 +11,14 @@ export default function CheckStatus() {
   const search = useSearchParams();
   const reference = params.reference;
   const token = search.get("token") || "";
-  const paystackReference = search.get("reference") || search.get("trxref") || "";
   const [status, setStatus] = useState<RentalCheckStatusView | null>(null);
   const [report, setReport] = useState<RentalReport | null>(null);
   const [error, setError] = useState("");
-  const [paying, setPaying] = useState(false);
-  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
-        if (token && paystackReference) {
-          try {
-            const verified = await rentalChecksApi.verify(reference, token, paystackReference);
-            if (!cancelled) setStatus(verified.data);
-          } catch (err) {
-            if (!cancelled) {
-              setNotice(err instanceof ApiError ? err.message : "Payment is not confirmed yet.");
-            }
-          }
-        }
         const current = await rentalChecksApi.status(reference);
         if (cancelled) return;
         setStatus(current.data);
@@ -47,29 +34,7 @@ export default function CheckStatus() {
     return () => {
       cancelled = true;
     };
-  }, [reference, token, paystackReference]);
-
-  const pay = async () => {
-    if (!token) {
-      setError("Open the link that includes your case token.");
-      return;
-    }
-    setPaying(true);
-    setError("");
-    try {
-      const result = await rentalChecksApi.pay(reference, token);
-      if (result.paystackUrl) {
-        window.location.assign(result.paystackUrl);
-        return;
-      }
-      setStatus(result.data);
-      if (result.alreadyPaid) setNotice("Payment is already confirmed.");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "We could not start payment.");
-    } finally {
-      setPaying(false);
-    }
-  };
+  }, [reference, token]);
 
   const headline = report ? lockedRecommendation(report.recommendation) : null;
 
@@ -81,20 +46,22 @@ export default function CheckStatus() {
         </p>
         <h1 className="font-poppins text-3xl font-bold text-white">Case {reference}</h1>
         {error && <p role="alert" className="text-sm" style={{ color: "var(--color-orange)" }}>{error}</p>}
-        {notice && <p className="text-sm" style={{ color: "rgba(255,255,255,0.75)" }}>{notice}</p>}
         {!status && !error && <p className="text-sm text-white">Loading case</p>}
         {status && (
           <div className="card space-y-2 text-sm" style={{ color: "rgba(255,255,255,0.8)" }}>
             <p>Status: {status.status}</p>
             <p>Payment: {status.paymentStatus}</p>
             <p>Review: {status.reviewStatus}</p>
-            <p>Fee: {formatNaira(status.amountNgn)}</p>
-            <p>Payment does not verify the home.</p>
-            {status.paymentStatus !== "PAID" && status.status !== "CANCELLED" && (
-              <button className="btn btn-primary mt-3" type="button" onClick={pay} disabled={paying} style={{ whiteSpace: "normal" }}>
-                {paying ? "Opening payment" : `Pay ${formatNaira(status.amountNgn)}`}
-              </button>
+            <p>Fee: {formatNaira(status.amountNgn)}. This is the check fee, not rent and not a deposit.</p>
+            <p>Online checkout is not open. This page cannot mark the fee paid.</p>
+            {status.paymentStatus === "PAID" ? (
+              <p>Staff confirmed the fee. That does not verify the home.</p>
+            ) : status.paymentReferenceSubmitted ? (
+              <p>A reference is on file. Staff have not confirmed the money.</p>
+            ) : (
+              <p>No transfer reference is on file.</p>
             )}
+            <p>Payment of the fee does not verify the home.</p>
           </div>
         )}
         {report && (
