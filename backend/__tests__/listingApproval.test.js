@@ -233,6 +233,34 @@ test("approve publishes without verifying, verify sets the badge, reject removes
   }
 });
 
+test("reject clears the verified badge and approve does not bring it back", async () => {
+  const { prisma } = memory([home()]);
+  const server = await listen(buildApp(prisma));
+  try {
+    await call(server, "POST", "/api/admin/listings/4/approve", { bearer: ADMIN });
+    const verified = await call(server, "POST", "/api/admin/listings/4/verify", { bearer: ADMIN });
+    assert.equal(verified.body.data.evidenceVerified, true);
+
+    const rejected = await call(server, "POST", "/api/admin/listings/4/reject", {
+      bearer: ADMIN,
+      body: { reason: "Evidence withdrawn." },
+    });
+    assert.equal(rejected.status, 200);
+    assert.equal(rejected.body.data.evidenceVerified, false);
+    assert.equal(rejected.body.data.verifiedAt, null);
+    assert.equal(rejected.body.data.verificationLabel, "Not verified by Lodgist");
+
+    const reapproved = await call(server, "POST", "/api/admin/listings/4/approve", { bearer: ADMIN });
+    assert.equal(reapproved.body.data.publiclyListed, true);
+    assert.equal(reapproved.body.data.evidenceVerified, false);
+    const detail = await call(server, "GET", "/api/listings/4");
+    assert.equal(detail.body.data.evidenceVerified, false);
+    assert.equal(detail.body.data.verificationLabel, "Not verified by Lodgist");
+  } finally {
+    server.close();
+  }
+});
+
 test("a verified flag without a reviewer does not become the public badge", async () => {
   const { prisma } = memory([
     home({
