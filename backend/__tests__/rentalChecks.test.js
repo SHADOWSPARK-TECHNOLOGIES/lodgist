@@ -190,7 +190,7 @@ function adminToken() {
 }
 
 function signPaystack(raw, secret) {
-  return crypto.createHmac("sha256", secret).update(raw).digest("hex");
+  return crypto.createHmac("sha512", secret).update(raw).digest("hex");
 }
 
 test("invalid intake is rejected and does not mention a verified home", () => {
