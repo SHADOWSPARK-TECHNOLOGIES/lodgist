@@ -1,9 +1,8 @@
-/** Meta app WA bake 2026-09-29 (+2349045770572). Digits from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when the env var is unset. */
+import { supportDigits } from "./whatsappPayment";
+
+/** Digits from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when unset, empty, or the rejected test number. */
 export function supportWhatsAppDigits(): string | null {
-  const raw = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP;
-  if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
-  return digits.length > 0 ? digits : null;
+  return supportDigits(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP);
 }
 
 /** wa.me link, or null when support WhatsApp is not configured. */
@@ -157,6 +156,7 @@ export const detail = {
   askInvoice: "Ask an agent to send an invoice",
   askInvoiceNote: "This asks an agent for an invoice. It does not mean a payment is completed.",
   unverified: "Not verified by Lodgist",
+  labelsExplain: "Lodgist-reviewed means a Lodgist admin approved this listing to be shown. Verified by Lodgist means an admin recorded an evidence check. Neither label is a guarantee of the home, the landlord, its safety, or its title. Inspect before you pay.",
   source: "Source",
   photos: "Photos",
   noPhoto: "No photo yet",
@@ -176,7 +176,9 @@ export const detail = {
 export const listings = {
   title: "Find a place",
   subtitle: "Annual rent is shown first. A home Lodgist has not verified says so. A Trust Score appears only when we have one.",
+  searchLabel: "Area or home type",
   searchPlaceholder: "Try \"2 bedroom Owerri\" or \"World Bank\"",
+  loading: "Loading homes…",
   maxRent: "Highest annual rent",
   count: (n: number) => (n === 1 ? "1 home" : `${n} homes`),
   emptyTitle: "No homes here yet",
@@ -187,7 +189,7 @@ export const listings = {
   elsewhere: "Looking somewhere else? Tell us the area you want.",
   searchEmptyTitle: "Nothing matches that search",
   searchEmptyBody: "Try another area or a higher rent, or tell us on WhatsApp.",
-  leadTitle: "No matching homes yet",
+  leadTitle: "Request a home in your area",
   leadBody: "Tell us the area, budget, and when you want to move. We save the request. This is not a promise of a specific home.",
   leadLocation: "Area",
   leadBudget: "Yearly budget (NGN)",
@@ -209,11 +211,13 @@ export const listings = {
 export const search = {
   title: "Find a place",
   button: "Search",
+  label: "Area",
+  searching: "Searching…",
   placeholder: "New Owerri, Irete, World Bank",
   startTitle: "Type an area",
   startBody: "Example: New Owerri, Irete, or World Bank.",
   noTitle: "Nothing for that search",
-  noBody: "Try a different area, or see every place we have checked.",
+  noBody: "Try a different area, or see every place listed on Lodgist.",
   browseAll: "See all places",
   fetchError: "Listings did not load. Check your network and try again.",
 };
@@ -356,7 +360,18 @@ export const milestones = {
   title: "Payments along the way",
   empty: "No staged payments on this listing.",
   noneYet: "Nothing paid yet",
-  complete: "Finish this on WhatsApp",
+  complete: "Arrange on WhatsApp",
+};
+
+export const arrangePayment = {
+  rentalCta: "Arrange this fee on WhatsApp",
+  bookingCta: "Arrange this booking payment on WhatsApp",
+  opening: "Opening WhatsApp",
+  rentalNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. Opening WhatsApp does not mark the fee paid.",
+  bookingNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. This does not mark the booking paid.",
+  queued: "This fee is in the review queue. Staff have not confirmed the money.",
+  needLink: "Open the case link we sent you so this fee can enter the review queue.",
+  missing: "WhatsApp support is not set up on this site yet.",
 };
 
 export const about = {

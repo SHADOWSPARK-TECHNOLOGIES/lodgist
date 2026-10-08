@@ -13,8 +13,7 @@
  * Cloudflare R2 and AWS S3 use the same client; set AWS_S3_URL_STYLE=path when
  * the provider expects path-style URLs.
  *
- * EXIF GPS is not stripped. No image library is installed. Follow-up: strip GPS
- * before PutObject once an image dependency is approved.
+ * Uploads are re-encoded without EXIF before PutObject. See photoUpload.stripImageMetadata.
  */
 
 const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require("@aws-sdk/client-s3");

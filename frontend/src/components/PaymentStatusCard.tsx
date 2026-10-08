@@ -12,6 +12,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { payment, supportWhatsAppLink } from "@/lib/copy";
+import { paymentWhatsAppText } from "@/lib/whatsappPayment";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -87,11 +88,12 @@ export default function PaymentStatusCard({
 
   const buildWaUrl = (p: Payment) =>
     supportWhatsAppLink(
-      `Hi Lodgist Support, I need help with a payment.\n\n` +
-        `Reference: ${p.reference}\n` +
-        `Amount: ${p.currency} ${p.amount.toLocaleString()}\n` +
-        `Status: ${p.status}\n\n` +
-        `Please assist me.`
+      paymentWhatsAppText({
+        what: p.description,
+        amountNgn: p.amount,
+        currency: p.currency,
+        reference: p.reference,
+      }),
     );
 
   if (payments.length === 0) {
@@ -182,8 +184,6 @@ export default function PaymentStatusCard({
                     {p.status === "failed" && buildWaUrl(p) && (
                       <a
                         href={buildWaUrl(p) ?? undefined}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         className="ml-2 inline-flex items-center gap-1 rounded bg-green-600 px-2 py-0.5 text-[10px] font-medium text-white transition-all hover:bg-green-700"
                       >
                         <MessageCircle className="h-3 w-3" />

@@ -1,6 +1,7 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const { requireLiveness } = require("../middleware/livenessGate");
+const { paystackEnabled } = require("../services/paystackConfig");
 
 // ponytail: hardcoded 5% platform fee; move to env/config only if the rate changes
 const COMMISSION_RATE = 0.05;
@@ -38,6 +39,14 @@ function createEscrowRouter(prisma, paystackService) {
         return res.status(400).json({
           success: false,
           error: "tenantEmail is required for Paystack payment",
+        });
+      }
+
+      if (!paystackEnabled()) {
+        return res.status(503).json({
+          success: false,
+          error: "Online checkout is not open. Arrange payment on WhatsApp. The Lodgist team confirms it.",
+          code: "PAYSTACK_UNAVAILABLE",
         });
       }
 

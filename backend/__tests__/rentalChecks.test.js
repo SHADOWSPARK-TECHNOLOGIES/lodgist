@@ -222,6 +222,48 @@ test("cases get distinct references and retry a reference collision", async () =
   assert.equal(prisma.checks.length, 2);
 });
 
+test("a WhatsApp arrangement reference waits for staff and does not mark the fee paid", async () => {
+  const prisma = memoryPrisma();
+  const server = await listen(appFor(prisma));
+  try {
+    const created = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...intake, customerName: "Ada Okonkwo" }),
+    });
+    const ref = created.body.data.publicReference;
+    const token = created.body.data.accessToken;
+    const queued = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
+      body: JSON.stringify({ manualPaymentRef: `WHATSAPP ${ref}` }),
+    });
+    assert.equal(queued.status, 200);
+    assert.equal(queued.body.data.paymentStatus, "PENDING");
+    assert.equal(queued.body.data.paymentReferenceSubmitted, true);
+    assert.equal(queued.body.data.manualPaymentRef, undefined);
+    assert.equal(prisma.checks[0].status, "AWAITING_PAYMENT");
+    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
+
+    const named = await json(server, `/api/rental-checks/${ref}`, {
+      headers: { "x-rental-check-token": token },
+    });
+    assert.equal(named.body.data.customerName, "Ada Okonkwo");
+    assert.equal(named.body.data.location, "Nekede, Owerri");
+
+    const confirmed = await json(server, `/api/rental-checks/${ref}/payment-review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` },
+      body: JSON.stringify({ action: "confirm", note: "Arranged on WhatsApp" }),
+    });
+    assert.equal(confirmed.status, 200);
+    assert.equal(confirmed.body.data.paymentStatus, "PAID");
+    assert.equal(prisma.checks[0].paymentStatus, "PAID");
+  } finally {
+    server.close();
+  }
+});
+
 test("create, pay, verify, review, and report follow the paid path", async () => {
   const prisma = memoryPrisma();
   let verified = { status: "failed", amount: 5000, currency: "NGN", reference: "LODG-ESC-RSC-1" };
@@ -244,7 +286,15 @@ test("create, pay, verify, review, and report follow the paid path", async () =>
     const ref = created.body.data.publicReference;
     const token = created.body.data.accessToken;
     assert.equal(created.body.data.status, "SUBMITTED");
+    assert.equal(created.body.data.customerName, undefined);
+    assert.equal(created.body.data.location, undefined);
     assert.equal(JSON.stringify(created.body).toLowerCase().includes("verified home"), false);
+
+    const owned = await json(server, `/api/rental-checks/${ref}`, {
+      headers: { "x-rental-check-token": token },
+    });
+    assert.equal(owned.body.data.location, "Nekede, Owerri");
+    assert.equal(owned.body.data.customerName, null);
 
     const bad = await json(server, "/api/rental-checks", {
       method: "POST",
@@ -573,6 +623,42 @@ test("whatsapp CHECK collects a case and REPORT stays behind the sender phone", 
   const help = await send("HELP");
   assert.match(help.replyText, /CHECK/);
   assert.equal(/\bsafe\b/i.test(help.replyText), false);
+});
+
+test("a refresh token is not an access token on rental-check routes", async () => {
+  const prisma = memoryPrisma();
+  const server = await listen(appFor(prisma));
+  try {
+    const refresh = jwt.sign({ id: 9, type: "refresh" }, process.env.JWT_SECRET);
+    const created = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${refresh}` },
+      body: JSON.stringify(intake),
+    });
+    assert.equal(created.status, 201);
+    assert.equal(prisma.checks[0].userId, null);
+
+    const access = jwt.sign({ id: 9, email: "ada@example.com", name: "Ada", role: "TENANT" }, process.env.JWT_SECRET);
+    const attributed = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${access}` },
+      body: JSON.stringify({ ...intake, customerPhone: "08030000000" }),
+    });
+    assert.equal(attributed.status, 201);
+    assert.equal(prisma.checks[1].userId, 9);
+
+    const ref = created.body.data.publicReference;
+    const staffRefresh = jwt.sign({ id: 1, role: "STUDIO_ADMIN", type: "refresh" }, process.env.JWT_SECRET);
+    const blocked = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${staffRefresh}` },
+      body: JSON.stringify({ manualPaymentRef: "TRF-1001" }),
+    });
+    assert.equal(blocked.status, 401);
+    assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
+  } finally {
+    server.close();
+  }
 });
 
 test("whatsapp duplicate message id does not open two cases", async () => {

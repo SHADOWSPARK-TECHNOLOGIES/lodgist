@@ -5,9 +5,25 @@ const { defaultStorage, objectKeyFromStoredUrl } = require("../services/objectSt
 const {
   MAX_LISTING_PHOTOS,
   validatePhoto,
+  stripImageMetadata,
   newObjectKey,
   readPhoto,
 } = require("../services/photoUpload");
+const { ownerReviewedContentReset } = require("./listings");
+
+const LISTING_FOR_PHOTO = {
+  id: true,
+  ownerId: true,
+  status: true,
+  reviewStatus: true,
+  evidenceVerified: true,
+  verifiedAt: true,
+  verifiedById: true,
+  adminAudit: true,
+  riskState: true,
+  isFlaggedForFraud: true,
+  totalMoveInCost: true,
+};
 
 function positiveInt(value) {
   if (!/^[1-9]\d*$/.test(String(value || ""))) return null;
@@ -37,8 +53,18 @@ function listingPhotosRouter(prisma, options = {}) {
   async function loadListing(id) {
     return prisma.listing.findUnique({
       where: { id },
-      select: { id: true, ownerId: true },
+      select: LISTING_FOR_PHOTO,
     });
+  }
+
+  // Owner photo changes use the same attestation reset as an owner edit.
+  // STUDIO_ADMIN changes do not.
+  async function recordOwnerPhotoChange(listing, user) {
+    if (!user || user.role === "STUDIO_ADMIN") return;
+    if (Number(user.id) !== Number(listing.ownerId)) return;
+    const patch = ownerReviewedContentReset(listing, user.id, ["images"]);
+    if (!patch) return;
+    await prisma.listing.update({ where: { id: listing.id }, data: patch });
   }
 
   // POST /api/listings/:id/photos — owner or STUDIO_ADMIN
@@ -85,12 +111,24 @@ function listingPhotosRouter(prisma, options = {}) {
         return res.status(validated.status).json({ success: false, error: validated.error });
       }
 
+      let stored;
+      try {
+        stored = await stripImageMetadata(uploaded.file.buffer, validated.contentType);
+      } catch (error) {
+        logger.error("Listing photo metadata strip failed", {
+          listingId,
+          code: error.code || error.name,
+          reason: error.message,
+        });
+        return res.status(400).json({ success: false, error: "Photo could not be processed." });
+      }
+
       const key = newObjectKey(listingId, validated.extension);
       let url;
       try {
         url = await storage.putAndUrl({
           key,
-          body: validated.buffer,
+          body: stored,
           contentType: validated.contentType,
         });
       } catch (error) {
@@ -120,6 +158,36 @@ function listingPhotosRouter(prisma, options = {}) {
             order: true,
           },
         });
+        try {
+          await recordOwnerPhotoChange(listing, req.user);
+        } catch (resetError) {
+          try {
+            await prisma.listingImage.delete({ where: { id: row.id } });
+          } catch (rowError) {
+            logger.error("Listing photo reset rollback failed", {
+              listingId,
+              imageId: row.id,
+              code: rowError.code || rowError.name,
+              reason: rowError.message,
+            });
+          }
+          try {
+            await storage.deleteObject(key);
+          } catch (cleanupError) {
+            logger.error("Listing photo cleanup failed", {
+              listingId,
+              key,
+              code: cleanupError.code || cleanupError.name,
+              reason: cleanupError.message,
+            });
+          }
+          logger.error("Listing photo review reset failed", {
+            listingId,
+            code: resetError.code || resetError.name,
+            reason: resetError.message,
+          });
+          return res.status(500).json({ success: false, error: "We could not save this photo. Try again." });
+        }
         logger.info("Listing photo stored", { listingId, imageId: row.id, key });
         return res.status(201).json({ success: true, data: row });
       } catch (error) {
@@ -193,6 +261,18 @@ function listingPhotosRouter(prisma, options = {}) {
           });
           return storageError(res, error, "We could not remove this photo. Try again.");
         }
+      }
+
+      try {
+        await recordOwnerPhotoChange(listing, req.user);
+      } catch (error) {
+        logger.error("Listing photo review reset failed", {
+          listingId,
+          imageId,
+          code: error.code || error.name,
+          reason: error.message,
+        });
+        return res.status(500).json({ success: false, error: "We could not remove this photo. Try again." });
       }
 
       await prisma.listingImage.delete({ where: { id: imageId } });

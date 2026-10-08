@@ -1,9 +1,11 @@
 /**
  * Listing photo bytes: one multipart file, checked before anything is stored.
- * EXIF GPS is not removed here. See objectStorage.js for the follow-up.
+ * stripImageMetadata rotates to the EXIF orientation, then re-encodes without
+ * metadata so GPS and other EXIF never reach the bucket.
  */
 
 const crypto = require("crypto");
+const sharp = require("sharp");
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const MAX_LISTING_PHOTOS = 8;
@@ -77,6 +79,19 @@ function validatePhoto({ buffer, mime, filename }) {
     return { ok: false, status: 400, error: "Photo extension does not match the file contents." };
   }
   return { ok: true, contentType: sniffed, extension: TYPES[sniffed].ext };
+}
+
+async function stripImageMetadata(buffer, contentType) {
+  let pipeline = sharp(buffer, { failOn: "none" }).rotate();
+  if (contentType === "image/jpeg") pipeline = pipeline.jpeg();
+  else if (contentType === "image/png") pipeline = pipeline.png();
+  else if (contentType === "image/webp") pipeline = pipeline.webp();
+  else {
+    const error = new Error("unsupported image type");
+    error.status = 400;
+    throw error;
+  }
+  return pipeline.toBuffer();
 }
 
 function newObjectKey(listingId, extension) {
@@ -184,6 +199,7 @@ module.exports = {
   MAX_PHOTO_BYTES,
   MAX_LISTING_PHOTOS,
   validatePhoto,
+  stripImageMetadata,
   newObjectKey,
   readPhoto,
   parseMultipart,

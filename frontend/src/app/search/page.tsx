@@ -7,7 +7,7 @@ import { listingsApi } from "@/lib/api";
 import { TruthScore } from "@/components/ui/TruthScore";
 import { formatYearlyRent, listingCard, listings as browse, search as copy } from "@/lib/copy";
 import { photoAlt, storedPhotos } from "@/lib/listingPhotos";
-import { hasTrustScore, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from "@/lib/listingHonesty";
+import { hasTrustScore, isEvidenceVerified, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from "@/lib/listingHonesty";
 import LeadCapture from "@/components/LeadCapture";
 import type { Listing } from "@/lib/types";
 
@@ -42,14 +42,21 @@ function SearchContent() {
     <div className="min-h-screen" style={{ background: 'var(--color-navy)' }}>
       <div className="container py-8">
         <h1 className="font-poppins font-bold text-2xl text-white mb-2">{copy.title}</h1>
-        <form onSubmit={handleSearch} className="mb-8 flex gap-2 max-w-xl">
-          <input type="text" className="input flex-1" placeholder={copy.placeholder} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-          <button type="submit" className="btn btn-primary">{copy.button}</button>
+        <form onSubmit={handleSearch} className="mb-4 max-w-xl" role="search">
+          <label className="label" htmlFor="search-area">{copy.label}</label>
+          <div className="flex gap-2">
+            <input id="search-area" type="text" className="input flex-1" placeholder={copy.placeholder} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <button type="submit" className="btn btn-primary">{copy.button}</button>
+          </div>
         </form>
-        {error && <div className="banner-error mb-6">{error}</div>}
-        {loading ? (
+        <p role="status" aria-live="polite" className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
+          {loading ? copy.searching : ''}
+        </p>
+        {error ? (
+          <div role="alert" className="banner-error mb-6">{error}</div>
+        ) : loading ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 2 }).map((_, i) => (
               <div key={i} className="card">
                 <div className="skeleton h-48 w-full mb-4" />
                 <div className="skeleton h-4 w-3/4 mb-2" />
@@ -78,17 +85,17 @@ function SearchContent() {
                 </div>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-poppins font-semibold text-white text-sm">{listing.title}</h3>
+                    <h2 className="font-poppins font-semibold text-white text-sm">{listing.title}</h2>
                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       {listing.property?.city ?? listing.property?.state ?? ''}
                     </p>
                     <p className="font-poppins font-bold text-sm mt-2" style={{ color: 'var(--color-orange)' }}>
                       {formatYearlyRent(listing.price)}
                     </p>
-                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'var(--color-teal)' : 'rgba(255,255,255,0.45)' }}>
+                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)' }}>
                       {reviewLabel(listing)}
                     </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--color-orange)' }}>
+                    <p className="text-xs mt-1" style={{ color: isEvidenceVerified(listing) ? 'var(--color-teal)' : 'var(--color-orange)' }}>
                       {verificationLabel(listing)}
                     </p>
                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{sourceLabel(listing)}</p>
