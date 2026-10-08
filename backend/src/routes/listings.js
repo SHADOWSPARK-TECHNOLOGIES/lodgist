@@ -841,6 +841,37 @@ function listingsRouter(prisma) {
   });
 
   // ─── PUT /api/listings/:id — Auth required, owner-only update ─────────────
+  // Content Lodgist already approved or verified cannot keep that attestation
+  // after the owner changes it. Same values are not a change.
+  function sameListingValue(field, previous, next) {
+    if (field === "price") {
+      const left = typeof previous === "number" ? previous : Number(previous);
+      const right = typeof next === "number" ? next : Number(next);
+      return Number.isFinite(left) && Number.isFinite(right) && left === right;
+    }
+    if (field === "totalMoveInCost") {
+      return JSON.stringify(stableJson(previous)) === JSON.stringify(stableJson(next));
+    }
+    return previous === next;
+  }
+
+  function stableJson(value) {
+    if (Array.isArray(value)) return value.map(stableJson);
+    if (value && typeof value === "object") {
+      const out = {};
+      for (const key of Object.keys(value).sort()) out[key] = stableJson(value[key]);
+      return out;
+    }
+    return value;
+  }
+
+  function listingWasAttested(listing) {
+    return listing.reviewStatus === "APPROVED"
+      || listing.evidenceVerified === true
+      || listing.verifiedAt != null
+      || (typeof listing.verifiedById === "number" && listing.verifiedById > 0);
+  }
+
   router.put("/:id", requireAuth, async (req, res) => {
     try {
       const listingId = parseInt(req.params.id, 10);
@@ -868,6 +899,32 @@ function listingsRouter(prisma) {
 
       if (Object.keys(updateData).length === 0) {
         return res.status(400).json({ success: false, error: "No valid fields to update" });
+      }
+
+      const changedFields = Object.keys(updateData).filter(
+        (field) => !sameListingValue(field, existing[field], updateData[field])
+      );
+      if (changedFields.length > 0 && listingWasAttested(existing)) {
+        updateData.reviewStatus = "NOT_REVIEWED";
+        updateData.evidenceVerified = false;
+        updateData.verifiedAt = null;
+        updateData.verifiedById = null;
+        const prior = Array.isArray(existing.adminAudit)
+          ? existing.adminAudit.filter((item) => item && typeof item === "object")
+          : [];
+        const entry = {
+          action: "owner_content_edit",
+          adminId: null,
+          actorId: req.user.id,
+          listingId: existing.id,
+          at: new Date().toISOString(),
+          reason: "Owner changed content Lodgist had already reviewed.",
+          changedFields,
+          publicationState: publicationState({ ...existing, ...updateData }),
+          evidenceVerified: false,
+        };
+        const nextAudit = prior.concat([entry]);
+        updateData.adminAudit = nextAudit.length > 50 ? nextAudit.slice(nextAudit.length - 50) : nextAudit;
       }
 
       const updatedListing = await prisma.listing.update({
