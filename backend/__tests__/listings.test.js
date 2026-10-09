@@ -148,11 +148,118 @@ test("GET /api/listings honours limit, state, area and sort", async () => {
     assert.equal(seen.skip, 5);
     assert.deepEqual(seen.orderBy, { price: "asc" });
     assert.deepEqual(seen.where.property.is.state, { equals: "Imo", mode: "insensitive" });
-    assert.equal(seen.where.property.is.OR.length, 3);
+    assert.deepEqual(seen.where.property.is.OR, [
+      { city: { contains: "Owerri", mode: "insensitive" } },
+      { lga: { contains: "Owerri", mode: "insensitive" } },
+      { state: { contains: "Owerri", mode: "insensitive" } },
+    ]);
     assert.deepEqual(body.pagination, { total: 30, page: 2, pages: 6, totalPages: 6, limit: 5, pageSize: 5 });
   } finally {
     server.close();
   }
+});
+
+function textContains(value, needle) {
+  return typeof value === "string"
+    && typeof needle === "string"
+    && value.toLowerCase().includes(needle.toLowerCase());
+}
+
+function clauseMatchesRecord(record, clause) {
+  const field = Object.keys(clause)[0];
+  const cond = clause[field];
+  if (!cond || typeof cond !== "object" || typeof cond.contains !== "string") return false;
+  return textContains(record[field], cond.contains);
+}
+
+function listingMatchesBrowseWhere(listing, where) {
+  if (Array.isArray(where && where.OR) && where.OR.length > 0) {
+    const hit = where.OR.some((clause) =>
+      clauseMatchesRecord(listing, clause) || clauseMatchesRecord(listing.property || {}, clause)
+    );
+    if (!hit) return false;
+  }
+  const propertyWhere = where && where.property && where.property.is;
+  if (propertyWhere && Array.isArray(propertyWhere.OR)) {
+    const hit = propertyWhere.OR.some((clause) => clauseMatchesRecord(listing.property || {}, clause));
+    if (!hit) return false;
+  }
+  return true;
+}
+
+const PRIVATE_LOCATION_LISTING = {
+  id: 21,
+  title: "Two bedroom flat",
+  description: "Quiet compound",
+  status: "VERIFIED",
+  reviewStatus: "APPROVED",
+  riskState: "UNVERIFIED",
+  isFlaggedForFraud: false,
+  price: 900000,
+  images: [],
+  property: {
+    id: 4,
+    city: "Owerri",
+    state: "Imo",
+    lga: "Owerri Municipal",
+    address: "14 Secret Close",
+    landmark: "Behind the old post office",
+    bedrooms: 2,
+    bathrooms: 1,
+    propertyType: "Apartment",
+  },
+  owner: { id: 3, name: "Ada", truthIndex: 70, isVerified: false },
+  fraudSignals: [],
+  _count: { reviews: 0, bookings: 0 },
+};
+
+function privateLocationPrisma() {
+  const listing = PRIVATE_LOCATION_LISTING;
+  return {
+    listing: {
+      count: async (args) => {
+        if (isSampleMatchWhere(args.where)) return 0;
+        return listingMatchesBrowseWhere(listing, args.where) ? 1 : 0;
+      },
+      findMany: async (args) => (listingMatchesBrowseWhere(listing, args.where) ? [listing] : []),
+    },
+    review: { groupBy: async () => [] },
+  };
+}
+
+async function listingsFor(query) {
+  const server = await listen(buildApp(privateLocationPrisma()));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings?${query}`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    return body.data;
+  } finally {
+    server.close();
+  }
+}
+
+test("GET /api/listings?area= returns nothing when the query matches only the street address", async () => {
+  const data = await listingsFor("area=14%20Secret%20Close");
+  assert.deepEqual(data, []);
+});
+
+test("GET /api/listings?area= returns nothing when the query matches only a landmark", async () => {
+  const data = await listingsFor("area=Behind%20the%20old%20post%20office");
+  assert.deepEqual(data, []);
+});
+
+test("GET /api/listings?area= returns the listing when the query matches the public city or area", async () => {
+  const byCity = await listingsFor("area=Owerri");
+  assert.equal(byCity.length, 1);
+  assert.equal(byCity[0].id, 21);
+  assert.equal(byCity[0].property.address, undefined);
+  assert.equal(byCity[0].property.landmark, undefined);
+
+  const byArea = await listingsFor("area=Owerri%20Municipal");
+  assert.equal(byArea.length, 1);
+  assert.equal(byArea[0].id, 21);
 });
 
 test("GET /api/listings clamps limit and ignores unknown sort", async () => {

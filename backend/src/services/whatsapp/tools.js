@@ -62,10 +62,11 @@ async function searchListings(prisma, args) {
     propertyWhere.state = { equals: args.state, mode: "insensitive" };
   }
   if (args.area) {
+    // Same public fields as GET /api/listings?area=. Never address or landmark.
     propertyWhere.OR = [
       { city: { contains: args.area, mode: "insensitive" } },
       { lga: { contains: args.area, mode: "insensitive" } },
-      { address: { contains: args.area, mode: "insensitive" } },
+      { state: { contains: args.area, mode: "insensitive" } },
     ];
   }
   if (Object.keys(propertyWhere).length) where.property = { is: propertyWhere };
