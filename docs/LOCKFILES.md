@@ -13,6 +13,8 @@ GitHub Actions and Railway do not share one package manager. Each install below 
 
 `packages/ai-core/pnpm-lock.yaml` is the lockfile for that package. Actions and the two Railway services do not install it.
 
+`packages/spatial-core` is a one-package pnpm workspace (`packages/spatial-core/pnpm-workspace.yaml`). It has no dependencies. The frontend does not depend on that directory: Railway's `lodgist` service only pulls `/frontend`, so the same package is vendored at `frontend/vendor/spatial-core` and installed with `file:./vendor/spatial-core` from `frontend/pnpm-lock.yaml`. A test fails if the vendor copy drifts from `packages/spatial-core`.
+
 `backend/package-lock.json` stays. The API service install ends in `npm ci`, and the backend Actions job uses `npm ci`. Deleting it fails both.
 
 The pnpm lockfiles stay. Railpack installs with `--frozen-lockfile`. Deleting one fails the service that installs that directory.
