@@ -348,10 +348,12 @@ function listingsRouter(prisma) {
         propertyWhere.state = { equals: state, mode: "insensitive" };
       }
       if (typeof area === "string" && area) {
+        // Public location only. address and landmark stay off this filter
+        // so a stranger cannot probe whether a street or landmark exists.
         propertyWhere.OR = [
           { city: { contains: area, mode: "insensitive" } },
           { lga: { contains: area, mode: "insensitive" } },
-          { address: { contains: area, mode: "insensitive" } },
+          { state: { contains: area, mode: "insensitive" } },
         ];
       }
       if (Object.keys(propertyWhere).length) where.property = { is: propertyWhere };
