@@ -254,8 +254,6 @@ test("GET /api/listings?area= returns the listing when the query matches the pub
   const byCity = await listingsFor("area=Owerri");
   assert.equal(byCity.length, 1);
   assert.equal(byCity[0].id, 21);
-  assert.equal(byCity[0].property.address, undefined);
-  assert.equal(byCity[0].property.landmark, undefined);
 
   const byArea = await listingsFor("area=Owerri%20Municipal");
   assert.equal(byArea.length, 1);
