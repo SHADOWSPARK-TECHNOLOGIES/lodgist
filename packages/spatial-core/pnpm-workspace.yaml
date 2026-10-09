@@ -1,0 +1,4 @@
+# One-package workspace. Kept inside this directory so packages/db,
+# packages/ai-core, frontend, and lodgist keep their own lockfiles.
+packages:
+  - "."
