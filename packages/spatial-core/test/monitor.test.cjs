@@ -7,6 +7,7 @@ const {
   evaluateConditions,
   monitoringEnabled,
   providerRegistry,
+  decideNotification,
   runMonitor,
 } = require("../src/index.cjs");
 
@@ -247,4 +248,24 @@ test("readings from before monitoring began are not stored", () => {
   });
   assert.deepEqual(result.observations, []);
   assert.equal(result.ignored[0].reason, "before_monitoring_began");
+});
+
+test("the notification policy is a stub and does not send", () => {
+  let sent = 0;
+  const decision = decideNotification({ provider: "overpass" }, { channel: "whatsapp" });
+  assert.equal(decision.notify, false);
+  assert.equal(decision.reason, "notification_policy_stub");
+  assert.equal(decision.channel, "whatsapp");
+  const result = runMonitor(liveMonitor(), 20_000, {
+    env: { SPATIAL_MONITORING: "1" },
+    registry,
+    listing,
+    policy: { channel: "whatsapp" },
+    send: () => { sent += 1; },
+    readings: [{ provider: "overpass", value: 4, observedAt: 19_000, source: "OpenStreetMap" }],
+  });
+  assert.equal(sent, 0);
+  assert.equal(result.alerts.length, 1);
+  assert.equal(result.alerts[0].notify, false);
+  assert.equal(result.alerts[0].channel, "whatsapp");
 });

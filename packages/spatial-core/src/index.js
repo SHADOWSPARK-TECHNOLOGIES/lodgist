@@ -90,4 +90,5 @@ export const {
   beginMonitor,
   PRIVACY_GATES,
   runMonitor,
+  decideNotification,
 } = core;

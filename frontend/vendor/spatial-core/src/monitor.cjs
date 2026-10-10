@@ -10,6 +10,7 @@ const { providerRegistry, providerCanRun } = require("./registry.cjs");
 const { evidenceEnvelope, finiteTimestamp, ENVELOPE_KEYS } = require("./evidence.cjs");
 const { assertNoPrivateLocationKeys, stripPrivateLocationKeys } = require("./privacy.cjs");
 const { crossReference } = require("./crossReference.cjs");
+const { decideNotification } = require("./notifyPolicy.cjs");
 
 const TARGET_TYPES = Object.freeze([
   "location",
@@ -192,7 +193,7 @@ function emptyEnvelope(providerId, now, staleAfterMs) {
 
 function runMonitor(monitor, now, ctx = {}) {
   if (!monitoringEnabled(ctx.env)) {
-    return { ok: true, code: "flag_off", observations: [], evaluated: [], report: null, ignored: [] };
+    return { ok: true, code: "flag_off", observations: [], evaluated: [], alerts: [], report: null, ignored: [] };
   }
   const clock = finiteTimestamp(now);
   if (!clock) return { ok: false, code: "invalid_now", observations: [] };
@@ -203,7 +204,7 @@ function runMonitor(monitor, now, ctx = {}) {
   if (clock < began) return { ok: false, code: "before_start", observations: [] };
   const last = finiteTimestamp(monitor.lastObservedAt);
   if (last != null && clock < last + monitor.schedule.intervalMs) {
-    return { ok: true, code: "not_due", observations: [], evaluated: [], report: null, ignored: [] };
+    return { ok: true, code: "not_due", observations: [], evaluated: [], alerts: [], report: null, ignored: [] };
   }
   const rows = providerRegistry(ctx.registry);
   const gate = privacyFor(monitor, ctx);
@@ -272,12 +273,14 @@ function runMonitor(monitor, now, ctx = {}) {
     });
   }
   const blocked = providerResults.some((item) => item.code === "missing_api_key" || item.code === "commercial_class_blocked");
+  const alerts = observations.map((item) => decideNotification(item, ctx.policy));
   return {
     ok: true,
     code: "observed",
     observations,
     providerResults,
     evaluated,
+    alerts,
     report,
     ignored,
     state: blocked ? "blocked" : "observed",

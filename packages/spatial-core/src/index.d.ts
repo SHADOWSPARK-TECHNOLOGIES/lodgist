@@ -402,4 +402,11 @@ export function runMonitor(monitor: object, now: number, ctx?: {
   observations: EvidenceEnvelope[];
   evaluated?: object[];
   provenance?: { monitoringBeganAt?: number; retrievedAt?: number; observedAt?: number | null };
+  alerts?: Array<{ notify: false; reason: string; provider: string | null; channel: string | null }>;
+};
+export function decideNotification(observation?: { provider?: string | null } | null, policy?: { channel?: string | null } | null): {
+  notify: false;
+  reason: "notification_policy_stub";
+  provider: string | null;
+  channel: string | null;
 };
