@@ -88,6 +88,27 @@ export interface ProviderConfig {
   osrmBaseUrl: string | null;
   overpassUrl: string | null;
   tileUrl: string | null;
+  mapAttribution: string | null;
+}
+
+export interface MapTile {
+  url: string;
+  left: number;
+  top: number;
+  z: number;
+  x: number;
+  y: number;
+}
+
+export interface TileLayer {
+  zoom: number;
+  attribution: string;
+  width: number;
+  height: number;
+  originX: number;
+  originY: number;
+  tiles: MapTile[];
+  focusRadiusPx: number | null;
 }
 
 export const DISCLAIMER: string;
@@ -131,4 +152,12 @@ export function mapGeometry(focus: SpatialFocus): { kind: "none" } | { kind: "ar
 export function buildPreviewModel(scenario?: string, campusId?: string): PreviewModel | null;
 export function campusById(id: string | null | undefined): Campus | null;
 export function fillTileTemplate(template: string | null, tile: { z: number; x: number; y: number }): string | null;
+export function tileLayer(input: {
+  focus: SpatialFocus;
+  template: string | null;
+  attribution: string | null;
+  width: number;
+  height: number;
+}): TileLayer | null;
+export function projectOnLayer(layer: TileLayer | null, lat: number, lng: number): { x: number; y: number } | null;
 export function isFixtureRecord(record: object | null): boolean;

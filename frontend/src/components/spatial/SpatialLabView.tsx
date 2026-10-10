@@ -26,6 +26,7 @@ function lazyMap() {
     campus: Campus | null;
     amenities: ReturnType<typeof filterAmenities>;
     tileTemplate: string | null;
+    tileAttribution: string | null;
   }) {
     const [View, setView] = useState<typeof import("./SpatialMap").default | null>(null);
     const [failed, setFailed] = useState(false);
@@ -66,6 +67,7 @@ type Props = {
   onReturn: () => void;
   returnLabel: string;
   tileTemplate: string | null;
+  tileAttribution: string | null;
 };
 
 function CampusList({
@@ -115,6 +117,7 @@ export default function SpatialLabView({
   onReturn,
   returnLabel,
   tileTemplate,
+  tileAttribution,
 }: Props) {
   const [category, setCategory] = useState("all");
   const campusName = useId();
@@ -155,7 +158,7 @@ export default function SpatialLabView({
         {model.focus.precision === "unknown" && "Lodgist has not published a location for this home."}
       </p>
 
-      {loading ? <div className="skeleton spatial-map-loading" /> : <SpatialMap focus={model.focus} campus={campus} amenities={amenities} tileTemplate={tileTemplate} />}
+      {loading ? <div className="skeleton spatial-map-loading" /> : <SpatialMap focus={model.focus} campus={campus} amenities={amenities} tileTemplate={tileTemplate} tileAttribution={tileAttribution} />}
 
       <CampusList focus={model.focus} campusId={campusId} onCampus={onCampus} name={campusName} />
 
@@ -175,7 +178,7 @@ export default function SpatialLabView({
           </p>
         )}
         {model.focus.precision === "approximate" && (
-          <p className="spatial-quiet">The directions link uses the area name. It does not include a coordinate for this home.</p>
+          <p className="spatial-quiet">The directions link uses the area name and the campus name. It does not include a coordinate for this home or a campus entrance.</p>
         )}
       </section>
 
@@ -204,7 +207,7 @@ export default function SpatialLabView({
 
       <section className="spatial-block" aria-label="Text alternative">
         <h3 className="spatial-heading">Same details in text</h3>
-        <p className="spatial-quiet">Campus marks are OpenStreetMap area centers (ODbL), not building doors.</p>
+        <p className="spatial-quiet">Campus marks are OpenStreetMap area centers (ODbL), not building doors and not campus entrances. FUTO is not listed.</p>
         <p className="spatial-quiet">
           {model.focus.precision === "approximate" && `${model.focus.label}. Area radius about ${model.focus.radiusM} m. No building pin.`}
           {model.focus.precision === "exact" && `${model.focus.label}. Fixture pin only.`}
