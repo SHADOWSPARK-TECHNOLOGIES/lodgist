@@ -91,4 +91,11 @@ export const {
   PRIVACY_GATES,
   runMonitor,
   decideNotification,
+  HISTORY_FLAG,
+  historyEnabled,
+  getSpatialHistory,
+  compareSpatialSnapshots,
+  getChangesSince,
+  replaySpatialContext,
+  recordReportSnapshot,
 } = core;

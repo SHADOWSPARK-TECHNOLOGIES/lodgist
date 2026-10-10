@@ -2,6 +2,7 @@ const express = require("express");
 const spatial = require("../../../packages/spatial-core");
 const { approxLocation, isEligiblePublicListing } = require("./listings");
 const { saveMonitorRun } = require("../services/spatialMonitorStore");
+const { loadStoredHistory, saveReportSnapshot } = require("../services/spatialHistoryStore");
 
 const URL_KEYS = ["url", "providerUrl", "userUrl", "endpoint", "baseUrl", "tileUrl", "interpreterUrl"];
 const MAX_BODY_CHARS = 32 * 1024;
@@ -126,6 +127,79 @@ function createSpatialRouter(options = {}) {
       if (result.code === "observed" && options.prisma) {
         await saveMonitorRun(options.prisma, monitor, result);
       }
+      const status = result.ok ? 200 : 400;
+      return res.status(status).json(result);
+    } catch {
+      return res.status(502).json({ ok: false, code: "unavailable" });
+    }
+  });
+
+  router.post("/history", async (req, res) => {
+    const env = monitorEnv(options);
+    if (!spatial.historyEnabled(env)) {
+      return res.status(200).json({
+        ok: true,
+        code: "flag_off",
+        historyBeganAt: null,
+        events: [],
+        snapshots: [],
+        changes: [],
+        context: null,
+      });
+    }
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return res.status(400).json({ ok: false, code: "malformed" });
+    }
+    if (JSON.stringify(body).length > MAX_BODY_CHARS || hasUrlKey(body)) {
+      return res.status(400).json({ ok: false, code: "forbidden" });
+    }
+    const action = typeof body.action === "string" ? body.action : "";
+    const monitorId = typeof body.monitorId === "string" ? body.monitorId : "";
+    if (!monitorId || !["history", "changes", "replay", "compare", "record"].includes(action)) {
+      return res.status(400).json({ ok: false, code: "malformed" });
+    }
+    if (!options.prisma) return res.status(503).json({ ok: false, code: "store_unavailable", events: [], context: null });
+    try {
+      const stored = await loadStoredHistory(options.prisma, monitorId);
+      if (!stored) return res.status(404).json({ ok: false, code: "monitor_not_found", events: [], context: null });
+      const ctx = { env };
+      if (options.authorized === true && options.authorization === "AUTHORIZED_EXACT") {
+        ctx.authorized = true;
+        ctx.authorization = "AUTHORIZED_EXACT";
+      }
+      if (action === "record") {
+        const report = typeof options.reportFor === "function" ? await options.reportFor(stored.monitor) : null;
+        const capturedAt = typeof options.now === "function" ? options.now() : Date.now();
+        const recorded = spatial.recordReportSnapshot(stored.monitor, report, capturedAt, ctx);
+        if (recorded.code === "ok" && recorded.snapshot) {
+          await saveReportSnapshot(options.prisma, monitorId, recorded.snapshot, stored.monitor.monitoringBeganAt);
+        }
+        const status = recorded.ok ? 200 : 400;
+        return res.status(status).json(recorded);
+      }
+      if (action === "compare") {
+        const before = stored.snapshots.find((row) => row.id === body.beforeId) || null;
+        const after = stored.snapshots.find((row) => row.id === body.afterId) || null;
+        if (!before || !after) {
+          return res.status(404).json({ ok: false, code: "snapshot_not_found", added: [], removed: [], changed: [], unchanged: [] });
+        }
+        return res.status(200).json(spatial.compareSpatialSnapshots(before, after, ctx));
+      }
+      const input = {
+        monitor: stored.monitor,
+        observations: stored.observations,
+        snapshots: stored.snapshots,
+        from: body.from,
+        to: body.to,
+        since: body.since,
+        at: body.at,
+      };
+      const result = action === "changes"
+        ? spatial.getChangesSince(input, ctx)
+        : action === "replay"
+          ? spatial.replaySpatialContext(input, ctx)
+          : spatial.getSpatialHistory(input, ctx);
       const status = result.ok ? 200 : 400;
       return res.status(status).json(result);
     } catch {

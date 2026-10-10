@@ -6,4 +6,5 @@ module.exports = Object.assign(
   require("./evidence.cjs"),
   require("./monitor.cjs"),
   require("./notifyPolicy.cjs"),
+  require("./history.cjs"),
 );

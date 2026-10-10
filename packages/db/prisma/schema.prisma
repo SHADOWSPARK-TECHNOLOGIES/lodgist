@@ -855,6 +855,7 @@ model SpatialMonitor {
   createdAt         DateTime                     @default(now())
   updatedAt         DateTime                     @updatedAt
   observations      SpatialMonitorObservation[]
+  snapshots         SpatialReportSnapshot[]
 
   @@index([targetType])
   @@index([state])
@@ -873,4 +874,20 @@ model SpatialMonitorObservation {
 
   @@index([monitorId])
   @@index([observedAt])
+}
+
+// Report snapshots captured at or after monitoringBeganAt. New table only.
+// The foreign key lives here, so SpatialMonitor and Listing are not altered.
+model SpatialReportSnapshot {
+  id         String         @id
+  monitorId  String
+  monitor    SpatialMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  capturedAt DateTime
+  report     Json
+  privacy    String         @default("APPROXIMATE")
+  provenance Json?
+  createdAt  DateTime       @default(now())
+
+  @@index([monitorId])
+  @@index([capturedAt])
 }

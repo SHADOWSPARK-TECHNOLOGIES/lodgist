@@ -410,3 +410,62 @@ export function decideNotification(observation?: { provider?: string | null } | 
   provider: string | null;
   channel: string | null;
 };
+
+export const HISTORY_FLAG: "SPATIAL_HISTORY";
+export function historyEnabled(env?: Record<string, string | undefined> | null): boolean;
+export interface SpatialHistoryResult {
+  ok: boolean;
+  code: string;
+  historyBeganAt: number | null;
+  unavailableBefore?: number | null;
+  from?: number | null;
+  to?: number | null;
+  since?: number | null;
+  at?: number | null;
+  events: object[];
+  snapshots: object[];
+  undated?: object[];
+  changes: object[];
+  context: object | null;
+  provenance?: {
+    source?: string | null;
+    historyBeganAt?: number | null;
+    observedAt?: number | null;
+    retrievedAt?: number | null;
+    capturedAt?: number | null;
+  } | null;
+}
+export function getSpatialHistory(input?: {
+  monitor?: { monitoringBeganAt?: number | string | Date | null } | null;
+  observations?: object[];
+  snapshots?: object[];
+  from?: number | null;
+  to?: number | null;
+}, ctx?: { env?: Record<string, string | undefined>; authorized?: boolean; authorization?: string }): SpatialHistoryResult;
+export function compareSpatialSnapshots(before?: object | null, after?: object | null, ctx?: { env?: Record<string, string | undefined>; authorized?: boolean; authorization?: string }): {
+  ok: boolean;
+  code: string;
+  added: object[];
+  removed: object[];
+  changed: object[];
+  unchanged: object[];
+};
+export function getChangesSince(input?: {
+  monitor?: { monitoringBeganAt?: number | string | Date | null } | null;
+  observations?: object[];
+  snapshots?: object[];
+  since?: number | null;
+  to?: number | null;
+}, ctx?: { env?: Record<string, string | undefined>; authorized?: boolean; authorization?: string }): SpatialHistoryResult;
+export function replaySpatialContext(input?: {
+  monitor?: { monitoringBeganAt?: number | string | Date | null } | null;
+  observations?: object[];
+  snapshots?: object[];
+  at?: number | null;
+}, ctx?: { env?: Record<string, string | undefined>; authorized?: boolean; authorization?: string }): SpatialHistoryResult;
+export function recordReportSnapshot(monitor: { monitoringBeganAt?: number | string | Date | null } | null, report: object | null, capturedAt: number | string | Date | null, ctx?: { env?: Record<string, string | undefined>; authorized?: boolean; authorization?: string }): {
+  ok: boolean;
+  code: string;
+  historyBeganAt: number | null;
+  snapshot?: object;
+};
