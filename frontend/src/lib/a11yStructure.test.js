@@ -32,8 +32,10 @@ test("a missing or malformed listing id is a server 404 with a helpful page", ()
   const page = read("src/app/listings/[id]/page.tsx");
   assert.equal(page.includes('"use client"') || page.includes("'use client'"), false);
   assert.match(page, /isValidListingId\(id\)\) notFound\(\)/);
-  assert.match(page, /status === 404\) return "missing"/);
-  assert.match(page, /=== "missing"\) notFound\(\)/);
+  // A definite API 404 is rewritten by src/proxy.ts to a fully server-rendered
+  // 404 page (see listingNotFoundRoute.test.js).
+  assert.match(read("src/proxy.ts"), /listingRouteDecision/);
+  assert.match(read("src/app/listing-not-found/[id]/page.tsx"), /<ListingNotFound \/>/);
   const notFound = read("src/app/listings/[id]/ListingNotFound.tsx");
   assert.match(notFound, /detail\.missing/);
   assert.match(notFound, /href="\/listings"/);
