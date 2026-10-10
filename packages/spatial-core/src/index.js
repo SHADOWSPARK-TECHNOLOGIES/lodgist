@@ -80,6 +80,8 @@ export const {
   FRESHNESS,
   ENVELOPE_KEYS,
   evidenceEnvelope,
+  CONFIDENCE_RULES,
+  dataQuality,
   TARGET_TYPES,
   CONDITION_OPS,
   MONITORING_FLAG,

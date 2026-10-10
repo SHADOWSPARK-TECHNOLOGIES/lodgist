@@ -46,6 +46,47 @@ function freshnessOf(observedAt, now, staleAfterMs) {
   return "fresh";
 }
 
+const CONFIDENCE_RULES = Object.freeze({
+  "freshness.unknown": "An observation has no timestamp, so freshness is unknown.",
+  "freshness.stale": "An observation is older than the stale window.",
+  "confidence.missing": "An observation has no confidence value.",
+  "completeness.silent-provider": "A provider returned no observations.",
+  "completeness.missing-subject": "A requested subject has no observation.",
+  "completeness.missing-fact": "A required fact has no observation.",
+  "conflict.sources": "Sources disagree and were not merged.",
+});
+
+function dataQuality(input = {}) {
+  const row = input && typeof input === "object" ? input : {};
+  const observations = Array.isArray(row.observations) ? row.observations : [];
+  const conflicts = Array.isArray(row.conflicts) ? row.conflicts : [];
+  const missing = Array.isArray(row.missing) ? row.missing : [];
+  const ruleIds = [];
+  if (!observations.length || observations.some((item) => !item || item.freshness === "unknown")) {
+    ruleIds.push("freshness.unknown");
+  }
+  if (observations.some((item) => item && item.freshness === "stale")) ruleIds.push("freshness.stale");
+  if (!observations.length || observations.some((item) => !item || item.confidence == null)) {
+    ruleIds.push("confidence.missing");
+  }
+  if (missing.some((item) => item && item.reason === "provider-silent")) ruleIds.push("completeness.silent-provider");
+  if (missing.some((item) => item && item.reason === "subject-missing")) ruleIds.push("completeness.missing-subject");
+  if (missing.some((item) => item && item.reason === "fact-missing")) ruleIds.push("completeness.missing-fact");
+  if (conflicts.length) ruleIds.push("conflict.sources");
+  let completeness = "empty";
+  if (observations.length && !missing.length && !conflicts.length) completeness = "complete";
+  else if (observations.length || missing.length || conflicts.length) completeness = "partial";
+  return {
+    freshness: row.freshness === "fresh" || row.freshness === "stale" || row.freshness === "unknown"
+      ? row.freshness
+      : "unknown",
+    confidenceRuleIds: ruleIds,
+    completeness,
+    sourceConflicts: conflicts.length,
+    warnings: ruleIds.map((id) => CONFIDENCE_RULES[id]),
+  };
+}
+
 function evidenceEnvelope(input = {}, options = {}) {
   const row = input && typeof input === "object" ? input : {};
   const observedAt = finiteTimestamp(row.observedAt);
@@ -75,6 +116,8 @@ module.exports = {
   CLASSIFICATIONS,
   DEFAULT_STALE_AFTER_MS,
   ENVELOPE_KEYS,
+  CONFIDENCE_RULES,
   finiteTimestamp,
+  dataQuality,
   evidenceEnvelope,
 };
