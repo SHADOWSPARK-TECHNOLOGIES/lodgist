@@ -38,12 +38,6 @@ function SearchContent() {
       clearTimeout(timer);
       controller.abort();
     };
-    let cancelled = false;
-    listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
-      .then(res => { if (!cancelled) setListings(publicListings(res.data)); })
-      .catch(() => { if (!cancelled) setError(copy.fetchError); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
   }, [searchTerm]);
 
   const handleSearch = (e: React.FormEvent) => {

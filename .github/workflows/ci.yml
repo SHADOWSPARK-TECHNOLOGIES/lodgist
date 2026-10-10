@@ -33,6 +33,9 @@ jobs:
             packages/db/pnpm-lock.yaml
             lodgist/pnpm-lock.yaml
 
+      - name: Check root lockfile (used by Railway lodgist-api)
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
       - name: Install database package
         working-directory: packages/db
         run: pnpm install --frozen-lockfile
