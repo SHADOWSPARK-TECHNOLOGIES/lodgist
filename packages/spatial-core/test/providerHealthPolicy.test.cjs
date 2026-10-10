@@ -104,3 +104,11 @@ test("12K: safeguards record outcomes into health state", async () => {
   const health = core.providerHealth("z", { registry: [cleared("z")], state: healthState, now: NOW, production: false });
   assert.equal(health.status, "RATE_LIMITED");
 });
+
+test("12N: Google 3D and Mapillary are listed in the registry as disabled/deferred", () => {
+  const rows = core.providerRegistry();
+  assert.equal(rows.find((r) => r.id === "google-photorealistic-3d").status, "disabled");
+  assert.equal(rows.find((r) => r.id === "mapillary").status, "deferred");
+  assert.equal(core.providerHealth("google-photorealistic-3d", { env: {}, production: true }).status, "DISABLED");
+  assert.equal(core.providerHealth("mapillary", { env: {}, production: true }).status, "DISABLED");
+});

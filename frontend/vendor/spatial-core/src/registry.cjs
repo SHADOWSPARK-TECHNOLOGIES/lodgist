@@ -227,6 +227,12 @@ function providerRegistry(override) {
   if (!rows.some((row) => row.id === "osrm")) {
     rows.push(decorateProvider({ id: "osrm", status: "absent", env: "OSRM_BASE_URL" }));
   }
+  if (!rows.some((row) => row.id === "google-photorealistic-3d")) {
+    rows.push(decorateProvider({ id: "google-photorealistic-3d", status: "disabled" }));
+  }
+  if (!rows.some((row) => row.id === "mapillary")) {
+    rows.push(decorateProvider({ id: "mapillary", status: "deferred" }));
+  }
   return rows;
 }
 
