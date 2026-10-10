@@ -202,3 +202,95 @@ export function cellKey(focus: SpatialFocus, categories?: string[]): string;
 export function stripPrivateLocationKeys<T>(value: T): T;
 export function assertNoPrivateLocationKeys<T>(value: T): T;
 export function createSafeguardState(): SafeguardState;
+
+export type SpatialClassification = "VERIFIED" | "OBSERVED" | "DERIVED" | "ESTIMATED" | "UNKNOWN";
+export type SpatialFreshness = "fresh" | "stale" | "unknown";
+
+export interface SpatialObservation {
+  subjectId: string | null;
+  provider: string | null;
+  kind: string;
+  fact: string;
+  value: unknown;
+  observedAt: number | null;
+  retrievedAt: number | null;
+  freshness: SpatialFreshness;
+  confidence: number | null;
+  classification: SpatialClassification;
+  coverage: string | null;
+  source: string | null;
+  license: string | null;
+}
+
+export interface CrossReferenceReport {
+  observations: SpatialObservation[];
+  agreements: Array<{ subjectId: string | null; fact: string; values: unknown[] }>;
+  conflicts: Array<{ subjectId: string | null; fact: string; values: unknown[] }>;
+  missing: Array<{ provider: string | null; subjectId: string | null; fact: string | null; reason: string }>;
+  freshness: SpatialFreshness;
+  provenance: Array<{ provider: string | null; source: string | null; license: string | null; retrievedAt: number | null }>;
+  coverage: Array<string | null>;
+}
+
+export const CLASSIFICATIONS: readonly SpatialClassification[];
+export const CANONICAL_CATEGORIES: readonly Array<"shop" | "pharmacy" | "clinic" | "transport">;
+export const LAB_LAYER_TO_CATEGORY: Readonly<Record<string, "shop" | "pharmacy" | "clinic" | "transport" | null>>;
+export const TRANSIT_POLICY: { id: "transit"; status: "undecided"; enabled: false; reason: string };
+export const SPATIAL_LAB_CONTRACT: {
+  revision: string;
+  allowedLayers: string[];
+  bannedLayers: string[];
+  amenityCategories: string[];
+  providerIds: string[];
+  transit: string;
+};
+
+export function crossReference(input: {
+  location?: { listingId?: number | string; campusId?: string | null };
+  subjects?: Array<number | string>;
+  providers?: Array<{ id?: string; observations?: object[] }>;
+  constraints?: { requiredFacts?: string[] };
+  now?: number;
+  staleAfterMs?: number;
+}): CrossReferenceReport;
+export function relateListingToCampus(input: {
+  listingId: number | string;
+  campusId: string;
+  listings?: object[];
+  isPublicListing?: (listing: object | null) => boolean;
+}): {
+  listingId: number | string;
+  campusId: string;
+  campusName?: string | null;
+  status: string;
+  straightLineLabel: string | null;
+  travelTime: null;
+};
+export function compareListings(input: {
+  listingIds: Array<number | string>;
+  listings?: object[];
+  isPublicListing?: (listing: object | null) => boolean;
+}): { listingIds: Array<number | string>; comparisons: Array<{ fact: string; values: Record<string, unknown>; agreement: boolean }> };
+export function mapLabLayer(layerId: string): "shop" | "pharmacy" | "clinic" | "transport" | null;
+export function spatialLabDrift(live?: {
+  revision?: string;
+  allowedLayers?: string[];
+  bannedLayers?: string[];
+  amenityCategories?: string[];
+  providerIds?: string[];
+  transit?: string;
+}): { revision: string; differences: object[]; transit: { enabled: false } };
+export function buildSpatialContext(input: {
+  listing: object;
+  campusId?: string | null;
+  providers?: Array<{ id?: string; observations?: object[] }>;
+  subjects?: Array<number | string>;
+  constraints?: { requiredFacts?: string[] };
+  now?: number;
+  isPublicListing?: (listing: object | null) => boolean;
+}): (CrossReferenceReport & {
+  listingId: number;
+  straightLineLabel: string | null;
+  travelTime: null;
+  approxLocation: { lat: number; lng: number; radiusM: number } | null;
+}) | null;

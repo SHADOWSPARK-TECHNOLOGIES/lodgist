@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const core = require("./core.cjs");
+const core = require("./index.cjs");
 
 export const {
   DISCLAIMER,
@@ -55,4 +55,15 @@ export const {
   DEFAULT_CACHE_TTL_MS,
   PROVIDER_BACKOFF_MS,
   DEFAULT_USER_AGENT,
+  CLASSIFICATIONS,
+  CANONICAL_CATEGORIES,
+  LAB_LAYER_TO_CATEGORY,
+  TRANSIT_POLICY,
+  SPATIAL_LAB_CONTRACT,
+  crossReference,
+  relateListingToCampus,
+  compareListings,
+  mapLabLayer,
+  spatialLabDrift,
+  buildSpatialContext,
 } = core;
