@@ -3,6 +3,7 @@ const { analyzeListing } = require("../services/listingScamDetection");
 const { isShareable, parsePreferredDate } = require("../services/whatsapp/tools");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const logger = require("../utils/logger");
+const { presentListingImages } = require("../services/objectStorage");
 
 // Renters only. Landlords, agents, and admins book through /api/bookings.
 const TENANT_ROLES = new Set(["USER", "TENANT"]);
@@ -33,6 +34,9 @@ const LISTING_PUBLIC_SELECT = {
   riskState: true,
   truthIndex: true,
   reviewStatus: true,
+  evidenceVerified: true,
+  verifiedAt: true,
+  verifiedById: true,
   createdAt: true,
   updatedAt: true,
 };
@@ -85,9 +89,9 @@ const LISTING_STATUSES = new Set(["PENDING", "VERIFIED", "REJECTED", "ARCHIVED"]
 // FLAGGED or SUSPENDED. reviewStatus APPROVED is review-for-display only.
 // There is no DRAFT status. Sample rows (`totalMoveInCost.sample`) are JSON,
 // so findMany still drops them in JS; public `pagination.total` subtracts the
-// same sample match so count and data stay aligned. Admin and landlord keep a
-// wider result only when they pass an explicit status on this route.
-const MANAGEMENT_ROLES = new Set(["STUDIO_ADMIN", "LANDLORD"]);
+// same sample match so count and data stay aligned. A STUDIO_ADMIN who passes
+// an explicit status sees every listing in that status. A LANDLORD who passes
+// one sees only listings they own.
 const PUBLIC_LISTING_STATUSES = ["PENDING", "VERIFIED"];
 const ELIGIBLE_RISK_STATES = ["UNVERIFIED", "UNDER_REVIEW", "VERIFIED"];
 const BLOCKED_RISK_STATES = new Set(["FLAGGED", "SUSPENDED"]);
@@ -107,8 +111,39 @@ function isExampleListing(listing) {
 
 // Review and verification are different. status VERIFIED, riskState VERIFIED,
 // reviewStatus APPROVED, and a successful payment are not completed checks.
-function isEvidenceVerified() {
-  return false;
+// The badge requires an admin-recorded flag plus reviewer and timestamp.
+function isEvidenceVerified(listing) {
+  if (!listing || typeof listing !== "object") return false;
+  if (isExampleListing(listing)) return false;
+  if (listing.evidenceVerified !== true) return false;
+  const reviewer = listing.verifiedById;
+  if (typeof reviewer !== "number" || !Number.isInteger(reviewer) || reviewer <= 0) return false;
+  if (listing.verifiedAt == null || listing.verifiedAt === "") return false;
+  const stamp = listing.verifiedAt instanceof Date ? listing.verifiedAt : new Date(listing.verifiedAt);
+  return !Number.isNaN(stamp.getTime());
+}
+
+function verifiedPublicFields(listing) {
+  const verified = isEvidenceVerified(listing);
+  return {
+    evidenceVerified: verified,
+    verifiedAt: verified ? listing.verifiedAt : null,
+  };
+}
+
+// Publication is not the verified badge. There is no separate draft column:
+// a new listing is pending review until a STUDIO_ADMIN approves it.
+function publicationState(listing) {
+  if (!listing || typeof listing !== "object") return "draft";
+  if (listing.status === "REJECTED") return "rejected";
+  if (isEligiblePublicListing(listing)) return "published";
+  if (
+    listing.reviewStatus !== "APPROVED" &&
+    (listing.status === "PENDING" || listing.status === "VERIFIED")
+  ) {
+    return "pending_review";
+  }
+  return "draft";
 }
 
 function reviewLabelFor(listing) {
@@ -123,6 +158,25 @@ function isEligiblePublicListing(listing) {
   if (listing.status !== "PENDING" && listing.status !== "VERIFIED") return false;
   if (BLOCKED_RISK_STATES.has(listing.riskState)) return false;
   return true;
+}
+
+function viewerCanSeeListingInternals(user, listing) {
+  if (!user || !listing) return false;
+  if (user.role === "STUDIO_ADMIN") return true;
+  return user.id != null && listing.ownerId === user.id;
+}
+
+// Shared by public list, search, and detail. ownerId, owner.id, and fraudReason
+// stay only when the viewer is that listing's owner or a STUDIO_ADMIN.
+function redactPublicListing(payload, user, source) {
+  if (viewerCanSeeListingInternals(user, source)) return payload;
+  const { ownerId: _ownerId, fraudReason: _fraudReason, owner, ...rest } = payload;
+  if (owner && typeof owner === "object") {
+    const { id: _id, ...ownerRest } = owner;
+    return { ...rest, owner: ownerRest };
+  }
+  if (owner !== undefined) return { ...rest, owner };
+  return rest;
 }
 
 // Listing has no source column. Public responses say "Direct submission"
@@ -181,9 +235,13 @@ async function countPublicBrowse(prisma, where, mode) {
 
 function applyPublicBrowseFilter(where, user, statusQuery) {
   const explicit = explicitListingStatus(statusQuery);
-  const management = Boolean(user && MANAGEMENT_ROLES.has(user.role));
-  if (management && explicit) {
+  if (user && explicit && user.role === "STUDIO_ADMIN") {
     where.status = explicit;
+    return { mode: "management", where };
+  }
+  if (user && explicit && user.role === "LANDLORD") {
+    where.status = explicit;
+    where.ownerId = user.id;
     return { mode: "management", where };
   }
   where.status = { in: PUBLIC_LISTING_STATUSES };
@@ -192,6 +250,43 @@ function applyPublicBrowseFilter(where, user, statusQuery) {
   const risk = publicRiskFilter();
   where.AND = Array.isArray(where.AND) ? where.AND.concat([risk]) : [risk];
   return { mode: "public", where };
+}
+
+function listingWasAttested(listing) {
+  return listing.reviewStatus === "APPROVED"
+    || listing.evidenceVerified === true
+    || listing.verifiedAt != null
+    || (typeof listing.verifiedById === "number" && listing.verifiedById > 0);
+}
+
+// Owner edits of content Lodgist already reviewed drop the attestation and
+// record one adminAudit row. Photo add/remove uses this same helper.
+function ownerReviewedContentReset(listing, actorId, changedFields) {
+  if (!listing || !Array.isArray(changedFields) || changedFields.length === 0) return null;
+  if (!listingWasAttested(listing)) return null;
+  const reset = {
+    reviewStatus: "NOT_REVIEWED",
+    evidenceVerified: false,
+    verifiedAt: null,
+    verifiedById: null,
+  };
+  const prior = Array.isArray(listing.adminAudit)
+    ? listing.adminAudit.filter((item) => item && typeof item === "object")
+    : [];
+  const entry = {
+    action: "owner_content_edit",
+    adminId: null,
+    actorId,
+    listingId: listing.id,
+    at: new Date().toISOString(),
+    reason: "Owner changed content Lodgist had already reviewed.",
+    changedFields,
+    publicationState: publicationState({ ...listing, ...reset }),
+    evidenceVerified: false,
+  };
+  const nextAudit = prior.concat([entry]);
+  reset.adminAudit = nextAudit.length > 50 ? nextAudit.slice(nextAudit.length - 50) : nextAudit;
+  return reset;
 }
 
 function listingsRouter(prisma) {
@@ -253,10 +348,12 @@ function listingsRouter(prisma) {
         propertyWhere.state = { equals: state, mode: "insensitive" };
       }
       if (typeof area === "string" && area) {
+        // Public location only. address and landmark stay off this filter
+        // so a stranger cannot probe whether a street or landmark exists.
         propertyWhere.OR = [
           { city: { contains: area, mode: "insensitive" } },
           { lga: { contains: area, mode: "insensitive" } },
-          { address: { contains: area, mode: "insensitive" } },
+          { state: { contains: area, mode: "insensitive" } },
         ];
       }
       if (Object.keys(propertyWhere).length) where.property = { is: propertyWhere };
@@ -276,9 +373,8 @@ function listingsRouter(prisma) {
         select: {
           ...LISTING_PUBLIC_SELECT,
           images: {
-            where: { isPrimary: true },
-            take: 1,
-            select: { url: true, altText: true },
+            orderBy: { order: "asc" },
+            select: { id: true, url: true, altText: true, isPrimary: true, order: true },
           },
           property: {
             select: {
@@ -330,18 +426,20 @@ function listingsRouter(prisma) {
       const visible = browse.mode === "public"
         ? listings.filter((listing) => isEligiblePublicListing(listing))
         : listings;
-      const data = visible.map((listing) => {
-        const { fraudSignals, _count, ...rest } = listing;
+      const data = await Promise.all(visible.map(async (listing) => {
+        const { fraudSignals, _count, verifiedById: _verifiedById, adminAudit: _adminAudit, rejectionReason: _rejectionReason, ...rest } = listing;
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
-        return {
+        return redactPublicListing({
           ...rest,
+          images: await presentListingImages(rest.images),
           ...publicDiscovery(listing),
+          ...verifiedPublicFields(listing),
           averageRating: ratingMap[listing.id] ?? null,
           reviewCount: _count.reviews,
           bookingCount: _count.bookings,
           fraudSignalScore: latestFraudScore,
-        };
-      });
+        }, req.user, listing);
+      }));
 
       res.json({
         success: true,
@@ -381,7 +479,7 @@ function listingsRouter(prisma) {
           ...LISTING_PUBLIC_SELECT,
           images: {
             orderBy: { order: "asc" },
-            select: { url: true, altText: true, isPrimary: true },
+            select: { id: true, url: true, altText: true, isPrimary: true, order: true },
           },
           property: {
             select: {
@@ -422,8 +520,9 @@ function listingsRouter(prisma) {
         return res.status(404).json({ error: "Listing not found" });
       }
 
-      const management = Boolean(req.user && MANAGEMENT_ROLES.has(req.user.role));
-      if (!management && !isEligiblePublicListing(listing)) {
+      const isAdmin = Boolean(req.user && req.user.role === "STUDIO_ADMIN");
+      const isOwner = Boolean(req.user && listing.ownerId != null && listing.ownerId === req.user.id);
+      if (!isAdmin && !isOwner && !isEligiblePublicListing(listing)) {
         return res.status(404).json({ error: "Listing not found" });
       }
 
@@ -434,7 +533,8 @@ function listingsRouter(prisma) {
         _count: true,
       });
 
-      const { _count, fraudSignals, property, ...listingData } = listing;
+      const { _count, fraudSignals, property, verifiedById: _verifiedById, adminAudit: _adminAudit, rejectionReason: _rejectionReason, ...listingData } = listing;
+      listingData.images = await presentListingImages(listingData.images);
       const latestFraudSignal = fraudSignals?.[0] ?? null;
       let publicProperty = null;
       let approx = null;
@@ -446,16 +546,17 @@ function listingsRouter(prisma) {
 
       res.json({
         success: true,
-        data: {
+        data: redactPublicListing({
           ...listingData,
           ...publicDiscovery(listing),
+          ...verifiedPublicFields(listing),
           property: publicProperty,
           approxLocation: approx,
           averageRating: ratingAgg._avg.rating,
           reviewCount: ratingAgg._count,
           bookingCount: _count.bookings,
           latestFraudSignal,
-        },
+        }, req.user, listing),
       });
     } catch (error) {
       logger.error("Error fetching single listing", {
@@ -767,12 +868,13 @@ function listingsRouter(prisma) {
           reviewStatus: "NOT_REVIEWED",
         },
         include: {
-          images: { select: { url: true, altText: true, isPrimary: true } },
+          images: { select: { id: true, url: true, altText: true, isPrimary: true, order: true } },
           property: { select: { id: true, city: true, state: true } },
           owner: { select: { id: true, name: true } },
         },
       });
 
+      newListing.images = await presentListingImages(newListing.images);
       res.status(201).json({ success: true, data: newListing });
     } catch (error) {
       console.error("Error creating listing:", error);
@@ -781,6 +883,30 @@ function listingsRouter(prisma) {
   });
 
   // ─── PUT /api/listings/:id — Auth required, owner-only update ─────────────
+  // Content Lodgist already approved or verified cannot keep that attestation
+  // after the owner changes it. Same values are not a change.
+  function sameListingValue(field, previous, next) {
+    if (field === "price") {
+      const left = typeof previous === "number" ? previous : Number(previous);
+      const right = typeof next === "number" ? next : Number(next);
+      return Number.isFinite(left) && Number.isFinite(right) && left === right;
+    }
+    if (field === "totalMoveInCost") {
+      return JSON.stringify(stableJson(previous)) === JSON.stringify(stableJson(next));
+    }
+    return previous === next;
+  }
+
+  function stableJson(value) {
+    if (Array.isArray(value)) return value.map(stableJson);
+    if (value && typeof value === "object") {
+      const out = {};
+      for (const key of Object.keys(value).sort()) out[key] = stableJson(value[key]);
+      return out;
+    }
+    return value;
+  }
+
   router.put("/:id", requireAuth, async (req, res) => {
     try {
       const listingId = parseInt(req.params.id, 10);
@@ -810,15 +936,26 @@ function listingsRouter(prisma) {
         return res.status(400).json({ success: false, error: "No valid fields to update" });
       }
 
+      const changedFields = Object.keys(updateData).filter(
+        (field) => !sameListingValue(field, existing[field], updateData[field])
+      );
+      const reset = ownerReviewedContentReset(
+        { ...existing, ...updateData },
+        req.user.id,
+        changedFields
+      );
+      if (reset) Object.assign(updateData, reset);
+
       const updatedListing = await prisma.listing.update({
         where: { id: listingId },
         data: updateData,
         include: {
-          images: { select: { url: true, altText: true, isPrimary: true } },
+          images: { select: { id: true, url: true, altText: true, isPrimary: true, order: true } },
           owner: { select: { id: true, name: true } },
         },
       });
 
+      updatedListing.images = await presentListingImages(updatedListing.images);
       res.json({ success: true, data: updatedListing });
     } catch (error) {
       console.error("Error updating listing:", error);
@@ -862,4 +999,8 @@ module.exports.withPublicSampleMatch = withPublicSampleMatch;
 module.exports.countPublicBrowse = countPublicBrowse;
 module.exports.isExampleListing = isExampleListing;
 module.exports.isEligiblePublicListing = isEligiblePublicListing;
+module.exports.isEvidenceVerified = isEvidenceVerified;
+module.exports.publicationState = publicationState;
+module.exports.ownerReviewedContentReset = ownerReviewedContentReset;
+module.exports.verifiedPublicFields = verifiedPublicFields;
 module.exports.publicDiscovery = publicDiscovery;

@@ -9,6 +9,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
@@ -67,6 +68,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     return { isLoaded: false, user: null, token: null };
   });
+
+  // A signed-out visitor has no token, so the initialiser above leaves
+  // isLoaded false. Finish the stored-auth check on mount so pages that wait
+  // on isLoaded (admin queues, dashboard) show a sign-in state instead of
+  // "Loading" forever.
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setState((prev) => (prev.isLoaded ? prev : { isLoaded: true, token: getToken(), user: getStoredUser() }));
+    });
+    return () => { active = false; };
+  }, []);
 
   // ── Core Auth Methods ──
 

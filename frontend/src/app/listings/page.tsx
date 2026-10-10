@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { listingsApi } from '@/lib/api';
 import { TruthScore } from '@/components/ui/TruthScore';
-import { formatYearlyRent, listings as copy, supportWhatsAppLink } from '@/lib/copy';
-import { hasTrustScore, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
+import { formatYearlyRent, listingCard, listings as copy, supportWhatsAppLink } from '@/lib/copy';
+import { photoAlt, storedPhotos } from '@/lib/listingPhotos';
+import { hasTrustScore, isEvidenceVerified, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
 import LeadCapture from '@/components/LeadCapture';
 import type { Listing } from '@/lib/types';
 
@@ -18,8 +19,7 @@ export default function ListingsPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    setLoading(true);
-    setFailed(false);
+    let cancelled = false;
     const maxPrice = maxRent.trim() === '' ? undefined : Number(maxRent);
     listingsApi.list({
       search,
@@ -27,12 +27,14 @@ export default function ListingsPage() {
       limit: 12,
       maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : undefined,
     })
-      .then(res => setListings(publicListings(res.data ?? [])))
-      .catch(() => { setFailed(true); setListings([]); })
-      .finally(() => setLoading(false));
+      .then(res => { if (!cancelled) setListings(publicListings(res.data ?? [])); })
+      .catch(() => { if (!cancelled) { setFailed(true); setListings([]); } })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [search, maxRent, reloadKey]);
 
-  const askHref = supportWhatsAppLink("I need a home. Area: ");
+  const area = search.trim();
+  const askHref = supportWhatsAppLink(area ? `I need a home. Area: ${area}` : "I need a home.");
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--color-navy)' }}>
@@ -43,16 +45,22 @@ export default function ListingsPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          <label className="sr-only" htmlFor="area-search">{copy.searchPlaceholder}</label>
-          <input id="area-search" className="input max-w-sm" placeholder={copy.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} />
-          <label className="sr-only" htmlFor="max-rent">{copy.maxRent}</label>
-          <input id="max-rent" className="input max-w-[12rem]" inputMode="numeric" placeholder={copy.maxRent} value={maxRent} onChange={e => setMaxRent(e.target.value)} />
+          <div className="w-full max-w-sm">
+            <label className="label" htmlFor="area-search">{copy.searchLabel}</label>
+            <input id="area-search" className="input" placeholder={copy.searchPlaceholder} value={search} onChange={e => { setSearch(e.target.value); setLoading(true); setFailed(false); }} />
+          </div>
+          <div className="w-full max-w-[12rem]">
+            <label className="label" htmlFor="max-rent">{copy.maxRent}</label>
+            <input id="max-rent" className="input" inputMode="numeric" value={maxRent} onChange={e => { setMaxRent(e.target.value); setLoading(true); setFailed(false); }} />
+          </div>
         </div>
-        {!loading && !failed && <p className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.45)' }}>{copy.count(listings.length)}</p>}
+        <p role="status" aria-live="polite" className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
+          {loading ? copy.loading : failed ? '' : copy.count(listings.length)}
+        </p>
 
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[1,2,3,4,5,6].map(i => (
+            {[1,2].map(i => (
               <div key={i} className="card">
                 <div className="skeleton h-48 w-full mb-4" />
                 <div className="skeleton h-4 w-3/4 mb-2" />
@@ -65,7 +73,7 @@ export default function ListingsPage() {
             <h2 className="font-poppins font-semibold text-white text-lg mb-2">{copy.loadErrorTitle}</h2>
             <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>{copy.loadErrorBody}</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button type="button" className="btn btn-primary" onClick={() => setReloadKey(k => k + 1)}>{copy.retry}</button>
+              <button type="button" className="btn btn-primary" onClick={() => { setReloadKey(k => k + 1); setLoading(true); setFailed(false); }}>{copy.retry}</button>
               {askHref && <a href={askHref} className="btn btn-secondary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>}
             </div>
           </div>
@@ -84,18 +92,25 @@ export default function ListingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map(listing => {
               const score = listing.truthIndex ?? listing.owner?.truthIndex;
+              const photos = storedPhotos(listing.images);
+              const primary = photos[0];
               return (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
-                <div className="h-48 rounded-xl mb-4 flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
-                  {listing.images?.[0]?.url ? (
-                    <img src={listing.images[0].url} alt={listing.title} className="w-full h-full object-cover rounded-xl" />
+                <div className="h-48 rounded-xl mb-4 flex items-center justify-center relative overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+                  {primary ? (
+                    <img src={primary.url} alt={photoAlt(primary, listing.title)} className="w-full h-full object-cover rounded-xl" />
                   ) : (
                     <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>Home</span>
+                  )}
+                  {photos.length > 1 && (
+                    <span className="absolute bottom-2 right-2 text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(11,27,43,0.82)', color: '#fff' }}>
+                      {listingCard.photoCount(photos.length)}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-poppins font-semibold text-white text-sm mb-1">{listing.title}</h3>
+                    <h2 className="font-poppins font-semibold text-white text-sm mb-1">{listing.title}</h2>
                     <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       {listing.property?.city ?? listing.property?.state ?? ''}
                     </p>
@@ -104,10 +119,10 @@ export default function ListingsPage() {
                         {formatYearlyRent(listing.price)}
                       </p>
                     )}
-                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'var(--color-teal)' : 'rgba(255,255,255,0.45)' }}>
+                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)' }}>
                       {reviewLabel(listing)}
                     </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--color-orange)' }}>
+                    <p className="text-xs mt-1" style={{ color: isEvidenceVerified(listing) ? 'var(--color-teal)' : 'var(--color-orange)' }}>
                       {verificationLabel(listing)}
                     </p>
                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{sourceLabel(listing)}</p>

@@ -12,6 +12,7 @@ const { requireAuth } = require("./middleware/auth");
 const authRouter = require("./routes/auth")(prisma);
 const usersRouter = require("./routes/users")(prisma);
 const listingsRouter = require("./routes/listings")(prisma);
+const listingPhotosRouter = require("./routes/listingPhotos")(prisma);
 const verificationRouter = require("./routes/verification");
 const aiAnalysisRouter = require("./routes/ai-analysis");
 const agreementsRouter = require("./routes/agreements");
@@ -30,7 +31,9 @@ const bookingsRouter = createBookingsRouter(prisma);
 const leadsRouter = require("./routes/leads")(prisma);
 const advertiserLeadsRouter = require("./routes/advertiserLeads")(prisma);
 const rentalChecksRouter = require("./routes/rentalChecks")(prisma);
+const adminListingsRouter = require("./routes/adminListings")(prisma);
 const healthRouter = require("./routes/health")(prisma);
+const createSpatialRouter = require("./routes/spatial");
 
 const app = express();
 // Railway sits behind one proxy; trust it so rate limiting keys on the client IP.
@@ -130,12 +133,15 @@ app.use(morgan("combined", { stream: logger.morganStream }));
 // ── Health Check ────────────────────────────────────────────────────────────
 
 app.use("/api/health", healthRouter);
+app.use("/api/spatial", createSpatialRouter({ prisma }));
 
 // ── API Routes ──────────────────────────────────────────────────────────────
 
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/listings", listingPhotosRouter);
 app.use("/api/listings", listingsRouter);
+app.use("/api/admin/listings", adminListingsRouter);
 app.use("/api/reviews", reviewsRouter);
 app.use("/api/truth-index", truthIndexRouter);
 app.use("/api/verification", verificationRouter);
@@ -165,7 +171,8 @@ app.listen(PORT, HOST, () => {
   logger.info(`  GET  /api/health`);
   logger.info(`  /api/auth (register, login, passkey)`);
   logger.info(`  /api/users`);
-  logger.info(`  /api/listings (browse, detail, viewing-requests)`);
+  logger.info(`  /api/listings (browse, detail, photos, viewing-requests)`);
+  logger.info(`  /api/admin/listings (pending, approve, reject, verify)`);
   logger.info(`  /api/reviews`);
   logger.info(`  /api/truth-index`);
   logger.info(`  /api/verification`);

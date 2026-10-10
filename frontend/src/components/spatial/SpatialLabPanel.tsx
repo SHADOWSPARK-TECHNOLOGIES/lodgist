@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { focusableElements, nextDialogFocus } from "@/lib/spatialLab";
 import SpatialLabView, { type LabModel } from "./SpatialLabView";
 
 type Props = {
@@ -29,17 +30,38 @@ export default function SpatialLabPanel({
   tileTemplate,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const node = panelRef.current;
-    node?.querySelector<HTMLElement>("button, [href], input")?.focus();
+    node?.querySelector<HTMLElement>("button, [href], input, select, textarea")?.focus();
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !node) return;
+      const next = nextDialogFocus(focusableElements(node), document.activeElement, event.shiftKey);
+      if (!next) return;
+      event.preventDefault();
+      next.focus();
     }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = previousOverflow;
+      previous?.focus();
+    };
+  }, [open]);
 
   if (!open) return null;
 

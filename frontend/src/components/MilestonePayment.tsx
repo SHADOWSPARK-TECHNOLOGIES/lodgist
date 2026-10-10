@@ -11,6 +11,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { milestones as milestoneCopy, supportWhatsAppLink } from "@/lib/copy";
+import { paymentWhatsAppText } from "@/lib/whatsappPayment";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -55,11 +56,12 @@ export default function MilestonePayment({
 
   const buildWaUrl = (milestone: Milestone) => {
     return supportWhatsAppLink(
-      `Hi Lodgist Support, I'd like to complete a milestone payment.\n\n` +
-        `Milestone: ${milestone.label}\n` +
-        `Amount: ${milestone.currency} ${milestone.amount.toLocaleString()}\n` +
-        (bookingId ? `Booking ID: ${bookingId}\n` : "") +
-        `\nPlease assist me with next steps.`
+      paymentWhatsAppText({
+        what: milestone.label,
+        amountNgn: milestone.amount,
+        currency: milestone.currency,
+        reference: bookingId || milestone.id,
+      }),
     );
   };
 
@@ -162,9 +164,15 @@ export default function MilestonePayment({
                   {m.status === "pending" && buildWaUrl(m) && (
                     <a
                       href={buildWaUrl(m) ?? undefined}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="mt-1 inline-flex items-center gap-1 rounded bg-green-600 px-3 py-1 text-xs font-medium text-white transition-all hover:bg-green-700"
+                      onClick={async (event) => {
+                        const url = buildWaUrl(m);
+                        if (!url) return;
+                        if (!onPay) return;
+                        event.preventDefault();
+                        await onPay(m.id);
+                        window.location.assign(url);
+                      }}
                     >
                       <MessageCircle className="h-3 w-3" />
                       {milestoneCopy.complete}

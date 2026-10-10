@@ -23,7 +23,6 @@ lodgist/
 **Frontend** (`/frontend`)
 - Next.js 16.2.4 with React 19 (breaking changes from v15; read node_modules/next/dist/docs/ before major changes)
 - TypeScript, Tailwind CSS 4, ESLint 9
-- Deployed to Vercel (see `vercel.json`)
 
 **Backend API** (`/backend`)
 - Express.js server with CORS, JSON body parsing (10mb limit)
@@ -155,9 +154,7 @@ const { PrismaClient } = require("@prisma/client");
 
 ### Deployment & CI/CD
 - **Backend**: Render Blueprint (`render.yaml`) – Docker build from `backend/Dockerfile`, health check at `/api/health`
-- **Frontend**: Vercel (`vercel.json`) – automatic deployment from `main` branch
 - **Infrastructure**: AWS CDK stack in `/infra` (see `infra/README.md` for CDK commands)
-- **Environment secrets**: Managed per platform (Render dashboard, Vercel Settings, AWS Secrets Manager)
 
 ### pnpm Workspace Note
 - Root has no `package.json` (not a workspace root)
@@ -395,7 +392,6 @@ Audit Trail: Every update creates an `AIFraudSignal` record with metadata
 ### Next.js 16.2.4 Gotchas
 - **Breaking from v15**: Check `node_modules/next/dist/docs/` before major changes
 - **App Router only** — No Pages Router support
-- **Vercel deployment**: Automatic on `main` branch push (see `vercel.json`)
 - **TypeScript strict mode**: Enabled; watch for `@types/react-dom` version compatibility
 
 ### Google Cloud Credentials Handling
@@ -440,7 +436,6 @@ Audit Trail: Every update creates an `AIFraudSignal` record with metadata
 - **Next.js 16 Docs**: https://nextjs.org/docs (beware breaking changes vs. v15)
 - **Express.js**: https://expressjs.com/
 - **Render Deployment**: https://render.com/docs/deploy-node-express-app
-- **Vercel Deployment**: https://vercel.com/docs
 
 ---
 

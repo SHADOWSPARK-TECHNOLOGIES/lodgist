@@ -29,9 +29,8 @@ describe("GET /api/health", () => {
       const { status, body } = await getJson(server);
       assert.equal(status, 200);
       assert.equal(body.status, "ok");
-      assert.equal(body.service, "Lodgist API");
-      assert.equal(body.database.status, "connected");
-      assert.equal(typeof body.database.latencyMs, "number");
+      assert.equal(body.database, "connected");
+      assert.deepEqual(Object.keys(body).sort(), ["database", "status"]);
     } finally {
       server.close();
     }
@@ -51,8 +50,26 @@ describe("GET /api/health", () => {
       const { status, body } = await getJson(server);
       assert.equal(status, 200);
       assert.equal(body.status, "degraded");
-      assert.equal(body.database.status, "disconnected");
-      assert.equal(body.database.latencyMs, null);
+      assert.equal(body.database, "disconnected");
+      assert.deepEqual(Object.keys(body).sort(), ["database", "status"]);
+    } finally {
+      server.close();
+    }
+  });
+
+  it("does not expose memory, uptime, version, or env details", async () => {
+    const server = await listen(appWith({ user: { count: async () => 1 } }));
+    try {
+      const { status, body } = await getJson(server);
+      assert.equal(status, 200);
+      for (const key of ["memory", "uptime", "version", "env", "service", "timestamp"]) {
+        assert.equal(body[key], undefined, key);
+      }
+      const serialized = JSON.stringify(body);
+      assert.equal(serialized.includes("heap"), false);
+      assert.equal(serialized.includes("rss"), false);
+      assert.equal(serialized.includes("NODE_ENV"), false);
+      assert.equal(serialized.includes("latencyMs"), false);
     } finally {
       server.close();
     }

@@ -303,16 +303,106 @@ function paidPaymentUpdate(check) {
   };
 }
 
-function publicStatus(check) {
-  return {
+function publicStatus(check, options) {
+  const view = {
     product: PRODUCT_NAME,
     publicReference: check.publicReference,
     status: check.status,
     paymentStatus: check.paymentStatus,
     reviewStatus: check.reviewStatus,
     amountNgn: check.amountNgn,
+    paymentReferenceSubmitted: Boolean(check.manualPaymentRef),
     reportReady: check.status === "REPORT_READY" || check.status === "DELIVERED",
     createdAt: check.createdAt,
+  };
+  if (options && options.includePayer) {
+    view.customerName = check.customerName || null;
+    view.location = check.location || null;
+  }
+  return view;
+}
+
+function validateManualPaymentRef(body) {
+  const source = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+  const fileKeys = ["screenshot", "screenshots", "image", "images", "photo", "photos", "file"];
+  if (fileKeys.some((key) => source[key] != null)) {
+    return { ok: false, status: 400, error: "Screenshot upload is not available. A file does not confirm payment." };
+  }
+  for (const key of Object.keys(source)) {
+    const compact = key.toLowerCase().replace(/[^a-z]/g, "");
+    if (SECRET_KEYS.has(compact)) {
+      return { ok: false, status: 400, error: "Do not send card numbers, PINs, or OTPs." };
+    }
+  }
+  const raw = source.manualPaymentRef;
+  if (typeof raw !== "string" || !raw.trim()) {
+    return { ok: false, status: 400, error: "A payment reference is required." };
+  }
+  const ref = raw.trim();
+  if (ref.length > 80) return { ok: false, status: 400, error: "That reference is too long." };
+  if (/^\d{13,19}$/.test(ref.replace(/\s/g, ""))) {
+    return { ok: false, status: 400, error: "Do not send a card number. Send the transfer reference." };
+  }
+  return { ok: true, ref };
+}
+
+function submitManualPayment(check, ref) {
+  if (!check) return { ok: false, status: 404, error: "Case not found." };
+  if (check.status === "CANCELLED") return { ok: false, status: 409, error: "This case is cancelled." };
+  if (check.paymentStatus === "PAID") return { ok: true, status: 200, alreadyPaid: true, data: null };
+  if (check.paymentStatus === "PENDING" && check.manualPaymentRef === ref) {
+    return { ok: true, status: 200, alreadySubmitted: true, data: null };
+  }
+  return {
+    ok: true,
+    status: 200,
+    data: {
+      manualPaymentRef: ref,
+      paymentSubmittedAt: new Date(),
+      paymentStatus: "PENDING",
+      status: check.status === "SUBMITTED" ? "AWAITING_PAYMENT" : check.status,
+    },
+  };
+}
+
+function reviewManualPayment(check, { action, note, reviewerId }) {
+  if (!check) return { ok: false, status: 404, error: "Case not found." };
+  if (action !== "confirm" && action !== "reject") {
+    return { ok: false, status: 400, error: "action must be confirm or reject." };
+  }
+  if (check.paymentStatus === "PAID") {
+    if (action === "confirm") return { ok: true, status: 200, alreadyPaid: true, data: null };
+    return { ok: false, status: 409, error: "This fee is already confirmed." };
+  }
+  if (check.paymentStatus !== "PENDING" || !check.manualPaymentRef) {
+    return { ok: false, status: 409, error: "There is no payment reference waiting for review." };
+  }
+  const reviewedAt = new Date();
+  const reviewNote = typeof note === "string" && note.trim() ? note.trim().slice(0, 500) : null;
+  if (action === "reject") {
+    const kept = `Rejected reference: ${check.manualPaymentRef}`;
+    return {
+      ok: true,
+      status: 200,
+      data: {
+        paymentStatus: "FAILED",
+        status: check.status === "SUBMITTED" ? "AWAITING_PAYMENT" : check.status,
+        manualPaymentRef: null,
+        paymentReviewedBy: reviewerId,
+        paymentReviewedAt: reviewedAt,
+        paymentReviewNote: reviewNote ? `${kept}. ${reviewNote}` : kept,
+      },
+    };
+  }
+  return {
+    ok: true,
+    status: 200,
+    data: {
+      ...paidPaymentUpdate(check),
+      paymentReviewedBy: reviewerId,
+      paymentReviewedAt: reviewedAt,
+      paymentReviewNote: reviewNote,
+    },
   };
 }
 
@@ -531,6 +621,9 @@ module.exports = {
   verifyAmountAccepted,
   paidPaymentUpdate,
   publicStatus,
+  validateManualPaymentRef,
+  submitManualPayment,
+  reviewManualPayment,
   buildReport,
   adminView,
   summarizeMetrics,

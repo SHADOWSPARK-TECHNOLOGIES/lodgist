@@ -5,13 +5,10 @@ module.exports = function createHealthRouter(prisma) {
   const router = express.Router();
 
   router.get("/", async (_req, res) => {
-    let dbStatus = "unknown";
-    let dbLatency = null;
+    let dbStatus = "disconnected";
 
     try {
-      const start = Date.now();
       await prisma.user.count();
-      dbLatency = Date.now() - start;
       dbStatus = "connected";
     } catch (err) {
       dbStatus = "disconnected";
@@ -22,17 +19,12 @@ module.exports = function createHealthRouter(prisma) {
       });
     }
 
-    res.json({
+    // Public probe only. Memory, uptime, version, and env stay off this route.
+    // HTTP status stays 200 for both outcomes: Railway's HEALTHCHECK uses
+    // wget --spider on /api/health and treats any non-success as unhealthy.
+    res.status(200).json({
       status: dbStatus === "connected" ? "ok" : "degraded",
-      service: "Lodgist API",
-      version: "5.0.0",
-      timestamp: new Date().toISOString(),
-      uptime: process.uptime(),
-      database: {
-        status: dbStatus,
-        latencyMs: dbLatency,
-      },
-      memory: process.memoryUsage(),
+      database: dbStatus,
     });
   });
 
