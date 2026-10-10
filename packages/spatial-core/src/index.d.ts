@@ -197,6 +197,33 @@ export function configureSpatialCore(options: { isPublicListing?: (listing: obje
 export function assertLayerId(id: string): string;
 export function dataSources(registry?: DataSourceRow[]): DataSourceRow[];
 export function providerGate(id: string, registry?: DataSourceRow[]): ProviderGate;
+
+export type CommercialUse = "APPROVED_COMMERCIAL" | "APPROVED_WITH_ATTRIBUTION" | "DEVELOPMENT_ONLY" | "NON_COMMERCIAL" | "UNKNOWN";
+
+export interface RegistryProvider extends DataSourceRow {
+  category: string;
+  capabilities: string[];
+  commercialUse: CommercialUse;
+  authentication: { required: boolean; env?: string };
+  attribution: string | null;
+  cachePolicy: string;
+  health: string;
+  fallbackPriority: number;
+}
+
+export const COMMERCIAL_CLASSES: readonly CommercialUse[];
+export const PROVIDER_CATEGORIES: readonly string[];
+export function providerRegistry(registry?: DataSourceRow[]): RegistryProvider[];
+export function providerCanRun(id: string, options?: {
+  registry?: DataSourceRow[];
+  env?: Record<string, string | undefined>;
+  production?: boolean;
+}): { ok: boolean; code: string; row: RegistryProvider | null };
+export function providerFallback(category: string, options?: {
+  registry?: DataSourceRow[];
+  env?: Record<string, string | undefined>;
+  production?: boolean;
+}): RegistryProvider[];
 export function refuseUserSuppliedProviderUrl(input: object | null): void;
 export function cellKey(focus: SpatialFocus, categories?: string[]): string;
 export function stripPrivateLocationKeys<T>(value: T): T;

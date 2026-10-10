@@ -6,6 +6,11 @@ const {
   providerGate,
   refuseUserSuppliedProviderUrl,
   assertSameProviderUrl,
+  providerCanRun,
+  providerRegistry,
+  providerFallback,
+  COMMERCIAL_CLASSES,
+  PROVIDER_CATEGORIES,
 } = require("./registry.cjs");
 const {
   PRIVATE_LOCATION_KEYS,
@@ -356,6 +361,8 @@ async function loadRouteGuarded(input, focus, origin, envUrl, campus, fetchImpl,
   const gate = providerGate("osrm", input.registry);
   const path = `/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=false`;
   const source = envObject(input);
+  const decision = providerCanRun("osrm", { registry: input.registry, env: source, production: input.production });
+  if (!decision.ok) return empty("unconfigured");
   const guarded = await withProviderSafeguards({
     providerId: "osrm",
     cacheKey: `osrm|${cellKey(focus)}|${campus.id}`,
@@ -489,6 +496,8 @@ async function loadAmenitiesGuarded(input, focus, origin, envUrl, fetchImpl) {
   const query = `[out:json][timeout:12];(node["amenity"="pharmacy"](around:${radius},${origin.lat},${origin.lng});node["amenity"="clinic"](around:${radius},${origin.lat},${origin.lng});node["amenity"="doctors"](around:${radius},${origin.lat},${origin.lng});node["amenity"="hospital"](around:${radius},${origin.lat},${origin.lng});node["shop"](around:${radius},${origin.lat},${origin.lng});node["highway"="bus_stop"](around:${radius},${origin.lat},${origin.lng});node["amenity"="bus_station"](around:${radius},${origin.lat},${origin.lng}););out body 40;`;
   const source = envObject(input);
   const gate = providerGate("overpass", input.registry);
+  const decision = providerCanRun("overpass", { registry: input.registry, env: source, production: input.production });
+  if (!decision.ok) return amenityResult("unconfigured", [], null);
   const guarded = await withProviderSafeguards({
     providerId: "overpass",
     cacheKey: `overpass|${cellKey(focus, AMENITY_CATEGORIES)}`,
@@ -728,6 +737,11 @@ module.exports = {
   DATA_SOURCE_REVISION,
   dataSources,
   providerGate,
+  providerRegistry,
+  providerCanRun,
+  providerFallback,
+  COMMERCIAL_CLASSES,
+  PROVIDER_CATEGORIES,
   refuseUserSuppliedProviderUrl,
   cellKey,
   stripPrivateLocationKeys,
