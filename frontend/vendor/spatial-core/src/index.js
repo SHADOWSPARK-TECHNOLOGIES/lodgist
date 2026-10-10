@@ -88,4 +88,6 @@ export const {
   assertSchedule,
   evaluateConditions,
   beginMonitor,
+  PRIVACY_GATES,
+  runMonitor,
 } = core;

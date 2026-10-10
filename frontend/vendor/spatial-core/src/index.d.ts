@@ -387,3 +387,19 @@ export function evaluateConditions(baseline: { value?: unknown } | null, value: 
   reason: string;
 }>;
 export function beginMonitor(input: object, now: number): { ok: boolean; code?: string; monitor?: object };
+export const PRIVACY_GATES: readonly Array<"PUBLIC_EXACT" | "AUTHORIZED_EXACT" | "APPROXIMATE" | "HIDDEN">;
+export function runMonitor(monitor: object, now: number, ctx?: {
+  env?: Record<string, string | undefined>;
+  registry?: DataSourceRow[];
+  readings?: object[];
+  listing?: object | null;
+  authorization?: "PUBLIC_EXACT" | "AUTHORIZED_EXACT" | "APPROXIMATE" | "HIDDEN";
+  authorized?: boolean;
+  production?: boolean;
+}): {
+  ok: boolean;
+  code: string;
+  observations: EvidenceEnvelope[];
+  evaluated?: object[];
+  provenance?: { monitoringBeganAt?: number; retrievedAt?: number; observedAt?: number | null };
+};

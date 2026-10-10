@@ -6,8 +6,10 @@
  * Overpass data is allowed to be a week old, and using that as the minimum
  * schedule would block monitoring.
  */
-const { providerRegistry } = require("./registry.cjs");
-const { finiteTimestamp } = require("./evidence.cjs");
+const { providerRegistry, providerCanRun } = require("./registry.cjs");
+const { evidenceEnvelope, finiteTimestamp, ENVELOPE_KEYS } = require("./evidence.cjs");
+const { assertNoPrivateLocationKeys, stripPrivateLocationKeys } = require("./privacy.cjs");
+const { crossReference } = require("./crossReference.cjs");
 
 const TARGET_TYPES = Object.freeze([
   "location",
@@ -18,6 +20,7 @@ const TARGET_TYPES = Object.freeze([
   "event",
 ]);
 const CONDITION_OPS = Object.freeze(["eq", "neq", "gt", "gte", "lt", "lte", "changed"]);
+const PRIVACY_GATES = Object.freeze(["PUBLIC_EXACT", "AUTHORIZED_EXACT", "APPROXIMATE", "HIDDEN"]);
 const MONITORING_FLAG = "SPATIAL_MONITORING";
 
 function monitoringEnabled(env) {
@@ -136,13 +139,169 @@ function beginMonitor(input, now) {
   };
 }
 
+function privacyFor(monitor, ctx) {
+  const requested = ctx && PRIVACY_GATES.includes(ctx.authorization) ? ctx.authorization : "APPROXIMATE";
+  if (monitor.targetType !== "listing" && monitor.targetType !== "location") return requested;
+  if (requested === "AUTHORIZED_EXACT" && ctx && ctx.authorized === true) return "AUTHORIZED_EXACT";
+  if (requested === "PUBLIC_EXACT" && ctx && ctx.authorized === true && ctx.listing && ctx.listing.publicExact === true) {
+    return "PUBLIC_EXACT";
+  }
+  if (monitor.targetType === "listing" && (!ctx || !ctx.listing || ctx.listing.public !== true)) return "HIDDEN";
+  if (requested === "HIDDEN") return "HIDDEN";
+  return "APPROXIMATE";
+}
+
+function publishedArea(ctx) {
+  const approx = ctx && ctx.listing && ctx.listing.approxLocation;
+  if (!approx || typeof approx.lat !== "number" || typeof approx.lng !== "number") return null;
+  const radius = approx.radius_m != null ? approx.radius_m : approx.radiusM;
+  return { lat: approx.lat, lng: approx.lng, radius_m: typeof radius === "number" ? radius : null };
+}
+
+function privatizeValue(value, gate, area) {
+  if (gate === "AUTHORIZED_EXACT" || gate === "PUBLIC_EXACT") return value;
+  if (gate === "HIDDEN") return { privacy: "HIDDEN", area: null };
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return value;
+  return Object.assign({}, stripPrivateLocationKeys(value), { area, privacy: "APPROXIMATE" });
+}
+
+function readingFor(ctx, providerId) {
+  const rows = ctx && Array.isArray(ctx.readings) ? ctx.readings : [];
+  return rows.find((row) => row && row.provider === providerId) || null;
+}
+
+function envelopeFor(reading, providerId, now, staleAfterMs) {
+  const source = reading || {};
+  return evidenceEnvelope({
+    value: source.value === undefined ? null : source.value,
+    source: source.source,
+    provider: providerId,
+    observedAt: source.observedAt,
+    retrievedAt: now,
+    confidence: source.confidence,
+    classification: source.classification || (source.value == null ? "UNKNOWN" : "OBSERVED"),
+    attribution: source.attribution,
+    license: source.license,
+    coverage: source.coverage,
+  }, { now, staleAfterMs });
+}
+
+function emptyEnvelope(providerId, now, staleAfterMs) {
+  return envelopeFor({ value: null, classification: "UNKNOWN" }, providerId, now, staleAfterMs);
+}
+
+function runMonitor(monitor, now, ctx = {}) {
+  if (!monitoringEnabled(ctx.env)) {
+    return { ok: true, code: "flag_off", observations: [], evaluated: [], report: null, ignored: [] };
+  }
+  const clock = finiteTimestamp(now);
+  if (!clock) return { ok: false, code: "invalid_now", observations: [] };
+  const schedule = assertSchedule(monitor, ctx.registry);
+  if (!schedule.ok) return Object.assign({ observations: [], evaluated: [], report: null }, schedule);
+  const began = finiteTimestamp(monitor.monitoringBeganAt);
+  if (!began) return { ok: false, code: "missing_start", observations: [] };
+  if (clock < began) return { ok: false, code: "before_start", observations: [] };
+  const last = finiteTimestamp(monitor.lastObservedAt);
+  if (last != null && clock < last + monitor.schedule.intervalMs) {
+    return { ok: true, code: "not_due", observations: [], evaluated: [], report: null, ignored: [] };
+  }
+  const rows = providerRegistry(ctx.registry);
+  const gate = privacyFor(monitor, ctx);
+  const area = publishedArea(ctx);
+  const observations = [];
+  const providerResults = [];
+  const ignored = [];
+  for (const providerId of monitor.providers) {
+    const row = rows.find((item) => item.id === providerId) || null;
+    const staleAfterMs = row && row.freshnessPolicy ? row.freshnessPolicy.staleAfterMs : undefined;
+    const decision = providerCanRun(providerId, {
+      registry: ctx.registry,
+      env: ctx.env,
+      production: ctx.production,
+    });
+    if (!decision.ok) {
+      const envelope = emptyEnvelope(providerId, clock, staleAfterMs);
+      observations.push(gate === "AUTHORIZED_EXACT" ? envelope : assertNoPrivateLocationKeys(stripPrivateLocationKeys(envelope)));
+      providerResults.push({ provider: providerId, code: decision.code });
+      continue;
+    }
+    const reading = readingFor(ctx, providerId);
+    if (!reading) {
+      observations.push(emptyEnvelope(providerId, clock, staleAfterMs));
+      providerResults.push({ provider: providerId, code: "no_reading" });
+      continue;
+    }
+    const observedAt = finiteTimestamp(reading.observedAt);
+    if (observedAt != null && observedAt < began) {
+      ignored.push({ provider: providerId, reason: "before_monitoring_began" });
+      providerResults.push({ provider: providerId, code: "before_monitoring_began" });
+      continue;
+    }
+    const raw = envelopeFor(reading, providerId, clock, staleAfterMs);
+    raw.value = privatizeValue(raw.value, gate, area);
+    const safe = gate === "AUTHORIZED_EXACT" || gate === "PUBLIC_EXACT"
+      ? raw
+      : assertNoPrivateLocationKeys(stripPrivateLocationKeys(raw));
+    observations.push(safe);
+    providerResults.push({ provider: providerId, code: safe.freshness === "stale" ? "stale" : "ok" });
+  }
+  const evaluated = observations.map((item) => ({
+    provider: item.provider,
+    results: evaluateConditions(monitor.baseline, item.value, monitor.conditions),
+  }));
+  let report = null;
+  if (monitor.targetType === "listing" && monitor.target && monitor.target.listingId != null) {
+    report = crossReference({
+      location: { listingId: monitor.target.listingId },
+      subjects: [`listing:${monitor.target.listingId}`],
+      providers: monitor.providers.map((id) => ({
+        id,
+        observations: observations.filter((item) => item.provider === id).map((item) => ({
+          subjectId: `listing:${monitor.target.listingId}`,
+          fact: monitor.observationType || "value",
+          value: item.value,
+          observedAt: item.observedAt,
+          retrievedAt: item.retrievedAt,
+          classification: item.classification,
+          source: item.source,
+          license: item.license,
+          coverage: item.coverage,
+        })),
+      })),
+      now: clock,
+    });
+  }
+  const blocked = providerResults.some((item) => item.code === "missing_api_key" || item.code === "commercial_class_blocked");
+  return {
+    ok: true,
+    code: "observed",
+    observations,
+    providerResults,
+    evaluated,
+    report,
+    ignored,
+    state: blocked ? "blocked" : "observed",
+    lastObservedAt: clock,
+    provenance: {
+      monitoringBeganAt: began,
+      source: "lodgist-monitor",
+      retrievedAt: clock,
+      observedAt: null,
+      freshness: "unknown",
+    },
+    envelopeKeys: ENVELOPE_KEYS,
+  };
+}
+
 module.exports = {
   TARGET_TYPES,
   CONDITION_OPS,
+  PRIVACY_GATES,
   MONITORING_FLAG,
   monitoringEnabled,
   minimumScheduleMs,
   assertSchedule,
   evaluateConditions,
   beginMonitor,
+  runMonitor,
 };
