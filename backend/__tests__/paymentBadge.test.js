@@ -7,7 +7,7 @@ const express = require("express");
 const createPaymentsRouter = require("../src/routes/payments");
 
 function sign(raw, secret) {
-  return crypto.createHmac("sha256", secret).update(raw).digest("hex");
+  return crypto.createHmac("sha512", secret).update(raw).digest("hex");
 }
 
 function prismaRecorder() {

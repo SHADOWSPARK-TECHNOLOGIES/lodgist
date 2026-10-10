@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 const KEY = "lodgist-nekede-card";
 
@@ -54,24 +54,34 @@ function noteFor(card: Card) {
   ].join(" ");
 }
 
+function subscribeToCard(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
+function cardSnapshot() {
+  try { return localStorage.getItem(KEY); } catch { return null; }
+}
+
+function readCard(raw: string | null): Card | null {
+  try {
+    const parsed = raw ? JSON.parse(raw) as Card : null;
+    return parsed?.lodge && parsed?.manager ? parsed : null;
+  } catch {
+    return null; // A bad local note is ignored.
+  }
+}
+
+const serverCardSnapshot = () => null;
+
 export default function NekedeRoomCard() {
   const [form, setForm] = useState(EMPTY);
   const [free, setFree] = useState(false);
   const [permission, setPermission] = useState(false);
-  const [saved, setSaved] = useState<Card | null>(null);
+  const rawCard = useSyncExternalStore(subscribeToCard, cardSnapshot, serverCardSnapshot);
+  const saved = readCard(rawCard);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      if (!raw) return;
-      const parsed = JSON.parse(raw) as Card;
-      if (parsed?.lodge && parsed?.manager) setSaved(parsed);
-    } catch {
-      /* a bad local note is ignored */
-    }
-  }, []);
 
   function setField(key: keyof Card, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -117,7 +127,8 @@ export default function NekedeRoomCard() {
       saw: form.saw.trim(),
     };
     localStorage.setItem(KEY, JSON.stringify(next));
-    setSaved(next);
+    // Native storage events only notify other tabs; notify this tab too.
+    window.dispatchEvent(new Event("storage"));
     setCopied(false);
   }
 

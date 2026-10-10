@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { listingsApi } from "@/lib/api";
 import { TruthScore } from "@/components/ui/TruthScore";
-import { formatYearlyRent, listings as browse, search as copy } from "@/lib/copy";
-import { hasTrustScore, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from "@/lib/listingHonesty";
+import { formatYearlyRent, listingCard, listings as browse, search as copy } from "@/lib/copy";
+import { photoAlt, storedPhotos } from "@/lib/listingPhotos";
+import { hasTrustScore, isEvidenceVerified, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from "@/lib/listingHonesty";
 import LeadCapture from "@/components/LeadCapture";
 import type { Listing } from "@/lib/types";
 
@@ -20,8 +21,6 @@ function SearchContent() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
       .then(res => { if (!cancelled) setListings(publicListings(res.data)); })
       .catch(() => { if (!cancelled) setError(copy.fetchError); })
@@ -41,14 +40,21 @@ function SearchContent() {
     <div className="min-h-screen" style={{ background: 'var(--color-navy)' }}>
       <div className="container py-8">
         <h1 className="font-poppins font-bold text-2xl text-white mb-2">{copy.title}</h1>
-        <form onSubmit={handleSearch} className="mb-8 flex gap-2 max-w-xl">
-          <input type="text" className="input flex-1" placeholder={copy.placeholder} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-          <button type="submit" className="btn btn-primary">{copy.button}</button>
+        <form onSubmit={handleSearch} className="mb-4 max-w-xl" role="search">
+          <label className="label" htmlFor="search-area">{copy.label}</label>
+          <div className="flex gap-2">
+            <input id="search-area" type="text" className="input flex-1" placeholder={copy.placeholder} value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setLoading(true); setError(null); }} />
+            <button type="submit" className="btn btn-primary">{copy.button}</button>
+          </div>
         </form>
-        {error && <div className="banner-error mb-6">{error}</div>}
-        {loading ? (
+        <p role="status" aria-live="polite" className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
+          {loading ? copy.searching : ''}
+        </p>
+        {error ? (
+          <div role="alert" className="banner-error mb-6">{error}</div>
+        ) : loading ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 2 }).map((_, i) => (
               <div key={i} className="card">
                 <div className="skeleton h-48 w-full mb-4" />
                 <div className="skeleton h-4 w-3/4 mb-2" />
@@ -58,28 +64,36 @@ function SearchContent() {
           </div>
         ) : listings.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map(listing => (
+            {listings.map(listing => {
+              const photos = storedPhotos(listing.images);
+              const primary = photos[0];
+              return (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
-                <div className="h-48 rounded-xl mb-4 flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
-                  {listing.images?.[0]?.url ? (
-                    <img src={listing.images[0].url} alt={listing.title} className="w-full h-full object-cover rounded-xl" />
+                <div className="h-48 rounded-xl mb-4 flex items-center justify-center relative overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+                  {primary ? (
+                    <img src={primary.url} alt={photoAlt(primary, listing.title)} className="w-full h-full object-cover rounded-xl" />
                   ) : (
                     <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>Home</span>
+                  )}
+                  {photos.length > 1 && (
+                    <span className="absolute bottom-2 right-2 text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(11,27,43,0.82)', color: '#fff' }}>
+                      {listingCard.photoCount(photos.length)}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <h3 className="font-poppins font-semibold text-white text-sm">{listing.title}</h3>
+                    <h2 className="font-poppins font-semibold text-white text-sm">{listing.title}</h2>
                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.5)' }}>
                       {listing.property?.city ?? listing.property?.state ?? ''}
                     </p>
                     <p className="font-poppins font-bold text-sm mt-2" style={{ color: 'var(--color-orange)' }}>
                       {formatYearlyRent(listing.price)}
                     </p>
-                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'var(--color-teal)' : 'rgba(255,255,255,0.45)' }}>
+                    <p className="text-xs mt-2" style={{ color: isLodgistReviewed(listing) ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.45)' }}>
                       {reviewLabel(listing)}
                     </p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--color-orange)' }}>
+                    <p className="text-xs mt-1" style={{ color: isEvidenceVerified(listing) ? 'var(--color-teal)' : 'var(--color-orange)' }}>
                       {verificationLabel(listing)}
                     </p>
                     <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{sourceLabel(listing)}</p>
@@ -94,7 +108,8 @@ function SearchContent() {
                   )}
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-16">

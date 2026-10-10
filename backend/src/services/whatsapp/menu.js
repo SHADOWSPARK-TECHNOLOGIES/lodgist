@@ -11,7 +11,7 @@ function visit(path, fallback) {
 
 function listingsReply() {
   return (
-    "Published homes are listed, including ones Lodgist has not verified. Those say Not verified by Lodgist. Viewing is only for verified homes.\n\n" +
+    "The public list is Lodgist-reviewed homes, not samples. Review is not verification, so they say Not verified by Lodgist. Viewing is only for verified homes.\n\n" +
     `${visit("/listings", "Open Lodgist and browse homes.")}\n\n` +
     "If that list is empty, there are no published homes yet."
   );
@@ -24,7 +24,8 @@ function welcomeReply() {
     "1️⃣ *Listings* — Browse available properties\n" +
     "2️⃣ *My Bookings* — Check your bookings\n" +
     "3️⃣ *Talk to Agent* — Speak with a human\n" +
-    "4️⃣ *Refer* — Invite 3 landlords, get ₦1,000 escrow credit!"
+    "4️⃣ *Refer* — Invite 3 landlords, get ₦1,000 escrow credit!\n\n" +
+    "Reply *CHECK* to start a Rental Safety Check before you pay (₦5,000). A check is not a statement that a house is verified."
   );
 }
 

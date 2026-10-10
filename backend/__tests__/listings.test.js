@@ -71,6 +71,9 @@ test("GET /api/listings returns a listing without database internals", async () 
         return [{
           id: 7,
           title: "Two bedroom in Owerri",
+          status: "PENDING",
+          reviewStatus: "APPROVED",
+          riskState: "UNVERIFIED",
           price: 1200000,
           images: [],
           property: { city: "Owerri", state: "Imo" },
@@ -145,11 +148,116 @@ test("GET /api/listings honours limit, state, area and sort", async () => {
     assert.equal(seen.skip, 5);
     assert.deepEqual(seen.orderBy, { price: "asc" });
     assert.deepEqual(seen.where.property.is.state, { equals: "Imo", mode: "insensitive" });
-    assert.equal(seen.where.property.is.OR.length, 3);
+    assert.deepEqual(seen.where.property.is.OR, [
+      { city: { contains: "Owerri", mode: "insensitive" } },
+      { lga: { contains: "Owerri", mode: "insensitive" } },
+      { state: { contains: "Owerri", mode: "insensitive" } },
+    ]);
     assert.deepEqual(body.pagination, { total: 30, page: 2, pages: 6, totalPages: 6, limit: 5, pageSize: 5 });
   } finally {
     server.close();
   }
+});
+
+function textContains(value, needle) {
+  return typeof value === "string"
+    && typeof needle === "string"
+    && value.toLowerCase().includes(needle.toLowerCase());
+}
+
+function clauseMatchesRecord(record, clause) {
+  const field = Object.keys(clause)[0];
+  const cond = clause[field];
+  if (!cond || typeof cond !== "object" || typeof cond.contains !== "string") return false;
+  return textContains(record[field], cond.contains);
+}
+
+function listingMatchesBrowseWhere(listing, where) {
+  if (Array.isArray(where && where.OR) && where.OR.length > 0) {
+    const hit = where.OR.some((clause) =>
+      clauseMatchesRecord(listing, clause) || clauseMatchesRecord(listing.property || {}, clause)
+    );
+    if (!hit) return false;
+  }
+  const propertyWhere = where && where.property && where.property.is;
+  if (propertyWhere && Array.isArray(propertyWhere.OR)) {
+    const hit = propertyWhere.OR.some((clause) => clauseMatchesRecord(listing.property || {}, clause));
+    if (!hit) return false;
+  }
+  return true;
+}
+
+const PRIVATE_LOCATION_LISTING = {
+  id: 21,
+  title: "Two bedroom flat",
+  description: "Quiet compound",
+  status: "VERIFIED",
+  reviewStatus: "APPROVED",
+  riskState: "UNVERIFIED",
+  isFlaggedForFraud: false,
+  price: 900000,
+  images: [],
+  property: {
+    id: 4,
+    city: "Owerri",
+    state: "Imo",
+    lga: "Owerri Municipal",
+    address: "14 Secret Close",
+    landmark: "Behind the old post office",
+    bedrooms: 2,
+    bathrooms: 1,
+    propertyType: "Apartment",
+  },
+  owner: { id: 3, name: "Ada", truthIndex: 70, isVerified: false },
+  fraudSignals: [],
+  _count: { reviews: 0, bookings: 0 },
+};
+
+function privateLocationPrisma() {
+  const listing = PRIVATE_LOCATION_LISTING;
+  return {
+    listing: {
+      count: async (args) => {
+        if (isSampleMatchWhere(args.where)) return 0;
+        return listingMatchesBrowseWhere(listing, args.where) ? 1 : 0;
+      },
+      findMany: async (args) => (listingMatchesBrowseWhere(listing, args.where) ? [listing] : []),
+    },
+    review: { groupBy: async () => [] },
+  };
+}
+
+async function listingsFor(query) {
+  const server = await listen(buildApp(privateLocationPrisma()));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings?${query}`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    return body.data;
+  } finally {
+    server.close();
+  }
+}
+
+test("GET /api/listings?area= returns nothing when the query matches only the street address", async () => {
+  const data = await listingsFor("area=14%20Secret%20Close");
+  assert.deepEqual(data, []);
+});
+
+test("GET /api/listings?area= returns nothing when the query matches only a landmark", async () => {
+  const data = await listingsFor("area=Behind%20the%20old%20post%20office");
+  assert.deepEqual(data, []);
+});
+
+test("GET /api/listings?area= returns the listing when the query matches the public city or area", async () => {
+  const byCity = await listingsFor("area=Owerri");
+  assert.equal(byCity.length, 1);
+  assert.equal(byCity[0].id, 21);
+
+  const byArea = await listingsFor("area=Owerri%20Municipal");
+  assert.equal(byArea.length, 1);
+  assert.equal(byArea[0].id, 21);
 });
 
 test("GET /api/listings clamps limit and ignores unknown sort", async () => {
@@ -204,6 +312,7 @@ function detailPrisma(property, seen = {}) {
           id: 1,
           title: "Two bedroom in Owerri",
           status: "VERIFIED",
+          reviewStatus: "APPROVED",
           riskState: "VERIFIED",
           isFlaggedForFraud: false,
           price: 1200000,
@@ -307,6 +416,7 @@ function browsePrisma() {
             id: 1,
             title: "Checked flat",
             status: "VERIFIED",
+            reviewStatus: "APPROVED",
             riskState: "VERIFIED",
             totalMoveInCost: { total: 1000 },
             images: [],
@@ -319,6 +429,7 @@ function browsePrisma() {
             id: 2,
             title: "Sample flat",
             status: "VERIFIED",
+            reviewStatus: "APPROVED",
             riskState: "VERIFIED",
             totalMoveInCost: { sample: true, total: 1 },
             images: [],
@@ -331,9 +442,24 @@ function browsePrisma() {
             id: 3,
             title: "Pending flat",
             status: "PENDING",
+            reviewStatus: "NOT_REVIEWED",
             riskState: "UNVERIFIED",
             isFlaggedForFraud: false,
             totalMoveInCost: { total: 800000 },
+            images: [],
+            property: { city: "Owerri", state: "Imo" },
+            owner: { id: 1, name: "Ada", truthIndex: 0 },
+            fraudSignals: [],
+            _count: { reviews: 0, bookings: 0 },
+          },
+          {
+            id: 4,
+            title: "Reviewed pending flat",
+            status: "PENDING",
+            reviewStatus: "APPROVED",
+            riskState: "UNVERIFIED",
+            isFlaggedForFraud: false,
+            totalMoveInCost: { total: 700000 },
             images: [],
             property: { city: "Owerri", state: "Imo" },
             owner: { id: 1, name: "Ada", truthIndex: 0 },
@@ -398,20 +524,22 @@ test("GET /api/listings returns eligible pending homes and hides samples", async
     assert.deepEqual(seen.args.where.AND, [PUBLIC_RISK_FILTER]);
     rejectInvalidRiskStateWhere(seen.args.where);
     assert.equal(JSON.stringify(seen.args.where).includes('"riskState":null'), false);
-    assert.deepEqual(body.data.map((row) => row.id), [1, 3]);
+    assert.equal(seen.args.where.reviewStatus, "APPROVED");
+    assert.deepEqual(body.data.map((row) => row.id), [1, 4]);
     assert.equal(body.pagination.total, 2);
     assert.equal(JSON.stringify(body).includes("Sample flat"), false);
-    const pending = body.data.find((row) => row.id === 3);
+    assert.equal(JSON.stringify(body).includes("Pending flat"), false);
+    const pending = body.data.find((row) => row.id === 4);
     assert.equal(pending.status, "PENDING");
     assert.equal(pending.verificationLabel, "Not verified by Lodgist");
-    assert.equal(pending.reviewLabel, "Not reviewed by Lodgist");
-    assert.equal(pending.reviewStatus, "NOT_REVIEWED");
+    assert.equal(pending.reviewLabel, "Lodgist-reviewed");
+    assert.equal(pending.reviewStatus, "APPROVED");
     assert.equal(pending.sourceLabel, "Direct submission");
     assert.equal(pending.actions.enquiry, true);
     assert.equal(pending.actions.viewing, false);
     const verified = body.data.find((row) => row.id === 1);
     assert.equal(verified.verificationLabel, "Not verified by Lodgist");
-    assert.equal(verified.reviewLabel, "Not reviewed by Lodgist");
+    assert.equal(verified.reviewLabel, "Lodgist-reviewed");
     assert.equal(verified.actions.viewing, true);
   } finally {
     server.close();
@@ -425,6 +553,7 @@ test("GET /api/listings builds a public query that keeps null riskState rows", a
       id: 11,
       title: "Unscored verified flat",
       status: "VERIFIED",
+      reviewStatus: "APPROVED",
       riskState: null,
       totalMoveInCost: { total: 1000 },
       images: [],
@@ -469,6 +598,7 @@ test("GET /api/listings builds a public query that keeps null riskState rows", a
     assert.equal(body.success, true);
     assert.deepEqual(seen.where.status, PUBLIC_STATUS_FILTER);
     assert.equal(seen.where.isFlaggedForFraud, false);
+    assert.equal(seen.where.reviewStatus, "APPROVED");
     assert.deepEqual(seen.where.AND, [PUBLIC_RISK_FILTER]);
     assert.deepEqual(body.data.map((row) => row.id), [11]);
     assert.equal(body.pagination.total, 1);
@@ -485,6 +615,7 @@ test("anonymous public count is 0 when only samples exist", async () => {
     id,
     title: `Sample ${id}`,
     status: "PENDING",
+    reviewStatus: "APPROVED",
     riskState: "UNVERIFIED",
     isFlaggedForFraud: false,
     totalMoveInCost: { sample: true, total: id },
@@ -534,6 +665,7 @@ test("anonymous public count matches eligible PENDING rows", async () => {
       id: 21,
       title: "Pending A",
       status: "PENDING",
+      reviewStatus: "APPROVED",
       riskState: "UNVERIFIED",
       isFlaggedForFraud: false,
       totalMoveInCost: { total: 500000 },
@@ -560,6 +692,7 @@ test("anonymous public count matches eligible PENDING rows", async () => {
       id: 23,
       title: "Pending C",
       status: "PENDING",
+      reviewStatus: "APPROVED",
       riskState: "UNDER_REVIEW",
       isFlaggedForFraud: false,
       totalMoveInCost: { total: 700000 },
@@ -596,6 +729,7 @@ test("anonymous public count matches eligible PENDING rows", async () => {
     assert.equal(body.pagination.total, body.data.length);
     assert.equal(body.pagination.total, 2);
     assert.equal(body.data.every((row) => row.status === "PENDING"), true);
+    assert.equal(body.data.every((row) => row.reviewStatus === "APPROVED"), true);
     assert.equal(body.data.every((row) => row.verificationLabel === "Not verified by Lodgist"), true);
     assert.equal(JSON.stringify(body).includes("Sample B"), false);
   } finally {
@@ -682,19 +816,20 @@ test("GET /api/listings lets an admin request a non-verified status", async () =
     assert.equal(seen.args.where.status, "PENDING");
     assert.equal(seen.args.where.AND, undefined);
     assert.equal(seen.args.where.isFlaggedForFraud, undefined);
-    assert.deepEqual(body.data.map((row) => row.id), [1, 2, 3]);
+    assert.deepEqual(body.data.map((row) => row.id), [1, 2, 3, 4]);
   } finally {
     server.close();
   }
 });
 
-test("GET /api/listings/:id returns a non-sample pending home with a not-verified label", async () => {
+test("GET /api/listings/:id hides an unreviewed home from anonymous discovery", async () => {
   const prisma = {
     listing: {
       findUnique: async () => ({
         id: 4,
         title: "Pending bungalow",
         status: "PENDING",
+        reviewStatus: "NOT_REVIEWED",
         riskState: "UNVERIFIED",
         isFlaggedForFraud: false,
         price: 400000,
@@ -713,14 +848,9 @@ test("GET /api/listings/:id returns a non-sample pending home with a not-verifie
     const { port } = server.address();
     const res = await fetch(`http://127.0.0.1:${port}/api/listings/4`);
     const body = await res.json();
-    assert.equal(res.status, 200);
-    assert.equal(body.data.status, "PENDING");
-    assert.equal(body.data.verificationLabel, "Not verified by Lodgist");
-    assert.equal(body.data.reviewLabel, "Not reviewed by Lodgist");
-    assert.equal(body.data.reviewStatus, "NOT_REVIEWED");
-    assert.equal(body.data.sourceLabel, "Direct submission");
-    assert.equal(body.data.actions.enquiry, true);
-    assert.equal(body.data.actions.viewing, false);
+    assert.equal(res.status, 404);
+    assert.equal(body.error, "Listing not found");
+    assert.equal(JSON.stringify(body).includes("Pending bungalow"), false);
   } finally {
     server.close();
   }
@@ -793,6 +923,98 @@ test("GET /api/listings/:id can be Lodgist-reviewed without a verified badge", a
   }
 });
 
+test("sample and unreviewed seed rows stay out of GET /api/listings", async () => {
+  const { planOwerriSeed, loadFacts } = require("../../packages/db/prisma/seed-owerri-home");
+  const unpublished = planOwerriSeed(loadFacts());
+  assert.equal(unpublished.publicDiscoverable, false);
+  const rows = [
+    {
+      id: 101,
+      ...unpublished.listing,
+      images: [],
+      property: unpublished.property,
+      owner: { id: 1, name: unpublished.user.name, truthIndex: 0, isVerified: false },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+    {
+      id: 102,
+      title: "Unreviewed Nekede room",
+      description: "Not reviewed",
+      status: "PENDING",
+      reviewStatus: "NOT_REVIEWED",
+      riskState: "UNVERIFIED",
+      isFlaggedForFraud: false,
+      price: 1,
+      totalMoveInCost: { total: 1 },
+      images: [],
+      property: { city: "Owerri", state: "Imo" },
+      owner: { id: 1, name: "Ada", truthIndex: 0, isVerified: false },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+    {
+      id: 103,
+      title: "Reviewed sample",
+      status: "VERIFIED",
+      reviewStatus: "APPROVED",
+      riskState: "UNVERIFIED",
+      isFlaggedForFraud: false,
+      totalMoveInCost: { sample: true },
+      images: [],
+      property: { city: "Owerri", state: "Imo" },
+      owner: { id: 1, name: "Ada", truthIndex: 0, isVerified: false },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+    {
+      id: 104,
+      title: "Reviewed pending home",
+      status: "PENDING",
+      reviewStatus: "APPROVED",
+      riskState: "UNVERIFIED",
+      isFlaggedForFraud: false,
+      price: 450000,
+      totalMoveInCost: { total: 450000 },
+      images: [],
+      property: { city: "Owerri", state: "Imo" },
+      owner: { id: 1, name: "Ada", truthIndex: 0, isVerified: false },
+      fraudSignals: [],
+      _count: { reviews: 0, bookings: 0 },
+    },
+  ];
+  let seen;
+  const prisma = {
+    listing: {
+      count: publicListCount({ eligible: 1, samples: 1 }),
+      findMany: async (args) => {
+        seen = args;
+        return rows;
+      },
+    },
+    review: { groupBy: async () => [] },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings`);
+    const body = await res.json();
+    assert.equal(res.status, 200);
+    assert.equal(seen.where.reviewStatus, "APPROVED");
+    assert.deepEqual(body.data.map((row) => row.id), [104]);
+    assert.equal(body.data[0].reviewLabel, "Lodgist-reviewed");
+    assert.equal(body.data[0].verificationLabel, "Not verified by Lodgist");
+    assert.equal(body.data[0].actions.viewing, false);
+    assert.equal(body.pagination.total, 1);
+    const json = JSON.stringify(body);
+    assert.equal(json.includes("Unpublished seed"), false);
+    assert.equal(json.includes("Unreviewed Nekede room"), false);
+    assert.equal(json.includes("Reviewed sample"), false);
+  } finally {
+    server.close();
+  }
+});
+
 test("approxLocation snaps to a 0.005° grid and rejects bad input", () => {
   const { approxLocation } = listingsRouter;
   assert.deepEqual(approxLocation(5.4836, 7.0333), { lat: 5.485, lng: 7.035, radius_m: 500 });
@@ -803,4 +1025,173 @@ test("approxLocation snaps to a 0.005° grid and rejects bad input", () => {
   assert.equal(approxLocation(NaN, 7.03), null);
   assert.equal(approxLocation(91, 7.03), null);
   assert.equal(approxLocation(5.48, 181), null);
+});
+
+test("signed-in and anonymous callers do not receive exact coordinates", async () => {
+  const property = {
+    id: 9,
+    city: "Owerri",
+    state: "Imo",
+    lga: "Owerri West",
+    latitude: 5.497123,
+    longitude: 7.033812,
+    address: "12 Hidden Road",
+  };
+  const seen = {};
+  function appFor(listing) {
+    return buildApp({
+      listing: {
+        findUnique: async (args) => {
+          seen.select = args.select;
+          const selected = args.select && args.select.property && args.select.property.select;
+          const projected = {};
+          if (selected && listing.property) {
+            Object.keys(selected).forEach((key) => {
+              if (selected[key]) projected[key] = listing.property[key];
+            });
+          }
+          return { ...listing, property: listing.property ? projected : null };
+        },
+      },
+      review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+    });
+  }
+  const published = {
+    id: 1,
+    title: "Home",
+    status: "VERIFIED",
+    reviewStatus: "APPROVED",
+    riskState: "UNVERIFIED",
+    isFlaggedForFraud: false,
+    price: 1,
+    images: [],
+    property,
+    owner: { id: 1, name: "Ada" },
+    fraudSignals: [],
+    _count: { reviews: 0, bookings: 0 },
+  };
+  const unpublished = { ...published, reviewStatus: "NOT_REVIEWED", status: "PENDING" };
+  const renter = jwt.sign({ id: 5, email: "renter@example.com", name: "Renter", role: "USER" }, process.env.JWT_SECRET);
+  const admin = jwt.sign({ id: 9, email: "admin@example.com", name: "Admin", role: "STUDIO_ADMIN" }, process.env.JWT_SECRET);
+
+  async function hit(listing, token) {
+    const server = await listen(appFor(listing));
+    try {
+      const { port } = server.address();
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const res = await fetch(`http://127.0.0.1:${port}/api/listings/1`, { headers });
+      const text = await res.text();
+      return { status: res.status, text, body: JSON.parse(text) };
+    } finally {
+      server.close();
+    }
+  }
+
+  function assertNoExact(text, body) {
+    assert.equal(text.includes("5.497123"), false);
+    assert.equal(text.includes("7.033812"), false);
+    assert.equal(text.includes("\"latitude\""), false);
+    assert.equal(text.includes("\"longitude\""), false);
+    assert.equal(text.includes("12 Hidden Road"), false);
+    if (body && body.data && body.data.property) {
+      assert.equal(body.data.property.latitude, undefined);
+      assert.equal(body.data.property.longitude, undefined);
+      assert.equal(body.data.property.address, undefined);
+    }
+  }
+
+  const anonHidden = await hit(unpublished, null);
+  assert.equal(anonHidden.status, 404);
+  assertNoExact(anonHidden.text, anonHidden.body);
+
+  const renterHidden = await hit(unpublished, renter);
+  assert.equal(renterHidden.status, 404);
+  assertNoExact(renterHidden.text, renterHidden.body);
+
+  const renterPublic = await hit(published, renter);
+  assert.equal(renterPublic.status, 200);
+  assertNoExact(renterPublic.text, renterPublic.body);
+  assert.equal(renterPublic.body.data.property.city, "Owerri");
+
+  const adminPublic = await hit(published, admin);
+  assert.equal(adminPublic.status, 200);
+  assertNoExact(adminPublic.text, adminPublic.body);
+
+  const adminHidden = await hit(unpublished, admin);
+  assert.equal(adminHidden.status, 200);
+  assertNoExact(adminHidden.text, adminHidden.body);
+  assert.equal(seen.select.property.select.address, undefined);
+  assert.equal(seen.select.property.select.landmark, undefined);
+  assert.equal(adminHidden.body.data.property.city, "Owerri");
+  assert.deepEqual(adminHidden.body.data.approxLocation, { lat: 5.495, lng: 7.035, radius_m: 500 });
+});
+
+test("an owning landlord can open an unpublished listing without exact coordinates", async () => {
+  const property = {
+    id: 9,
+    city: "Owerri",
+    state: "Imo",
+    lga: "Owerri West",
+    latitude: 5.497123,
+    longitude: 7.033812,
+    address: "12 Hidden Road",
+  };
+  const unpublished = {
+    id: 1,
+    title: "Home",
+    status: "PENDING",
+    reviewStatus: "NOT_REVIEWED",
+    riskState: "UNVERIFIED",
+    isFlaggedForFraud: false,
+    price: 1,
+    ownerId: 8,
+    images: [],
+    property,
+    owner: { id: 8, name: "Ada" },
+    fraudSignals: [],
+    _count: { reviews: 0, bookings: 0 },
+  };
+  function appFor() {
+    return buildApp({
+      listing: {
+        findUnique: async (args) => {
+          const selected = args.select && args.select.property && args.select.property.select;
+          const projected = {};
+          if (selected) {
+            Object.keys(selected).forEach((key) => {
+              if (selected[key]) projected[key] = property[key];
+            });
+          }
+          return { ...unpublished, property: projected };
+        },
+      },
+      review: { aggregate: async () => ({ _avg: { rating: null }, _count: 0 }) },
+    });
+  }
+  const owner = jwt.sign({ id: 8, email: "owner@example.com", name: "Ada", role: "LANDLORD" }, process.env.JWT_SECRET);
+  const other = jwt.sign({ id: 9, email: "other@example.com", name: "Other", role: "LANDLORD" }, process.env.JWT_SECRET);
+  async function hit(token) {
+    const server = await listen(appFor());
+    try {
+      const { port } = server.address();
+      const res = await fetch(`http://127.0.0.1:${port}/api/listings/1`, {
+        headers: { Authorization: "Bearer " + token },
+      });
+      const text = await res.text();
+      return { status: res.status, text, body: JSON.parse(text) };
+    } finally {
+      server.close();
+    }
+  }
+  const denied = await hit(other);
+  assert.equal(denied.status, 404);
+  assert.equal(denied.text.includes("5.497123"), false);
+  assert.equal(denied.text.includes("12 Hidden Road"), false);
+  const allowed = await hit(owner);
+  assert.equal(allowed.status, 200);
+  assert.equal(allowed.text.includes("5.497123"), false);
+  assert.equal(allowed.text.includes("7.033812"), false);
+  assert.equal(allowed.body.data.property.latitude, undefined);
+  assert.equal(allowed.body.data.property.address, undefined);
+  assert.deepEqual(allowed.body.data.approxLocation, { lat: 5.495, lng: 7.035, radius_m: 500 });
 });

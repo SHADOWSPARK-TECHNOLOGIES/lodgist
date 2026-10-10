@@ -8,6 +8,7 @@ const ENV_KEYS = [
   "WHATSAPP_VERIFY_TOKEN",
   "WHATSAPP_PUBLIC_URL",
   "WHATSAPP_APP_SECRET",
+  "WHATSAPP_PHONE_NUMBER_ID",
   "NODE_ENV",
 ];
 let saved;
@@ -207,6 +208,155 @@ test("POST skips duplicate msg.id before user lookup", async () => {
     assert.equal(second.status, 200);
     assert.equal(lookups, 1);
   } finally {
+    server.close();
+  }
+});
+
+function leadPrisma() {
+  const calls = { lookups: 0, sessions: 0, messages: 0 };
+  const prisma = {
+    user: {
+      findFirst: async () => {
+        calls.lookups += 1;
+        return null;
+      },
+    },
+    whatsAppSession: {
+      findFirst: async () => null,
+      create: async ({ data }) => {
+        calls.sessions += 1;
+        return {
+          id: "ses_lead",
+          messages: [],
+          userId: null,
+          contactId: null,
+          ...data,
+        };
+      },
+    },
+    whatsAppMessage: {
+      create: async () => {
+        calls.messages += 1;
+        return {};
+      },
+    },
+  };
+  return { calls, prisma };
+}
+
+function inboundChange(phoneNumberId, messageId) {
+  return {
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              metadata: { phone_number_id: phoneNumberId },
+              messages: [
+                {
+                  id: messageId,
+                  from: "2348000000001",
+                  type: "text",
+                  timestamp: "1",
+                  text: { body: "hi" },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
+async function postRaw(server, payload, headers) {
+  const buf = Buffer.from(JSON.stringify(payload));
+  const { port } = server.address();
+  return fetch(`http://127.0.0.1:${port}/api/whatsapp/webhook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...headers },
+    body: buf,
+  });
+}
+
+test("POST processes a change whose phone_number_id matches WHATSAPP_PHONE_NUMBER_ID", async () => {
+  process.env.WHATSAPP_PHONE_NUMBER_ID = "15550001111";
+  const { calls, prisma } = leadPrisma();
+  const app = rawApp(prisma);
+  const server = await listen(app);
+  try {
+    const payload = inboundChange("15550001111", "wamid.match-1");
+    const first = await postRaw(server, payload);
+    const second = await postRaw(server, payload);
+    assert.equal(first.status, 200);
+    assert.equal(second.status, 200);
+    assert.equal(calls.lookups, 1);
+    assert.equal(calls.sessions, 1);
+    assert.equal(calls.messages, 2);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST acks a mismatched phone_number_id without processing and still verifies the signature", async () => {
+  process.env.WHATSAPP_PHONE_NUMBER_ID = "15550001111";
+  process.env.WHATSAPP_APP_SECRET = "test-app-secret";
+  const { calls, prisma } = leadPrisma();
+  const app = rawApp(prisma);
+  const server = await listen(app);
+  try {
+    const foreign = inboundChange("15559999999", "wamid.other-business");
+    const foreignBuf = Buffer.from(JSON.stringify(foreign));
+    const forged = await postRaw(server, foreign, { "X-Hub-Signature-256": "sha256=deadbeef" });
+    assert.equal(forged.status, 403);
+    assert.equal(calls.lookups, 0);
+    assert.equal(calls.sessions, 0);
+    assert.equal(calls.messages, 0);
+
+    const ignored = await postRaw(server, foreign, {
+      "X-Hub-Signature-256": sign("test-app-secret", foreignBuf),
+    });
+    assert.equal(ignored.status, 200);
+    assert.equal(calls.lookups, 0);
+    assert.equal(calls.sessions, 0);
+    assert.equal(calls.messages, 0);
+
+    const ours = inboundChange("15550001111", "wamid.other-business");
+    const oursBuf = Buffer.from(JSON.stringify(ours));
+    const accepted = await postRaw(server, ours, {
+      "X-Hub-Signature-256": sign("test-app-secret", oursBuf),
+    });
+    assert.equal(accepted.status, 200);
+    assert.equal(calls.lookups, 1);
+    assert.equal(calls.sessions, 1);
+    assert.equal(calls.messages, 2);
+  } finally {
+    server.close();
+  }
+});
+
+test("POST keeps current processing when WHATSAPP_PHONE_NUMBER_ID is unset and warns", async () => {
+  delete process.env.WHATSAPP_PHONE_NUMBER_ID;
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => {
+    warnings.push(args.map((arg) => String(arg)).join(" "));
+  };
+  const { calls, prisma } = leadPrisma();
+  const app = rawApp(prisma);
+  const server = await listen(app);
+  try {
+    const res = await postRaw(server, inboundChange("15559999999", "wamid.unset-1"));
+    assert.equal(res.status, 200);
+    assert.equal(calls.lookups, 1);
+    assert.equal(calls.sessions, 1);
+    assert.equal(calls.messages, 2);
+    assert.equal(
+      warnings.some((line) => line.includes("WHATSAPP_PHONE_NUMBER_ID is unset")),
+      true
+    );
+  } finally {
+    console.warn = originalWarn;
     server.close();
   }
 });

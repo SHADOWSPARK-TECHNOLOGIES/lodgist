@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const express = require("express");
 const createWhatsAppRouter = require("../src/routes/whatsapp");
-const { getListingDetails, requestViewing } = require("../src/services/whatsapp/tools");
+const { getListingDetails, requestViewing, searchListings } = require("../src/services/whatsapp/tools");
 
 const ENV_KEYS = [
   "WHATSAPP_VERIFY_TOKEN",
@@ -211,6 +211,7 @@ const VERIFIED_FLAT = {
   price: 850000,
   currency: "NGN",
   status: "VERIFIED",
+  reviewStatus: "APPROVED",
   isFlaggedForFraud: false,
   riskState: "VERIFIED",
   truthIndex: 80,
@@ -456,7 +457,7 @@ test("session history is passed to the model", async () => {
 test("logs do not contain secret values", async () => {
   process.env.WHATSAPP_APP_SECRET = CANARY_APP_SECRET;
   process.env.WHATSAPP_API_TOKEN = CANARY_API_TOKEN;
-  process.env.WHATSAPP_PHONE_NUMBER_ID = "123456";
+  process.env.WHATSAPP_PHONE_NUMBER_ID = "100";
   process.env.ANTHROPIC_API_KEY = CANARY_ANTHROPIC;
   const originalFetch = global.fetch;
   global.fetch = async (url, init) => {
@@ -478,6 +479,7 @@ test("logs do not contain secret values", async () => {
       CANARY_APP_SECRET
     );
     assert.equal(res.status, 200);
+    assert.ok(prisma.state.messages.length >= 1);
     const logs = logLines.join("\n");
     assert.equal(logs.includes(CANARY_APP_SECRET), false);
     assert.equal(logs.includes(CANARY_API_TOKEN), false);
@@ -513,4 +515,74 @@ test("REQUEST_VIEWING creates a ViewingRequest only for a real listing and user"
   assert.equal(rejected.ok, false);
   assert.equal(rejected.code, "listing_not_found");
   assert.equal(prisma.state.viewingRequests.length, 1);
+});
+
+function containsField(record, clause) {
+  const field = Object.keys(clause)[0];
+  const cond = clause[field];
+  if (!cond || typeof cond.contains !== "string") return false;
+  const value = record[field];
+  return typeof value === "string" && value.toLowerCase().includes(cond.contains.toLowerCase());
+}
+
+function whatsappSearchPrisma(listing) {
+  return {
+    listing: {
+      findMany: async ({ where } = {}) => {
+        const propertyWhere = where && where.property && where.property.is;
+        if (propertyWhere && Array.isArray(propertyWhere.OR)) {
+          const hit = propertyWhere.OR.some((clause) => containsField(listing.property || {}, clause));
+          if (!hit) return [];
+        }
+        if (Array.isArray(where && where.OR) && where.OR.length > 0) {
+          const hit = where.OR.some((clause) => containsField(listing, clause));
+          if (!hit) return [];
+        }
+        return [listing];
+      },
+    },
+  };
+}
+
+const HIDDEN_HOME = {
+  id: 77,
+  title: "Plain title",
+  description: "Plain description",
+  status: "VERIFIED",
+  reviewStatus: "APPROVED",
+  isFlaggedForFraud: false,
+  price: 400000,
+  currency: "NGN",
+  property: {
+    city: "Owerri",
+    state: "Imo",
+    lga: "Owerri Municipal",
+    address: "14 Secret Close",
+    landmark: "Behind the old post office",
+  },
+};
+
+test("WhatsApp searchListings area returns nothing when the query matches only the street address", async () => {
+  const result = await searchListings(whatsappSearchPrisma(HIDDEN_HOME), { area: "14 Secret Close" });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.listings, []);
+});
+
+test("WhatsApp searchListings area returns nothing when the query matches only a landmark", async () => {
+  const result = await searchListings(whatsappSearchPrisma(HIDDEN_HOME), { area: "Behind the old post office" });
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.listings, []);
+});
+
+test("WhatsApp searchListings area returns the listing when the query matches the public city or area", async () => {
+  const byCity = await searchListings(whatsappSearchPrisma(HIDDEN_HOME), { area: "Owerri" });
+  assert.equal(byCity.listings.length, 1);
+  assert.equal(byCity.listings[0].id, 77);
+  assert.equal(byCity.listings[0].address, undefined);
+  assert.equal(byCity.listings[0].landmark, undefined);
+
+  const byArea = await searchListings(whatsappSearchPrisma(HIDDEN_HOME), { area: "Owerri Municipal" });
+  assert.equal(byArea.listings.length, 1);
+  assert.equal(byArea.listings[0].city, "Owerri");
+  assert.equal(byArea.listings[0].lga, "Owerri Municipal");
 });

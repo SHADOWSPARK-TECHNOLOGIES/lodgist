@@ -86,7 +86,6 @@ Handler logic:
      "A verification request is already in progress for this listing."
 4. Handle file uploads:
    - If Cloudinary: use cloudinary.uploader.upload()
-   - If Vercel Blob: use put() from @vercel/blob
    - If S3: use PutObjectCommand
    - Detect from installed packages. Report if none found — do not fake it.
    - Upload each file. Collect URLs into documentUrls: string[]
@@ -139,7 +138,6 @@ CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 # OR
-BLOB_READ_WRITE_TOKEN=   # Vercel Blob
 ```
 
 Create or update .env.example with these keys (empty values).

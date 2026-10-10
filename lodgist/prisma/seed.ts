@@ -3,6 +3,11 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 import bcrypt from "bcryptjs";
 
+if (process.env.LODGIST_LEGACY_FICTIONAL_SEED !== "1") {
+  console.error("Refusing lodgist/prisma/seed.ts. It deletes rows and inserts fictional verified homes. Use packages/db/prisma/seed-owerri-home.js");
+  process.exit(1);
+}
+
 // Parse DATABASE_URL into individual params to avoid SASL/SCRAM issues with special chars in connection strings
 const dbUrl = new URL(process.env.DATABASE_URL!);
 const pool = new pg.Pool({

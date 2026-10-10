@@ -10,9 +10,9 @@ import type {
   PasskeyAuthenticationOptionsResponse,
   PasskeyRegistrationVerifyResponse,
   PasskeyListResponse,
-  EscrowInitiateResponse,
   User,
   Listing,
+  ListingPhotoRecord,
   Review,
   EscrowTransaction,
   TruthIndexScore,
@@ -23,13 +23,19 @@ import type {
   UpdateListingPayload,
   CreateReviewPayload,
   UpdateReviewPayload,
-  EscrowInitiatePayload,
   ViewingRequestResult,
   CreateLeadPayload,
   LeadSaved,
   CreateAdvertiserLeadPayload,
   AdvertiserLeadSaved,
   TenantBooking,
+  CreateRentalCheckPayload,
+  RentalCheckStatusView,
+  RentalReport,
+  RentalCheckAdmin,
+  RentalCheckMetrics,
+  RentalEvidenceItem,
+  AdminListingReview,
 } from "./types";
 import { getToken } from "./auth";
 
@@ -96,6 +102,35 @@ async function request<T>(
   }
 
   return body as T;
+}
+
+async function requestForm<T>(path: string, body: FormData): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(apiUrl(path), {
+    method: "POST",
+    body,
+    headers,
+  });
+
+  let parsed: unknown;
+  try {
+    parsed = await res.json();
+  } catch {
+    parsed = null;
+  }
+
+  if (!res.ok) {
+    const message =
+      (parsed as Record<string, string>)?.error ||
+      (parsed as Record<string, string>)?.message ||
+      `Request failed with status ${res.status}`;
+    throw new ApiError(message, res.status, parsed);
+  }
+
+  return parsed as T;
 }
 
 // ─── Auth API ──────────────────────────────────────────────────────────────
@@ -220,6 +255,17 @@ export const listingsApi = {
   delete: (id: number) =>
     request<ApiResponse>("DELETE", `/api/listings/${id}`),
 
+  /** Store one listing photo. The server picks the object key. */
+  uploadPhoto: (id: number, file: File) => {
+    const body = new FormData();
+    body.append("photo", file);
+    return requestForm<ApiResponse<ListingPhotoRecord>>(`/api/listings/${id}/photos`, body);
+  },
+
+  /** Remove one stored listing photo. */
+  deletePhoto: (id: number, imageId: number) =>
+    request<ApiResponse>("DELETE", `/api/listings/${id}/photos/${imageId}`),
+
   /** Ask to view a verified listing. Requester comes from the auth token. */
   requestViewing: (
     id: number,
@@ -268,9 +314,120 @@ export const advertiserLeadsApi = {
 
 // ─── Bookings API ──────────────────────────────────────────────────────────
 
+function rentalTokenHeader(token: string): Record<string, string> {
+  return { "x-rental-check-token": token };
+}
+
+export const rentalChecksApi = {
+  create: (payload: CreateRentalCheckPayload) =>
+    request<{ success: boolean; message: string; data: RentalCheckStatusView }>(
+      "POST",
+      "/api/rental-checks",
+      { body: JSON.stringify(payload) },
+    ),
+
+  status: (reference: string, token?: string) =>
+    request<{ success: boolean; data: RentalCheckStatusView }>(
+      "GET",
+      `/api/rental-checks/${encodeURIComponent(reference)}`,
+      { headers: token ? rentalTokenHeader(token) : undefined },
+    ),
+
+  report: (reference: string, token: string) =>
+    request<{ success: boolean; data: RentalReport }>(
+      "GET",
+      `/api/rental-checks/${encodeURIComponent(reference)}/report?token=${encodeURIComponent(token)}`,
+      { headers: rentalTokenHeader(token) },
+    ),
+
+  recordPaymentReference: (reference: string, manualPaymentRef: string, token?: string) =>
+    request<{ success: boolean; data: RentalCheckAdmin; alreadyPaid?: boolean; alreadySubmitted?: boolean }>(
+      "POST",
+      `/api/rental-checks/${encodeURIComponent(reference)}/payment-reference`,
+      {
+        headers: token ? rentalTokenHeader(token) : undefined,
+        body: JSON.stringify(token ? { manualPaymentRef, token } : { manualPaymentRef }),
+      },
+    ),
+
+  reviewPayment: (reference: string, body: { action: "confirm" | "reject"; note?: string }) =>
+    request<{ success: boolean; data: RentalCheckAdmin; alreadyPaid?: boolean }>(
+      "PATCH",
+      `/api/rental-checks/${encodeURIComponent(reference)}/payment-review`,
+      { body: JSON.stringify(body) },
+    ),
+
+  metrics: () =>
+    request<{ success: boolean; data: RentalCheckMetrics }>("GET", "/api/rental-checks/metrics"),
+
+  list: () =>
+    request<{ success: boolean; data: RentalCheckAdmin[] }>("GET", "/api/rental-checks"),
+
+  admin: (reference: string) =>
+    request<{ success: boolean; data: RentalCheckAdmin }>(
+      "GET",
+      `/api/rental-checks/${encodeURIComponent(reference)}/admin`,
+    ),
+
+  review: (
+    reference: string,
+    body: {
+      riskScore?: number;
+      confidence?: string;
+      recommendation?: string;
+      reviewerNotes?: string;
+      evidence?: Record<string, RentalEvidenceItem>;
+      publish?: boolean;
+    },
+  ) =>
+    request<{ success: boolean; data: RentalCheckAdmin }>(
+      "PATCH",
+      `/api/rental-checks/${encodeURIComponent(reference)}/review`,
+      { body: JSON.stringify(body) },
+    ),
+};
+
+export const adminListingsApi = {
+  pending: () =>
+    request<{ success: boolean; data: AdminListingReview[] }>("GET", "/api/admin/listings/pending"),
+
+  approve: (id: number) =>
+    request<{ success: boolean; unchanged?: boolean; data: AdminListingReview }>(
+      "POST",
+      `/api/admin/listings/${id}/approve`,
+    ),
+
+  reject: (id: number, reason: string) =>
+    request<{ success: boolean; unchanged?: boolean; data: AdminListingReview }>(
+      "POST",
+      `/api/admin/listings/${id}/reject`,
+      { body: JSON.stringify({ reason }) },
+    ),
+
+  verify: (id: number) =>
+    request<{ success: boolean; unchanged?: boolean; data: AdminListingReview }>(
+      "POST",
+      `/api/admin/listings/${id}/verify`,
+    ),
+
+  unverify: (id: number) =>
+    request<{ success: boolean; unchanged?: boolean; data: AdminListingReview }>(
+      "POST",
+      `/api/admin/listings/${id}/unverify`,
+    ),
+};
+
 export const bookingsApi = {
   /** Bookings for the signed-in tenant. */
   mine: () => request<{ success: boolean; data: TenantBooking[] }>("GET", "/api/bookings/mine"),
+
+  /** Put a PENDING booking into the staff review queue. Does not mark it paid. */
+  submitManualPayment: (id: string, manualPaymentRef: string) =>
+    request<{ success: boolean; booking: TenantBooking }>(
+      "PATCH",
+      `/api/bookings/${encodeURIComponent(id)}/manual-payment`,
+      { body: JSON.stringify({ manualPaymentRef }) },
+    ),
 };
 
 // ─── Reviews API ───────────────────────────────────────────────────────────
@@ -324,12 +481,6 @@ export const truthIndexApi = {
 // ─── Escrow API ────────────────────────────────────────────────────────────
 
 export const escrowApi = {
-  /** Initiate an escrow transaction (triggers Paystack checkout) */
-  initiate: (payload: EscrowInitiatePayload) =>
-    request<EscrowInitiateResponse>("POST", "/api/escrow/initiate", {
-      body: JSON.stringify(payload),
-    }),
-
   /** Confirm payment (called after Paystack redirect) */
   confirm: (id: number) =>
     request<ApiResponse<EscrowTransaction>>("POST", `/api/escrow/${id}/confirm`),

@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const { requireAuth } = require("../middleware/auth");
 const { parseWebhookBody } = require("./whatsappParse");
 const { sitePath, listingsReply, isExactMenuCommand, deterministicReply } = require("../services/whatsapp/menu");
+const { handleRentalCheckMessage } = require("../services/whatsapp/rentalCheck");
 const { routeTurn, resolveSender, loadOrCreateSession, toHistory } = require("../services/whatsapp/engine");
 const { logWhatsApp, redactPhone } = require("../services/whatsapp/redact");
 
@@ -10,8 +11,8 @@ const { logWhatsApp, redactPhone } = require("../services/whatsapp/redact");
  * Create an Express router for WhatsApp webhook and messaging endpoints.
  * Accepts a `prisma` instance for testability.
  *
- * Flow: Meta webhook → HMAC → msg.id dedupe → session (User or lead) →
- * Gemini intent router (menu fallback) → Lodgist tools → Meta send.
+ * Flow: Meta webhook → HMAC → phone_number_id filter → msg.id dedupe →
+ * session (User or lead) → Gemini intent router (menu fallback) → Lodgist tools → Meta send.
  *
  * @param {object} prisma - Prisma client instance
  * @param {{ complete?: Function }} [options]
@@ -25,6 +26,33 @@ const { logWhatsApp, redactPhone } = require("../services/whatsapp/redact");
 module.exports = function (prisma, options = {}) {
   const router = express.Router();
   const seenMsgIds = new Set();
+  let loggedMissingPhoneNumberId = false;
+
+  function configuredPhoneNumberId() {
+    const raw = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    if (typeof raw !== "string") return "";
+    return raw.trim();
+  }
+
+  // Meta delivers one app's webhooks to every subscribed callback. Ack a change
+  // for another business number without dedupe, replies, or database writes.
+  // An unset id keeps the previous accept-all behavior and warns once.
+  function inboundChangeIsForThisNumber(metadata) {
+    const configured = configuredPhoneNumberId();
+    if (!configured) {
+      if (!loggedMissingPhoneNumberId) {
+        loggedMissingPhoneNumberId = true;
+        logWhatsApp(
+          "warn",
+          "WHATSAPP_PHONE_NUMBER_ID is unset; inbound WhatsApp changes are not filtered by phone number"
+        );
+      }
+      return true;
+    }
+    const incoming = metadata?.phone_number_id;
+    if (incoming === undefined || incoming === null || incoming === "") return false;
+    return String(incoming) === configured;
+  }
 
   function verifyWebhookSignature(signature, body) {
     if (!signature || !process.env.WHATSAPP_APP_SECRET) return false;
@@ -170,6 +198,10 @@ module.exports = function (prisma, options = {}) {
         return res.sendStatus(200);
       }
 
+      if (!inboundChangeIsForThisNumber(metadata)) {
+        return res.sendStatus(200);
+      }
+
       const profileName = value?.contacts?.[0]?.profile?.name || null;
 
       for (const msg of messages) {
@@ -227,7 +259,18 @@ module.exports = function (prisma, options = {}) {
 
         let replyText;
         let trackRefer = false;
-        if (isExactMenuCommand(msgText)) {
+        const rentalTurn =
+          !isExactMenuCommand(msgText) && prisma.rentalCheckDraft && prisma.rentalCheck
+            ? await handleRentalCheckMessage(prisma, {
+                text: msgText,
+                phone,
+                user: senderUser,
+                profileName: msg.profile?.name || profileName,
+              })
+            : { handled: false };
+        if (rentalTurn.handled) {
+          replyText = rentalTurn.replyText;
+        } else if (isExactMenuCommand(msgText)) {
           const menu = await deterministicReply(prisma, { msgText, session, user: senderUser });
           replyText = menu.replyText;
           trackRefer = menu.trackRefer;

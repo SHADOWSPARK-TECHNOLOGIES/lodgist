@@ -32,16 +32,28 @@ function reviewLabel(listing) {
   return isLodgistReviewed(listing) ? REVIEWED_LABEL : NOT_REVIEWED_LABEL;
 }
 
-/** Completed checks are not implied by review, listing status, risk, or payment. */
-function isEvidenceVerified() {
-  return false;
+const CLOSED_STATUS = new Set(["REJECTED", "ARCHIVED"]);
+
+/**
+ * Completed checks are not implied by review, listing status, risk, or payment.
+ * Fails closed: a rejected, archived, fraud-flagged, flagged, or suspended row
+ * never shows the verified badge, even if a stale evidence flag is still set.
+ */
+function isEvidenceVerified(listing) {
+  if (!listing || typeof listing !== "object" || isExampleListing(listing)) return false;
+  if (listing.evidenceVerified !== true) return false;
+  if (CLOSED_STATUS.has(listing.status)) return false;
+  if (listing.isFlaggedForFraud === true) return false;
+  if (BLOCKED_RISK.has(listing.riskState)) return false;
+  return true;
 }
 
-/** Public discovery: non-sample PENDING or VERIFIED, and not fraud / flagged / suspended. */
+/** Public discovery: Lodgist-reviewed, non-sample PENDING or VERIFIED, and not fraud / flagged / suspended. */
 function isPublicListing(listing) {
   if (!listing || typeof listing !== "object") return false;
   if (isExampleListing(listing)) return false;
   if (listing.isFlaggedForFraud === true) return false;
+  if (listing.reviewStatus !== "APPROVED") return false;
   if (listing.status !== "PENDING" && listing.status !== "VERIFIED") return false;
   if (BLOCKED_RISK.has(listing.riskState)) return false;
   return true;
@@ -83,7 +95,13 @@ function decisionFacts(listing) {
   const verified = isEvidenceVerified(listing);
   let lastVerification = "Not verified by Lodgist. No verification date is on file.";
   if (example) lastVerification = "Example only. This home has not been checked.";
-  else if (verified) lastVerification = "Verified. The verification date is not published on this listing.";
+  else if (verified) {
+    const stamp = listing.verifiedAt ? new Date(listing.verifiedAt) : null;
+    const dated = stamp && !Number.isNaN(stamp.getTime()) ? stamp.toISOString().slice(0, 10) : null;
+    lastVerification = dated
+      ? `Verified by Lodgist on ${dated}.`
+      : "Verified. The verification date is not published on this listing.";
+  }
 
   return {
     example,
@@ -92,7 +110,7 @@ function decisionFacts(listing) {
     moveInTotal: moveInTotal(listing),
     lastVerification,
     completed: verified
-      ? ["Listing status is verified. Itemised check results are not published."]
+      ? ["An admin recorded a verification review. Itemised check results are not published."]
       : [],
     outstanding: verified ? ["Physical inspection before you pay"] : OUTSTANDING_CHECKS.slice(),
   };

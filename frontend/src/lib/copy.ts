@@ -1,9 +1,8 @@
-/** Meta app WA bake 2026-09-29 (+2349045770572). Digits from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when the env var is unset. */
+import { supportDigits } from "./whatsappPayment";
+
+/** Digits from NEXT_PUBLIC_SUPPORT_WHATSAPP. Null when unset, empty, or the rejected test number. */
 export function supportWhatsAppDigits(): string | null {
-  const raw = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP;
-  if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
-  return digits.length > 0 ? digits : null;
+  return supportDigits(process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP);
 }
 
 /** wa.me link, or null when support WhatsApp is not configured. */
@@ -20,9 +19,11 @@ export const brand = {
   productLabel: "Product",
   companyLabel: "Company",
   browse: "Browse homes",
+  check: "Check a rental",
   list: "Advertise with Lodgist",
   trust: "Trust and safety",
   about: "About Lodgist",
+  aim: "Our aim",
   privacy: "How we handle trust",
   support: "Lodgist Support · ShadowSpark Technologies",
   authLine: "A ShadowSpark Technologies platform",
@@ -35,6 +36,7 @@ export function formatYearlyRent(price?: number | null) {
 
 export const nav = {
   browse: "Browse",
+  aim: "Aim",
   dashboard: "Dashboard",
   signOut: "Sign out",
   signIn: "Sign in",
@@ -75,6 +77,8 @@ export const home = {
   titleLead: "Find a place in Nigeria",
   titleAccent: "you can actually trust",
   subtitle: "See the checks on the landlord and the listing before you pay.",
+  checkPrompt: "Found a house online? Before you send money, let Lodgist check it.",
+  checkCta: "CHECK A RENTAL BEFORE I PAY",
   browseCta: "Browse homes",
   listCta: "List a house (free)",
   stepsTitle: "How it works",
@@ -152,7 +156,16 @@ export const detail = {
   askInvoice: "Ask an agent to send an invoice",
   askInvoiceNote: "This asks an agent for an invoice. It does not mean a payment is completed.",
   unverified: "Not verified by Lodgist",
+  labelsExplain: "Lodgist-reviewed means a Lodgist admin approved this listing to be shown. Verified by Lodgist means an admin recorded an evidence check. Neither label is a guarantee of the home, the landlord, its safety, or its title. Inspect before you pay.",
   source: "Source",
+  photos: "Photos",
+  noPhoto: "No photo yet",
+  addPhoto: "Add a photo",
+  addingPhoto: "Saving photo…",
+  removePhoto: "Remove photo",
+  photoHint: "JPEG, PNG, or WebP. Up to 8 photos, 8 MB each.",
+  photoFailed: "We could not save that photo.",
+  photoNotSaved: "Nothing was saved.",
   rentMissing: "Not listed",
   sampleMoveIn: "Example figure, not a bill",
   noScore: "No Trust Score yet",
@@ -163,18 +176,20 @@ export const detail = {
 export const listings = {
   title: "Find a place",
   subtitle: "Annual rent is shown first. A home Lodgist has not verified says so. A Trust Score appears only when we have one.",
+  searchLabel: "Area or home type",
   searchPlaceholder: "Try \"2 bedroom Owerri\" or \"World Bank\"",
+  loading: "Loading homes…",
   maxRent: "Highest annual rent",
   count: (n: number) => (n === 1 ? "1 home" : `${n} homes`),
   emptyTitle: "No homes here yet",
-  emptyBody: "We're starting with Imo. Published homes show here, including ones Lodgist has not verified.",
+  emptyBody: "We're starting with Imo. Only a Lodgist-reviewed home is shown. Review is not verification.",
   emptyCta: "Ask us on WhatsApp",
   whatsAppMissing: "WhatsApp support is not set up on this site yet.",
   listCta: "List your property",
   elsewhere: "Looking somewhere else? Tell us the area you want.",
   searchEmptyTitle: "Nothing matches that search",
   searchEmptyBody: "Try another area or a higher rent, or tell us on WhatsApp.",
-  leadTitle: "No matching homes yet",
+  leadTitle: "Request a home in your area",
   leadBody: "Tell us the area, budget, and when you want to move. We save the request. This is not a promise of a specific home.",
   leadLocation: "Area",
   leadBudget: "Yearly budget (NGN)",
@@ -196,11 +211,13 @@ export const listings = {
 export const search = {
   title: "Find a place",
   button: "Search",
+  label: "Area",
+  searching: "Searching…",
   placeholder: "New Owerri, Irete, World Bank",
   startTitle: "Type an area",
   startBody: "Example: New Owerri, Irete, or World Bank.",
   noTitle: "Nothing for that search",
-  noBody: "Try a different area, or see every place we have checked.",
+  noBody: "Try a different area, or see every place listed on Lodgist.",
   browseAll: "See all places",
   fetchError: "Listings did not load. Check your network and try again.",
 };
@@ -277,6 +294,7 @@ export const neighborhood = {
 
 export const listingCard = {
   noPhoto: "No photo yet",
+  photoCount: (count: number) => `${count} photos`,
   listedBy: "Listed by",
   trust: "Trust score",
   view: "View house",
@@ -342,13 +360,65 @@ export const milestones = {
   title: "Payments along the way",
   empty: "No staged payments on this listing.",
   noneYet: "Nothing paid yet",
-  complete: "Finish this on WhatsApp",
+  complete: "Arrange on WhatsApp",
+};
+
+export const arrangePayment = {
+  rentalCta: "Arrange this fee on WhatsApp",
+  bookingCta: "Arrange this booking payment on WhatsApp",
+  opening: "Opening WhatsApp",
+  rentalNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. Opening WhatsApp does not mark the fee paid.",
+  bookingNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. This does not mark the booking paid.",
+  queued: "This fee is in the review queue. Staff have not confirmed the money.",
+  needLink: "Open the case link we sent you so this fee can enter the review queue.",
+  missing: "WhatsApp support is not set up on this site yet.",
 };
 
 export const about = {
   metaTitle: "About Lodgist",
   lead: "Lodgist is a Nigerian rental-trust platform curated by ShadowSpark Technologies.",
   parent: "ShadowSpark builds technology focused on practical automation, trust, and digital services for African markets.",
+};
+
+export const mission = {
+  metaTitle: "What Lodgist is trying to do",
+  kicker: "Aim",
+  title: "What Lodgist is trying to do",
+  lead: "Lodgist wants a renter in Imo to see what was checked before money leaves their account. It starts with one campus. A public home appears only after a person reviews it.",
+  boardTitle: "Mission board",
+  boardNote: "Each row is a product promise. None of these rows is a listing.",
+  rows: [
+    {
+      status: "Written",
+      title: "Show the checks before you pay",
+      body: "The trust page says what a check covers. A Trust Score is not a promise that the house, the landlord, or the payment is safe.",
+    },
+    {
+      status: "Not yet",
+      title: "Publish a reviewed room near Nekede",
+      body: "The Nekede page still says nothing to rent. An example card is not a home. A portal ad is not a Lodgist listing.",
+    },
+    {
+      status: "In place",
+      title: "Keep an ad from becoming a listing",
+      body: "Submission is not publication. Payment never buys a verification badge.",
+    },
+    {
+      status: "Written",
+      title: "Take one home for review",
+      body: "Advertise asks for the facts on one room. Sending those facts does not publish the room.",
+    },
+    {
+      status: "Not yet",
+      title: "Open more cities",
+      body: "More cities come after homes are reviewed. Imo is the start.",
+    },
+  ],
+  nextTitle: "What you can do now",
+  readTrust: "Read how checks work",
+  offerRoom: "Offer one room for review",
+  seeNekede: "See the Nekede page",
+  nekedeNext: "Read what Lodgist is trying to do",
 };
 
 export const trustCenter = {

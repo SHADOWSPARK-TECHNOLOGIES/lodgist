@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { bookingsApi, listingsApi } from '@/lib/api';
+import ArrangeWhatsAppPayment from '@/components/ArrangeWhatsAppPayment';
+import { ApiError, bookingsApi, listingsApi } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
@@ -14,6 +15,7 @@ import ExploreNeighborhood from '@/components/spatial/ExploreNeighborhood';
 import { invoiceRequestMessage } from '@/lib/invoiceRequest';
 import { campusDirections } from '@/lib/campusDirections';
 import { safeNextPath } from '@/lib/returnPath';
+import { paymentWhatsAppText, whatsappArrangementRef } from '@/lib/whatsappPayment';
 import type { Listing, TenantBooking } from '@/lib/types';
 
 type MoveIn = {
@@ -42,49 +44,52 @@ function feeCategory(category?: string | null): 'residential' | 'commercial' | '
 
 export default function ListingDetailPage() {
   const params = useParams<{ id: string }>();
-  const id = Number(params.id);
+  return <ListingDetail key={params.id} id={Number(params.id)} />;
+}
+
+function ListingDetail({ id }: { id: number }) {
   const [listing, setListing] = useState<Listing | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Number.isFinite(id));
   const [failed, setFailed] = useState(false);
-  const [missing, setMissing] = useState(false);
+  const [missing, setMissing] = useState(!Number.isFinite(id));
   const [reloadKey, setReloadKey] = useState(0);
   const { user } = useAuth();
-  const [invoiceBooking, setInvoiceBooking] = useState<TenantBooking | null>(null);
+  const [invoiceResult, setInvoiceResult] = useState<{
+    userId: number;
+    listingId: number;
+    booking: TenantBooking | null;
+  } | null>(null);
+  const invoiceBooking = user && listing && invoiceResult?.userId === user.id
+    && invoiceResult.listingId === listing.id ? invoiceResult.booking : null;
 
   useEffect(() => {
-    if (!Number.isFinite(id)) {
-      setMissing(true);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setFailed(false);
-    setMissing(false);
+    if (!Number.isFinite(id)) return;
+    let cancelled = false;
     listingsApi.get(id)
       .then((res) => {
+        if (cancelled) return;
         if (!res.data) setMissing(true);
         else setListing(res.data);
       })
       .catch((err: { status?: number }) => {
+        if (cancelled) return;
         if (err?.status === 404) setMissing(true);
         else setFailed(true);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [id, reloadKey]);
 
   useEffect(() => {
-    if (!user || !listing) {
-      setInvoiceBooking(null);
-      return;
-    }
+    if (!user || !listing) return;
     let cancelled = false;
     bookingsApi.mine()
       .then((res) => {
         if (cancelled) return;
         const match = (res.data ?? []).find((row) => row.listingId === listing.id && row.status !== "CANCELLED");
-        setInvoiceBooking(match ?? null);
+        setInvoiceResult({ userId: user.id, listingId: listing.id, booking: match ?? null });
       })
-      .catch(() => { if (!cancelled) setInvoiceBooking(null); });
+      .catch(() => { if (!cancelled) setInvoiceResult(null); });
     return () => { cancelled = true; };
   }, [user, listing]);
 
@@ -101,7 +106,7 @@ export default function ListingDetailPage() {
     return (
       <div className="container py-16 text-center">
         <h1 className="font-poppins font-semibold text-white text-xl mb-4">{failed ? detail.loadError : detail.missing}</h1>
-        {failed && <button type="button" className="btn btn-primary" onClick={() => setReloadKey((n) => n + 1)}>{detail.retry}</button>}
+        {failed && <button type="button" className="btn btn-primary" onClick={() => { setReloadKey((n) => n + 1); setLoading(true); setFailed(false); setMissing(false); }}>{detail.retry}</button>}
         <div className="mt-4"><Link href="/listings" className="nav-link">{detail.back}</Link></div>
       </div>
     );
@@ -125,6 +130,20 @@ export default function ListingDetailPage() {
         amount: typeof invoiceBooking.totalAmount === "number" ? invoiceBooking.totalAmount : listing.price,
       }))
     : null;
+  const bookingAmount = invoiceBooking && typeof invoiceBooking.totalAmount === "number" ? invoiceBooking.totalAmount : listing.price;
+  const bookingCanPay = Boolean(
+    invoiceBooking && (invoiceBooking.status === "PENDING" || invoiceBooking.status === "PENDING_VERIFICATION"),
+  );
+  const bookingPayHref = bookingCanPay && invoiceBooking
+    ? supportWhatsAppLink(paymentWhatsAppText({
+        what: "Booking",
+        amountNgn: bookingAmount,
+        currency: invoiceBooking.currency || "NGN",
+        reference: invoiceBooking.id,
+        listing: homeLabel,
+        name: user?.name || undefined,
+      }))
+    : null;
   const directions = campusDirections({
     place,
     approx: listing.approxLocation ?? null,
@@ -135,24 +154,25 @@ export default function ListingDetailPage() {
       <Link href="/listings" className="nav-link text-sm">{detail.back}</Link>
       <h1 className="font-poppins font-bold text-white text-2xl mt-4 mb-1">{listing.title}</h1>
       {place && <p className="text-sm mt-1" style={{ color: 'rgba(255,255,255,0.55)' }}>{place}</p>}
-      <p className="text-sm mt-3" style={{ color: isLodgistReviewed(listing) ? 'var(--color-teal)' : 'rgba(255,255,255,0.55)' }}>
+      <p className="text-sm mt-3" style={{ color: isLodgistReviewed(listing) ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.55)' }}>
         {reviewLabel(listing)}
       </p>
-      <p className="text-sm mt-1" style={{ color: 'var(--color-orange)' }}>
+      <p className="text-sm mt-1" style={{ color: isEvidenceVerified(listing) ? 'var(--color-teal)' : 'var(--color-orange)' }}>
         {verificationLabel(listing)}
       </p>
       <p className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>{detail.source}: {sourceLabel(listing)}</p>
+      <p className="text-xs mt-2 max-w-xl" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.labelsExplain}</p>
       {facts.example && (
         <p className="text-sm mt-2" style={{ color: 'var(--color-orange)' }}>{detail.sampleTitle}</p>
       )}
 
-      <div className="h-56 rounded-xl mt-6 mb-6 flex items-center justify-center overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
-        {listing.images?.[0]?.url ? (
-          <img src={listing.images[0].url} alt={listing.title} className="w-full h-full object-cover" />
-        ) : (
-          <span className="text-sm" style={{ color: 'rgba(255,255,255,0.4)' }}>No photo yet</span>
-        )}
-      </div>
+      <ListingPhotos
+        listingId={listing.id}
+        title={listing.title}
+        images={listing.images}
+        canManage={Boolean(user && (user.role === "STUDIO_ADMIN" || user.id === listing.ownerId))}
+        onImages={(images) => setListing({ ...listing, images })}
+      />
 
       <section className="card mb-4" aria-labelledby="campus-heading">
         <h2 id="campus-heading" className="font-poppins font-semibold text-white mb-2">Area and campus</h2>
@@ -230,6 +250,27 @@ export default function ListingDetailPage() {
         <RequestViewing listingId={listing.id} loginHref={loginHref} askHref={askHref} />
       ) : (
         <p className="text-sm mb-4" style={{ color: 'rgba(255,255,255,0.6)' }}>{detail.viewingClosed}</p>
+      )}
+
+      {bookingCanPay && invoiceBooking && (
+        <div className="mb-4">
+          <ArrangeWhatsAppPayment
+            href={bookingPayHref}
+            label={arrangePayment.bookingCta}
+            busyLabel={arrangePayment.opening}
+            note={arrangePayment.bookingNote}
+            missingLabel={arrangePayment.missing}
+            prepare={async () => {
+              if (invoiceBooking.status !== "PENDING") return;
+              try {
+                await bookingsApi.submitManualPayment(invoiceBooking.id, whatsappArrangementRef(invoiceBooking.id));
+              } catch (err) {
+                if (err instanceof ApiError && err.status === 409) return;
+                throw err;
+              }
+            }}
+          />
+        </div>
       )}
 
       {invoiceHref && (

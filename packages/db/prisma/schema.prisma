@@ -123,6 +123,8 @@ model User {
   fraudSignalReports      FraudSignal[]         @relation("FraudReports")
   fraudSignalResolutions  FraudSignal[]         @relation("FraudResolutions")
   adminActions            AdminAction[]         @relation("AdminActions")
+  rentalChecks            RentalCheck[]         @relation("RentalCheckCustomer")
+  reviewedRentalChecks    RentalCheck[]         @relation("RentalCheckReviewer")
 
   @@index([email])
   @@index([whatsappId])
@@ -192,6 +194,15 @@ model Listing {
   riskState         RiskState?      @default(UNVERIFIED)
   truthIndex        Int?
   reviewStatus      ListingReviewStatus @default(NOT_REVIEWED)
+  // Evidence review, separate from reviewStatus (publish) and status VERIFIED
+  // (viewing gate). Null or false is not "Verified by Lodgist".
+  // verifiedById is the acting user id. It stays a nullable audit column with
+  // no foreign key, including after AdminAction exists.
+  evidenceVerified  Boolean?
+  verifiedAt        DateTime?
+  verifiedById      Int?
+  rejectionReason   String?
+  adminAudit        Json?
 
   // Nigerian real estate metadata
   totalMoveInCost Json?            // { base_rent, agency_fee, legal_fee, caution_fee, inspection_fee?, currency, total }
@@ -258,6 +269,8 @@ model Booking {
   @@index([tenantId])
   @@index([listingId])
   @@index([status])
+  // Present since 20260518000000. Declared here so migrate diff does not drop it.
+  @@index([verifiedBy])
 }
 
 model ViewingRequest {
@@ -373,9 +386,11 @@ model WhatsAppSession {
   // Null for unknown WhatsApp senders. Leads are stored on `phone` until they
   // have a User row. Do not invent a User to satisfy this relation.
   userId      Int?
-  user        User?            @relation("UserWhatsappSessions", fields: [userId], references: [id])
+  // ON DELETE RESTRICT matches the baseline FK. The column was made nullable
+  // later; the constraint was not recreated, and this PR does not drop it.
+  user        User?            @relation("UserWhatsappSessions", fields: [userId], references: [id], onDelete: Restrict)
   contactId   Int?
-  contact     User?            @relation("ContactWhatsappSessions", fields: [contactId], references: [id])
+  contact     User?            @relation("ContactWhatsappSessions", fields: [contactId], references: [id], onDelete: Restrict)
   phone       String?
   listingId   Int?
   listing     Listing?         @relation(fields: [listingId], references: [id])
@@ -398,7 +413,8 @@ model WhatsAppMessage {
   sessionId String
   session   WhatsAppSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   senderId  Int?
-  sender    User?            @relation("SenderMessages", fields: [senderId], references: [id])
+  // Same as WhatsAppSession user/contact: nullable column, existing RESTRICT FK.
+  sender    User?            @relation("SenderMessages", fields: [senderId], references: [id], onDelete: Restrict)
   content   String
   messageType String         @default("TEXT") // TEXT, IMAGE, DOCUMENT, LOCATION
   direction   String         @default("INBOUND") // INBOUND, OUTBOUND
@@ -723,4 +739,99 @@ model AdvertiserLead {
 
   @@index([phone])
   @@index([createdAt])
+}
+
+// Paid Rental Safety Check. A paid case is a review, not verification.
+// paymentDetails may hold bank-account evidence. It must not hold card, PIN, or OTP secrets.
+enum RentalCheckStatus {
+  SUBMITTED
+  AWAITING_PAYMENT
+  PAID
+  UNDER_REVIEW
+  REPORT_READY
+  DELIVERED
+  CANCELLED
+}
+
+enum RentalCheckPaymentStatus {
+  UNPAID
+  PENDING
+  PAID
+  FAILED
+}
+
+enum RentalCheckReviewStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+}
+
+enum RentalCheckConfidence {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum RentalCheckRecommendation {
+  LOWER_RISK
+  UNCERTAIN
+  HIGH_RISK
+}
+
+model RentalCheck {
+  id                String                     @id @default(cuid())
+  publicReference   String                     @unique
+  accessTokenHash   String
+  userId            Int?
+  user              User?                      @relation("RentalCheckCustomer", fields: [userId], references: [id])
+  customerName      String?
+  customerPhone     String
+  customerEmail     String?
+  listingUrl        String?
+  location          String
+  askingRent        Int
+  agentName         String?
+  agentPhone        String?
+  paymentDetails    Json?
+  customerNotes     String?
+  status            RentalCheckStatus          @default(SUBMITTED)
+  paymentStatus     RentalCheckPaymentStatus   @default(UNPAID)
+  reviewStatus      RentalCheckReviewStatus    @default(NOT_STARTED)
+  paystackReference String?                    @unique
+  amountNgn         Int                        @default(5000)
+  // Transfer reference for the check fee. Not rent, not a deposit, and not a receipt until staff confirm it.
+  manualPaymentRef  String?
+  paymentSubmittedAt DateTime?
+  paymentReviewedBy Int?
+  paymentReviewedAt DateTime?
+  paymentReviewNote String?
+  paidAt            DateTime?
+  riskScore         Int?
+  confidence        RentalCheckConfidence?
+  recommendation    RentalCheckRecommendation?
+  reviewerNotes     String?
+  evidence          Json?
+  reviewedBy        Int?
+  reviewer          User?                      @relation("RentalCheckReviewer", fields: [reviewedBy], references: [id])
+  reviewedAt        DateTime?
+  reportPublishedAt DateTime?
+  deliveredAt       DateTime?
+  createdAt         DateTime                   @default(now())
+  // DB default matches 20261005123000. @updatedAt still overwrites it on writes.
+  updatedAt         DateTime                   @default(now()) @updatedAt
+
+  @@index([customerPhone])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([createdAt])
+}
+
+// In-progress WhatsApp CHECK collection. Not a case until the fields are complete.
+model RentalCheckDraft {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  step      String
+  fields    Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }

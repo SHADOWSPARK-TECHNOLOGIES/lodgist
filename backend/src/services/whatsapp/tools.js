@@ -31,6 +31,11 @@ function isShareable(listing) {
   return Boolean(listing) && listing.status === "VERIFIED" && listing.isFlaggedForFraud !== true;
 }
 
+function isExampleListing(listing) {
+  const cost = listing && listing.totalMoveInCost;
+  return Boolean(cost && typeof cost === "object" && !Array.isArray(cost) && cost.sample === true);
+}
+
 function parsePreferredDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return null;
   const parsed = new Date(`${value}T00:00:00.000Z`);
@@ -49,6 +54,7 @@ function parsePreferredDate(value) {
 async function searchListings(prisma, args) {
   const where = {
     status: "VERIFIED",
+    reviewStatus: "APPROVED",
     isFlaggedForFraud: false,
   };
   const propertyWhere = {};
@@ -56,10 +62,11 @@ async function searchListings(prisma, args) {
     propertyWhere.state = { equals: args.state, mode: "insensitive" };
   }
   if (args.area) {
+    // Same public fields as GET /api/listings?area=. Never address or landmark.
     propertyWhere.OR = [
       { city: { contains: args.area, mode: "insensitive" } },
       { lga: { contains: args.area, mode: "insensitive" } },
-      { address: { contains: args.area, mode: "insensitive" } },
+      { state: { contains: args.area, mode: "insensitive" } },
     ];
   }
   if (Object.keys(propertyWhere).length) where.property = { is: propertyWhere };
@@ -76,7 +83,9 @@ async function searchListings(prisma, args) {
     orderBy: { createdAt: "desc" },
     include: { property: { select: LISTING_PROPERTY_SELECT } },
   });
-  const listings = (rows || []).filter(isShareable).map(publicListing);
+  const listings = (rows || [])
+    .filter((listing) => isShareable(listing) && listing.reviewStatus === "APPROVED" && !isExampleListing(listing))
+    .map(publicListing);
   return { ok: true, listings };
 }
 
