@@ -11,7 +11,7 @@ Reproducible pnpm 9.15.9 installs for the root, `packages/db`, and `lodgist`. Wh
 - Local-only fleet files: `.agent-context.md`, `ORCHESTRATOR_START.md`, `.cursor/CONTEXT_INDEX.md`, `.cursor/rules/99-agent-orchestrator.mdc`. They are gitignored.
 - `github.authkey` on disk and in Git history. Do not print it. Rotation is still gated.
 - `backend/` and the separate `lodgist-backend` checkout.
-- Production application of `20260924100000_booking_no_overlap`.
+- Booking no-overlap DB constraint: split out of #77 into its own draft PR (feat/booking-no-overlap-migration). Run the prod overlap precheck before merging it.
 
 ## Next
 
