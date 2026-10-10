@@ -8,8 +8,10 @@
     "start": "next start",
     "lint": "eslint",
     "test": "node --test src/lib/listingHonesty.test.js src/lib/returnPath.test.js src/lib/invoiceRequest.test.js src/lib/spatialLab.test.js src/lib/nekedePilot.test.js src/lib/missionCopy.test.js src/lib/rentalCheck.test.js src/lib/whatsappPayment.test.js src/lib/requestTimeout.test.js src/lib/a11yStructure.test.js"
+    "test": "node --test src/lib/listingHonesty.test.js src/lib/listingPhotos.test.js src/lib/returnPath.test.js src/lib/invoiceRequest.test.js src/lib/spatialLab.test.js src/lib/campusDirections.test.js src/lib/nekedePilot.test.js src/lib/missionCopy.test.js src/lib/rentalCheck.test.js src/lib/whatsappPayment.test.js && node --test ../packages/spatial-core/test/*.cjs"
   },
   "dependencies": {
+    "@lodgist/spatial-core": "file:./vendor/spatial-core",
     "@simplewebauthn/browser": "^13.3.0",
     "lucide-react": "^1.11.0",
     "motion": "^12.38.0",

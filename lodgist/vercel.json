@@ -1,6 +1,0 @@
-{
-  "framework": "nextjs",
-  "buildCommand": "npx prisma generate --config prisma.config.ts && next build",
-  "outputDirectory": ".next",
-  "installCommand": "pnpm install --no-frozen-lockfile"
-}

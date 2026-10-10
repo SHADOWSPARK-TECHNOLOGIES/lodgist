@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ExploreNeighborhood from "@/components/spatial/ExploreNeighborhood";
-import { buildPublicSpatialContext } from "@/lib/spatialLab";
+import { anonymousListingRequest, buildPublicSpatialContext } from "@/lib/spatialLab";
 import type { ApproxLocation } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +23,13 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ i
   let listing: object | null = null;
   let upstream = false;
   try {
-    const response = await fetch(`${apiBase()}/api/listings/${id}`, { cache: "no-store" });
-    if (response.status === 404) notFound();
-    if (!response.ok) upstream = true;
-    else {
+    const upstreamRequest = anonymousListingRequest(apiBase(), id);
+    const response = await fetch(upstreamRequest.url, upstreamRequest.init);
+    if (response.status === 404) {
+      listing = null;
+    } else if (!response.ok) {
+      upstream = true;
+    } else {
       const body = (await response.json()) as { data?: object };
       listing = body.data ?? null;
     }

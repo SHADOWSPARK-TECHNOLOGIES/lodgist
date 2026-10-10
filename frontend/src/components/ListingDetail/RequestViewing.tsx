@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, listingsApi } from "@/lib/api";
@@ -16,6 +16,11 @@ type Props = {
   askHref: string | null;
 };
 
+// Hydration readiness is an external browser snapshot, not effect-owned state.
+const subscribeToHydration = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
+
 function isRenter(role: string | undefined): boolean {
   return role === "USER" || role === "TENANT";
 }
@@ -29,7 +34,7 @@ function todayInputValue(): string {
 export default function RequestViewing({ listingId, loginHref, askHref }: Props) {
   const router = useRouter();
   const { user } = useAuth();
-  const [ready, setReady] = useState(false);
+  const ready = useSyncExternalStore(subscribeToHydration, clientReady, serverReady);
   const [preferredDate, setPreferredDate] = useState("");
   const [preferredTime, setPreferredTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -40,10 +45,6 @@ export default function RequestViewing({ listingId, loginHref, askHref }: Props)
     savedNow: boolean;
     data: ViewingRequestResult;
   } | null>(null);
-
-  useEffect(() => {
-    setReady(true);
-  }, []);
 
   useEffect(() => {
     if (!user || !isRenter(user.role)) return;

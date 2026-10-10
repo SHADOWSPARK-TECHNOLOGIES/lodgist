@@ -16,6 +16,12 @@ const {
   buildPreviewModel,
   mapGeometry,
   campusById,
+  adaptSpatialListing,
+  anonymousListingRequest,
+  exactPinPermitted,
+  publicTileTemplate,
+  publicSubject,
+  nextDialogFocus,
   FIXTURE_AMENITIES,
   CAMPUSES,
 } = require("./spatialLab");
@@ -87,12 +93,15 @@ test("public context keeps an approximate area and never an exact pin or private
   assert.equal(json.includes("address"), false);
 
   const missing = buildPublicSpatialContext(publicHome({ approxLocation: null, property: { city: "Owerri", state: "Imo", latitude: PRIVATE.lat, longitude: PRIVATE.lng } }));
-  assert.equal(missing.focus.precision, "unknown");
+  assert.equal(missing.focus.precision, "area-only");
+  assert.equal(missing.focus.label, "Owerri, Imo");
+  assert.equal("lat" in missing.focus, false);
   assert.equal(mapGeometry(missing.focus).kind, "none");
   assert.equal(JSON.stringify(missing).includes("5.497123"), false);
 
   const bad = buildPublicSpatialContext(publicHome({ approxLocation: { lat: "5.495", lng: "7.035", radius_m: 500 } }));
-  assert.equal(bad.focus.precision, "unknown");
+  assert.equal(bad.focus.precision, "area-only");
+  assert.equal("lat" in bad.focus, false);
 });
 
 test("approximate directions omit private and snapped coordinates", () => {
@@ -179,6 +188,142 @@ test("routing and amenity failures stay empty", async () => {
   });
   assert.equal(unconfigured.status, "unconfigured");
   assert.deepEqual(unconfigured.items, []);
+
+  const ok = await loadRoute({
+    focus,
+    campus,
+    config: { osrmBaseUrl: "https://routing.example", overpassUrl: null, tileUrl: null },
+    fetchImpl: async () => ({ ok: true, json: async () => ({ code: "Ok", routes: [{ distance: 2400, duration: 480 }] }) }),
+  });
+  assert.equal(ok.status, "ok");
+  assert.equal(ok.distanceM, 2400);
+  assert.equal(ok.durationS, 480);
+
+  const negative = await loadRoute({
+    focus,
+    campus,
+    config: { osrmBaseUrl: "https://routing.example", overpassUrl: null, tileUrl: null },
+    fetchImpl: async () => ({ ok: true, json: async () => ({ code: "Ok", routes: [{ distance: -1, duration: 480 }] }) }),
+  });
+  assert.equal(negative.status, "failed");
+  assert.equal(negative.distanceM, null);
+  assert.equal(negative.durationS, null);
+  assert.equal(describeRoute(negative).primary, "Routing unavailable");
+
+  const noRoute = await loadRoute({
+    focus,
+    campus,
+    config: { osrmBaseUrl: "https://routing.example", overpassUrl: null, tileUrl: null },
+    fetchImpl: async () => ({ ok: true, json: async () => ({ code: "NoRoute", routes: [] }) }),
+  });
+  assert.equal(noRoute.status, "failed");
+  assert.equal(noRoute.durationS, null);
+});
+
+test("the four location states stay distinct and do not invent coordinates", async () => {
+  const exactAttempt = buildPublicSpatialContext(publicHome({
+    locationState: "EXACT",
+    exactLat: PRIVATE.lat,
+    exactLng: PRIVATE.lng,
+    authorizedLocation: PRIVATE,
+  }));
+  assert.equal(exactAttempt.focus.precision, "approximate");
+  assert.equal(exactAttempt.allowExactOrigin, false);
+  assert.equal(exactAttempt.locationState, "approximate");
+  assert.equal(exactPinPermitted(exactAttempt.focus, exactAttempt.allowExactOrigin), false);
+  assert.equal(mapGeometry(exactAttempt.focus).kind, "area");
+  assert.equal(JSON.stringify(exactAttempt).includes(String(PRIVATE.lat)), false);
+
+  const approximate = buildPublicSpatialContext(publicHome());
+  assert.equal(approximate.focus.precision, "approximate");
+  assert.equal(mapGeometry(approximate.focus).kind, "area");
+
+  const areaOnly = buildPublicSpatialContext(publicHome({
+    approxLocation: null,
+    property: { lga: "Owerri West", city: "Owerri", state: "Imo", latitude: PRIVATE.lat, longitude: PRIVATE.lng, address: "12 Hidden Road" },
+  }));
+  assert.equal(areaOnly.focus.precision, "area-only");
+  assert.equal(areaOnly.focus.label, "Owerri West, Owerri, Imo");
+  assert.equal(mapGeometry(areaOnly.focus).kind, "none");
+  assert.equal(JSON.stringify(areaOnly).includes("12 Hidden Road"), false);
+  assert.equal(JSON.stringify(areaOnly).includes(String(PRIVATE.lat)), false);
+  const areaRoute = await loadRoute({
+    focus: areaOnly.focus,
+    campus: campusById("fpno"),
+    config: { osrmBaseUrl: "https://routing.example", overpassUrl: null, tileUrl: null },
+    fetchImpl: async () => { throw new Error("should not be called"); },
+  });
+  assert.equal(areaRoute.status, "unavailable");
+  assert.equal(areaRoute.distanceM, null);
+  assert.equal(areaRoute.durationS, null);
+  assert.equal(describeRoute(areaRoute).primary, "Routing unavailable");
+  assert.match(describeRoute(areaRoute).detail, /no coordinate/);
+
+  const unknown = buildPublicSpatialContext(publicHome({
+    approxLocation: null,
+    property: { latitude: PRIVATE.lat, longitude: PRIVATE.lng, address: "12 Hidden Road" },
+  }));
+  assert.equal(unknown.focus.precision, "unknown");
+  assert.equal(unknown.focus.label, "Location not published");
+  assert.equal(mapGeometry(unknown.focus).kind, "none");
+  assert.equal(JSON.stringify(unknown).includes(String(PRIVATE.lng)), false);
+  const unknownRoute = describeRoute(await loadRoute({
+    focus: unknown.focus,
+    campus: campusById("fpno"),
+    config: { osrmBaseUrl: "https://routing.example", overpassUrl: null, tileUrl: null },
+    fetchImpl: async () => { throw new Error("should not be called"); },
+  }));
+  assert.equal(unknownRoute.primary, "Routing unavailable");
+  assert.equal(unknownRoute.durationS, null);
+
+  const previewExact = buildPreviewModel("exact");
+  assert.equal(previewExact.focus.precision, "exact");
+  assert.equal(exactPinPermitted(previewExact.focus, previewExact.allowExactOrigin), true);
+  assert.equal(mapGeometry(previewExact.focus).kind, "pin");
+  const previewArea = buildPreviewModel("area-only");
+  assert.equal(previewArea.focus.precision, "area-only");
+  assert.equal("lat" in previewArea.focus, false);
+  assert.equal(previewArea.amenities.items.length, 0);
+  assert.equal(previewArea.route.durationS, null);
+});
+
+test("public adapter drops unpublished rows, fixtures, and authorized coordinates", () => {
+  const adapted = adaptSpatialListing({ purpose: "rent", listing: publicHome({ category: "RESIDENTIAL" }), authorizedLocation: PRIVATE });
+  assert.equal(adapted.purpose, "rent");
+  assert.equal(adapted.category, "RESIDENTIAL");
+  assert.equal(adapted.locationState, "approximate");
+  assert.equal(JSON.stringify(adapted).includes("authorizedLocation"), false);
+  assert.equal(JSON.stringify(adapted).includes(String(PRIVATE.lat)), false);
+  assert.equal(adaptSpatialListing({ purpose: "buy", listing: publicHome({ reviewStatus: "NOT_REVIEWED" }) }), null);
+  assert.equal(adaptSpatialListing(publicHome()).purpose, "unspecified");
+  assert.equal(adaptSpatialListing({ ...publicHome(), fixture: true }), null);
+
+  const request = anonymousListingRequest("https://api.example/", "42");
+  assert.equal(request.url, "https://api.example/api/listings/42");
+  assert.equal(request.init.cache, "no-store");
+  assert.equal(Object.keys(request.init.headers).some((key) => /authorization/i.test(key)), false);
+});
+
+test("shared copy and imagery stay fail-closed without a marketplace contract", () => {
+  assert.equal(publicSubject(undefined), "home");
+  assert.equal(publicSubject("Land"), "land");
+  assert.equal(publicSubject("buy property"), "home");
+  const first = { id: "close" };
+  const last = { id: "return" };
+  assert.equal(nextDialogFocus([first, last], first, false), last);
+  assert.equal(nextDialogFocus([first, last], last, false), first);
+  assert.equal(nextDialogFocus([first, last], last, true), first);
+  assert.equal(nextDialogFocus([first, last], null, true), last);
+  assert.equal(nextDialogFocus([], first, false), null);
+  assert.equal(publicTileTemplate({}), null);
+  assert.equal(publicTileTemplate({ NEXT_PUBLIC_MAP_TILE_URL: "https://tiles.example/{z}/{x}/{y}.png" }), null);
+  assert.equal(
+    publicTileTemplate({
+      NEXT_PUBLIC_MAP_TILE_URL: "https://tiles.example/{z}/{x}/{y}.png",
+      NEXT_PUBLIC_MAP_ATTRIBUTION: "OpenStreetMap",
+    }),
+    "https://tiles.example/{z}/{x}/{y}.png",
+  );
 });
 
 test("fixtures stay out of public spatial results", () => {

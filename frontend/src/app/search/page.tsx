@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { listingsApi } from "@/lib/api";
 import { isAbortError } from "@/lib/requestTimeout";
 import { TruthScore } from "@/components/ui/TruthScore";
-import { formatYearlyRent, listings as browse, search as copy } from "@/lib/copy";
+import { formatYearlyRent, listingCard, listings as browse, search as copy } from "@/lib/copy";
+import { photoAlt, storedPhotos } from "@/lib/listingPhotos";
 import { hasTrustScore, isEvidenceVerified, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from "@/lib/listingHonesty";
 import LeadCapture from "@/components/LeadCapture";
 import type { Listing } from "@/lib/types";
@@ -37,6 +38,12 @@ function SearchContent() {
       clearTimeout(timer);
       controller.abort();
     };
+    let cancelled = false;
+    listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
+      .then(res => { if (!cancelled) setListings(publicListings(res.data)); })
+      .catch(() => { if (!cancelled) setError(copy.fetchError); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [searchTerm]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -54,7 +61,7 @@ function SearchContent() {
         <form onSubmit={handleSearch} className="mb-4 max-w-xl" role="search">
           <label className="label" htmlFor="search-area">{copy.label}</label>
           <div className="flex gap-2">
-            <input id="search-area" type="text" className="input flex-1" placeholder={copy.placeholder} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input id="search-area" type="text" className="input flex-1" placeholder={copy.placeholder} value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setLoading(true); setError(null); }} />
             <button type="submit" className="btn btn-primary">{copy.button}</button>
           </div>
         </form>
@@ -76,13 +83,21 @@ function SearchContent() {
           </div>
         ) : listings.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map(listing => (
+            {listings.map(listing => {
+              const photos = storedPhotos(listing.images);
+              const primary = photos[0];
+              return (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
-                <div className="h-48 rounded-xl mb-4 flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
-                  {listing.images?.[0]?.url ? (
-                    <img src={listing.images[0].url} alt={listing.title} className="w-full h-full object-cover rounded-xl" />
+                <div className="h-48 rounded-xl mb-4 flex items-center justify-center relative overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+                  {primary ? (
+                    <img src={primary.url} alt={photoAlt(primary, listing.title)} className="w-full h-full object-cover rounded-xl" />
                   ) : (
                     <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>Home</span>
+                  )}
+                  {photos.length > 1 && (
+                    <span className="absolute bottom-2 right-2 text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(11,27,43,0.82)', color: '#fff' }}>
+                      {listingCard.photoCount(photos.length)}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-start justify-between gap-2">
@@ -112,7 +127,8 @@ function SearchContent() {
                   )}
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div className="text-center py-16">

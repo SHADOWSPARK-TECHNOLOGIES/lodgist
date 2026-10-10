@@ -222,8 +222,6 @@ Frontend (escrowApi.initiate)
 
 | App | Build Command | Location |
 |-----|--------------|----------|
-| `lodgist/` | `npx prisma generate --config prisma.config.ts && next build` | [`lodgist/vercel.json`](lodgist/vercel.json) |
-| `frontend/` | `next build` | [`frontend/vercel.json`](frontend/vercel.json) |
 | `backend/` | Docker-based | [`backend/Dockerfile`](backend/Dockerfile) |
 
 ### E.3 Current Running Services

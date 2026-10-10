@@ -3,6 +3,7 @@ const { analyzeListing } = require("../services/listingScamDetection");
 const { isShareable, parsePreferredDate } = require("../services/whatsapp/tools");
 const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
 const logger = require("../utils/logger");
+const { presentListingImages } = require("../services/objectStorage");
 
 // Renters only. Landlords, agents, and admins book through /api/bookings.
 const TENANT_ROLES = new Set(["USER", "TENANT"]);
@@ -251,6 +252,43 @@ function applyPublicBrowseFilter(where, user, statusQuery) {
   return { mode: "public", where };
 }
 
+function listingWasAttested(listing) {
+  return listing.reviewStatus === "APPROVED"
+    || listing.evidenceVerified === true
+    || listing.verifiedAt != null
+    || (typeof listing.verifiedById === "number" && listing.verifiedById > 0);
+}
+
+// Owner edits of content Lodgist already reviewed drop the attestation and
+// record one adminAudit row. Photo add/remove uses this same helper.
+function ownerReviewedContentReset(listing, actorId, changedFields) {
+  if (!listing || !Array.isArray(changedFields) || changedFields.length === 0) return null;
+  if (!listingWasAttested(listing)) return null;
+  const reset = {
+    reviewStatus: "NOT_REVIEWED",
+    evidenceVerified: false,
+    verifiedAt: null,
+    verifiedById: null,
+  };
+  const prior = Array.isArray(listing.adminAudit)
+    ? listing.adminAudit.filter((item) => item && typeof item === "object")
+    : [];
+  const entry = {
+    action: "owner_content_edit",
+    adminId: null,
+    actorId,
+    listingId: listing.id,
+    at: new Date().toISOString(),
+    reason: "Owner changed content Lodgist had already reviewed.",
+    changedFields,
+    publicationState: publicationState({ ...listing, ...reset }),
+    evidenceVerified: false,
+  };
+  const nextAudit = prior.concat([entry]);
+  reset.adminAudit = nextAudit.length > 50 ? nextAudit.slice(nextAudit.length - 50) : nextAudit;
+  return reset;
+}
+
 function listingsRouter(prisma) {
   const router = express.Router();
 
@@ -310,10 +348,12 @@ function listingsRouter(prisma) {
         propertyWhere.state = { equals: state, mode: "insensitive" };
       }
       if (typeof area === "string" && area) {
+        // Public location only. address and landmark stay off this filter
+        // so a stranger cannot probe whether a street or landmark exists.
         propertyWhere.OR = [
           { city: { contains: area, mode: "insensitive" } },
           { lga: { contains: area, mode: "insensitive" } },
-          { address: { contains: area, mode: "insensitive" } },
+          { state: { contains: area, mode: "insensitive" } },
         ];
       }
       if (Object.keys(propertyWhere).length) where.property = { is: propertyWhere };
@@ -333,9 +373,8 @@ function listingsRouter(prisma) {
         select: {
           ...LISTING_PUBLIC_SELECT,
           images: {
-            where: { isPrimary: true },
-            take: 1,
-            select: { url: true, altText: true },
+            orderBy: { order: "asc" },
+            select: { id: true, url: true, altText: true, isPrimary: true, order: true },
           },
           property: {
             select: {
@@ -387,11 +426,12 @@ function listingsRouter(prisma) {
       const visible = browse.mode === "public"
         ? listings.filter((listing) => isEligiblePublicListing(listing))
         : listings;
-      const data = visible.map((listing) => {
+      const data = await Promise.all(visible.map(async (listing) => {
         const { fraudSignals, _count, verifiedById: _verifiedById, adminAudit: _adminAudit, rejectionReason: _rejectionReason, ...rest } = listing;
         const latestFraudScore = fraudSignals?.[0]?.score ?? null;
         return redactPublicListing({
           ...rest,
+          images: await presentListingImages(rest.images),
           ...publicDiscovery(listing),
           ...verifiedPublicFields(listing),
           averageRating: ratingMap[listing.id] ?? null,
@@ -399,7 +439,7 @@ function listingsRouter(prisma) {
           bookingCount: _count.bookings,
           fraudSignalScore: latestFraudScore,
         }, req.user, listing);
-      });
+      }));
 
       res.json({
         success: true,
@@ -439,7 +479,7 @@ function listingsRouter(prisma) {
           ...LISTING_PUBLIC_SELECT,
           images: {
             orderBy: { order: "asc" },
-            select: { url: true, altText: true, isPrimary: true },
+            select: { id: true, url: true, altText: true, isPrimary: true, order: true },
           },
           property: {
             select: {
@@ -494,6 +534,7 @@ function listingsRouter(prisma) {
       });
 
       const { _count, fraudSignals, property, verifiedById: _verifiedById, adminAudit: _adminAudit, rejectionReason: _rejectionReason, ...listingData } = listing;
+      listingData.images = await presentListingImages(listingData.images);
       const latestFraudSignal = fraudSignals?.[0] ?? null;
       let publicProperty = null;
       let approx = null;
@@ -827,12 +868,13 @@ function listingsRouter(prisma) {
           reviewStatus: "NOT_REVIEWED",
         },
         include: {
-          images: { select: { url: true, altText: true, isPrimary: true } },
+          images: { select: { id: true, url: true, altText: true, isPrimary: true, order: true } },
           property: { select: { id: true, city: true, state: true } },
           owner: { select: { id: true, name: true } },
         },
       });
 
+      newListing.images = await presentListingImages(newListing.images);
       res.status(201).json({ success: true, data: newListing });
     } catch (error) {
       console.error("Error creating listing:", error);
@@ -863,13 +905,6 @@ function listingsRouter(prisma) {
       return out;
     }
     return value;
-  }
-
-  function listingWasAttested(listing) {
-    return listing.reviewStatus === "APPROVED"
-      || listing.evidenceVerified === true
-      || listing.verifiedAt != null
-      || (typeof listing.verifiedById === "number" && listing.verifiedById > 0);
   }
 
   router.put("/:id", requireAuth, async (req, res) => {
@@ -904,38 +939,23 @@ function listingsRouter(prisma) {
       const changedFields = Object.keys(updateData).filter(
         (field) => !sameListingValue(field, existing[field], updateData[field])
       );
-      if (changedFields.length > 0 && listingWasAttested(existing)) {
-        updateData.reviewStatus = "NOT_REVIEWED";
-        updateData.evidenceVerified = false;
-        updateData.verifiedAt = null;
-        updateData.verifiedById = null;
-        const prior = Array.isArray(existing.adminAudit)
-          ? existing.adminAudit.filter((item) => item && typeof item === "object")
-          : [];
-        const entry = {
-          action: "owner_content_edit",
-          adminId: null,
-          actorId: req.user.id,
-          listingId: existing.id,
-          at: new Date().toISOString(),
-          reason: "Owner changed content Lodgist had already reviewed.",
-          changedFields,
-          publicationState: publicationState({ ...existing, ...updateData }),
-          evidenceVerified: false,
-        };
-        const nextAudit = prior.concat([entry]);
-        updateData.adminAudit = nextAudit.length > 50 ? nextAudit.slice(nextAudit.length - 50) : nextAudit;
-      }
+      const reset = ownerReviewedContentReset(
+        { ...existing, ...updateData },
+        req.user.id,
+        changedFields
+      );
+      if (reset) Object.assign(updateData, reset);
 
       const updatedListing = await prisma.listing.update({
         where: { id: listingId },
         data: updateData,
         include: {
-          images: { select: { url: true, altText: true, isPrimary: true } },
+          images: { select: { id: true, url: true, altText: true, isPrimary: true, order: true } },
           owner: { select: { id: true, name: true } },
         },
       });
 
+      updatedListing.images = await presentListingImages(updatedListing.images);
       res.json({ success: true, data: updatedListing });
     } catch (error) {
       console.error("Error updating listing:", error);
@@ -981,5 +1001,6 @@ module.exports.isExampleListing = isExampleListing;
 module.exports.isEligiblePublicListing = isEligiblePublicListing;
 module.exports.isEvidenceVerified = isEvidenceVerified;
 module.exports.publicationState = publicationState;
+module.exports.ownerReviewedContentReset = ownerReviewedContentReset;
 module.exports.verifiedPublicFields = verifiedPublicFields;
 module.exports.publicDiscovery = publicDiscovery;

@@ -56,8 +56,19 @@ export interface ListingImage {
   id: number;
   url: string;
   caption: string | null;
+  altText?: string | null;
   isPrimary: boolean;
+  order?: number;
   listingId: number;
+}
+
+export interface ListingPhotoRecord {
+  id: number;
+  listingId: number;
+  url: string;
+  altText: string | null;
+  isPrimary: boolean;
+  order: number;
 }
 
 export interface Listing {

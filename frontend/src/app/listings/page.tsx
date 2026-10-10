@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { listingsApi } from '@/lib/api';
 import { isAbortError } from '@/lib/requestTimeout';
 import { TruthScore } from '@/components/ui/TruthScore';
-import { formatYearlyRent, listings as copy, supportWhatsAppLink } from '@/lib/copy';
+import { formatYearlyRent, listingCard, listings as copy, supportWhatsAppLink } from '@/lib/copy';
+import { photoAlt, storedPhotos } from '@/lib/listingPhotos';
 import { hasTrustScore, isEvidenceVerified, isExampleListing, isLodgistReviewed, publicListings, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
 import LeadCapture from '@/components/LeadCapture';
 import type { Listing } from '@/lib/types';
@@ -47,6 +48,18 @@ export default function ListingsPage() {
       clearTimeout(timer);
       controller.abort();
     };
+    let cancelled = false;
+    const maxPrice = maxRent.trim() === '' ? undefined : Number(maxRent);
+    listingsApi.list({
+      search,
+      page: 1,
+      limit: 12,
+      maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : undefined,
+    })
+      .then(res => { if (!cancelled) setListings(publicListings(res.data ?? [])); })
+      .catch(() => { if (!cancelled) { setFailed(true); setListings([]); } })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [search, maxRent, reloadKey]);
 
   const area = search.trim();
@@ -63,11 +76,11 @@ export default function ListingsPage() {
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <div className="w-full max-w-sm">
             <label className="label" htmlFor="area-search">{copy.searchLabel}</label>
-            <input id="area-search" className="input" placeholder={copy.searchPlaceholder} value={search} onChange={e => setSearch(e.target.value)} />
+            <input id="area-search" className="input" placeholder={copy.searchPlaceholder} value={search} onChange={e => { setSearch(e.target.value); setLoading(true); setFailed(false); }} />
           </div>
           <div className="w-full max-w-[12rem]">
             <label className="label" htmlFor="max-rent">{copy.maxRent}</label>
-            <input id="max-rent" className="input" inputMode="numeric" value={maxRent} onChange={e => setMaxRent(e.target.value)} />
+            <input id="max-rent" className="input" inputMode="numeric" value={maxRent} onChange={e => { setMaxRent(e.target.value); setLoading(true); setFailed(false); }} />
           </div>
         </div>
         <p className="text-xs mb-3 max-w-2xl" style={{ color: 'rgba(255,255,255,0.65)' }}>{copy.labelsLegend}</p>
@@ -90,7 +103,7 @@ export default function ListingsPage() {
             <h2 className="font-poppins font-semibold text-white text-lg mb-2">{copy.loadErrorTitle}</h2>
             <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.5)' }}>{copy.loadErrorBody}</p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button type="button" className="btn btn-primary" onClick={() => setReloadKey(k => k + 1)}>{copy.retry}</button>
+              <button type="button" className="btn btn-primary" onClick={() => { setReloadKey(k => k + 1); setLoading(true); setFailed(false); }}>{copy.retry}</button>
               {askHref && <a href={askHref} className="btn btn-secondary" target="_blank" rel="noopener noreferrer">{copy.emptyCta}</a>}
             </div>
           </div>
@@ -109,13 +122,20 @@ export default function ListingsPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {listings.map(listing => {
               const score = listing.truthIndex ?? listing.owner?.truthIndex;
+              const photos = storedPhotos(listing.images);
+              const primary = photos[0];
               return (
               <Link key={listing.id} href={`/listings/${listing.id}`} className="card card-elevated block hover:border-orange/30 transition-all no-underline">
-                <div className="h-48 rounded-xl mb-4 flex items-center justify-center" style={{ background: 'var(--color-surface-2)' }}>
-                  {listing.images?.[0]?.url ? (
-                    <img src={listing.images[0].url} alt={listing.title} className="w-full h-full object-cover rounded-xl" />
+                <div className="h-48 rounded-xl mb-4 flex items-center justify-center relative overflow-hidden" style={{ background: 'var(--color-surface-2)' }}>
+                  {primary ? (
+                    <img src={primary.url} alt={photoAlt(primary, listing.title)} className="w-full h-full object-cover rounded-xl" />
                   ) : (
                     <span style={{ fontSize: '2.5rem', opacity: 0.3 }}>Home</span>
+                  )}
+                  {photos.length > 1 && (
+                    <span className="absolute bottom-2 right-2 text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(11,27,43,0.82)', color: '#fff' }}>
+                      {listingCard.photoCount(photos.length)}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-start justify-between gap-2">
