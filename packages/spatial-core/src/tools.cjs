@@ -20,7 +20,7 @@ const {
   crossReference,
   relateListingToCampus,
 } = require("./crossReference.cjs");
-const { evidenceEnvelope } = require("./evidence.cjs");
+const { evidenceEnvelope, dataQualityFromResult, spatialDataQuality } = require("./evidence.cjs");
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
@@ -418,7 +418,11 @@ function logCall(ctx, event) {
   });
 }
 
-function finish(ctx, started, name, result) {
+function finish(ctx, started, name, raw) {
+  const now = typeof ctx.now === "function" ? ctx.now() : (typeof ctx.now === "number" ? ctx.now : Date.now());
+  const result = raw && raw.ok && raw.data
+    ? Object.assign({}, raw, { dataQuality: dataQualityFromResult(raw.data, { now }) })
+    : Object.assign({}, raw, { dataQuality: spatialDataQuality({ now }) });
   logCall(ctx, {
     tool: name,
     ok: result.ok,

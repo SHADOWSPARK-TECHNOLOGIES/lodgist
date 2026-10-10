@@ -119,6 +119,86 @@ function comparisonConfidence(grades) {
   return "supported";
 }
 
+/**
+ * Versioned coverage datasource (Phase 12M). Every record is keyed by
+ * provider + capability + geography + dataset timestamp. There is no
+ * Nigeria-wide rating: geography is always a benchmarked local area.
+ */
+const COVERAGE_DATASETS = Object.freeze([
+  Object.freeze({
+    datasetId: "nigeria-osm-2026-10-09",
+    version: 1,
+    provider: "osm-geofabrik-extract",
+    capability: "places",
+    dataTimestamp: "2026-10-09T20:21:04Z",
+    source: BENCHMARK_SOURCE,
+    license: "ODbL-1.0",
+    attribution: "© OpenStreetMap contributors",
+    radiusM: 3000,
+    geographies: Object.freeze(PLACES.map((place) => place.id)),
+  }),
+]);
+const NATIONAL_GEOGRAPHIES = new Set(["nigeria", "ng", "national", "country"]);
+
+function coverageKey(provider, capability, geography, timestamp) {
+  return [provider, capability, geography, timestamp].join("|");
+}
+
+function coverageRecords(datasets) {
+  const list = Array.isArray(datasets) ? datasets : COVERAGE_DATASETS;
+  const out = [];
+  list.forEach((dataset) => {
+    (dataset.geographies || []).forEach((geography) => {
+      if (NATIONAL_GEOGRAPHIES.has(String(geography).toLowerCase())) return;
+      const place = placeById(geography);
+      out.push({
+        key: coverageKey(dataset.provider, dataset.capability, geography, dataset.dataTimestamp),
+        datasetId: dataset.datasetId,
+        version: dataset.version,
+        provider: dataset.provider,
+        capability: dataset.capability,
+        geography,
+        dataTimestamp: dataset.dataTimestamp,
+        grade: productGrade(place),
+        verified: Boolean(place && place.verified === true),
+        source: dataset.source,
+        license: dataset.license,
+        attribution: dataset.attribution,
+        groundTruth: false,
+      });
+    });
+  });
+  return out;
+}
+
+/**
+ * Latest record at or before `at` for provider+capability+geography.
+ * Unknown combinations (and any national geography) return UNKNOWN.
+ */
+function coverageFor(query = {}, datasets) {
+  const q = query && typeof query === "object" ? query : {};
+  const at = q.at == null ? null : Date.parse(q.at);
+  const unknown = {
+    key: null,
+    provider: q.provider || null,
+    capability: q.capability || null,
+    geography: q.geography || null,
+    dataTimestamp: null,
+    grade: "UNKNOWN",
+    verified: false,
+    groundTruth: false,
+  };
+  if (!q.geography || NATIONAL_GEOGRAPHIES.has(String(q.geography).toLowerCase())) return unknown;
+  const rows = coverageRecords(datasets).filter((row) => (
+    row.geography === q.geography
+    && (!q.provider || row.provider === q.provider)
+    && (!q.capability || row.capability === q.capability)
+    && (at == null || Number.isNaN(at) || Date.parse(row.dataTimestamp) <= at)
+  ));
+  if (!rows.length) return unknown;
+  return rows.sort((a, b) => Date.parse(b.dataTimestamp) - Date.parse(a.dataTimestamp))[0];
+}
+
 module.exports = {
   COVERAGE_GRADES,
   INCOMPLETE_WARNING,
@@ -130,4 +210,8 @@ module.exports = {
   weakestCoverage,
   comparisonConfidence,
   placeById,
+  COVERAGE_DATASETS,
+  coverageKey,
+  coverageRecords,
+  coverageFor,
 };
