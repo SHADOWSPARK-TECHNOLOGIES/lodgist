@@ -163,11 +163,12 @@ const DATE_STOP = new Set(["from", "to", "until", "between", "for", "on", "pleas
 
 function parseStay(text: string): { stay?: { start: string; end: string }; invalid: boolean } {
   const dates = text.match(/\d{4}-\d{2}-\d{2}/g) ?? [];
-  if (dates.length < 2) return { invalid: false };
-  const start = utcDay(dates[0]);
-  const end = utcDay(dates[1]);
+  const [startText, endText] = dates;
+  if (!startText || !endText) return { invalid: false };
+  const start = utcDay(startText);
+  const end = utcDay(endText);
   if (!start || !end || end <= start) return { invalid: true };
-  return { stay: { start: dates[0], end: dates[1] }, invalid: false };
+  return { stay: { start: startText, end: endText }, invalid: false };
 }
 
 function parsePlace(text: string): string | undefined {

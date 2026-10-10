@@ -219,8 +219,9 @@ export function createPrismaWhatsAppDb(prisma: PrismaClient): WhatsAppDb {
           metadata: {
             kind: "whatsapp-draft",
             stage: draft.step,
-            options: draft.options ?? [],
-            stay: draft.stay ?? null,
+            // Spread to plain objects so they type-check as Prisma JSON (interfaces lack an index signature).
+            options: (draft.options ?? []).map(({ listingId, price, address, city, state }) => ({ listingId, price, address, city, state })),
+            stay: draft.stay ? { start: draft.stay.start, end: draft.stay.end } : null,
             guestCount: null,
           },
         },
