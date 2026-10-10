@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useState, useEffect } from "react";
+import { Suspense, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { listingsApi } from "@/lib/api";
+import { isAbortError } from "@/lib/requestTimeout";
 import { TruthScore } from "@/components/ui/TruthScore";
 import { formatYearlyRent, listingCard, listings as browse, search as copy } from "@/lib/copy";
 import { photoAlt, storedPhotos } from "@/lib/listingPhotos";
@@ -18,8 +19,25 @@ function SearchContent() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const firstLoad = useRef(true);
 
+  // Debounce typing and abort the previous request so results never go stale.
   useEffect(() => {
+    const controller = new AbortController();
+    const delay = firstLoad.current ? 0 : 300;
+    firstLoad.current = false;
+    const timer = setTimeout(() => {
+      setLoading(true);
+      setError(null);
+      listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 }, { signal: controller.signal })
+        .then(res => { if (!controller.signal.aborted) setListings(publicListings(res.data)); })
+        .catch((err) => { if (!isAbortError(err) && !controller.signal.aborted) setError(copy.fetchError); })
+        .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
     let cancelled = false;
     listingsApi.list({ search: searchTerm || undefined, page: 1, limit: 12 })
       .then(res => { if (!cancelled) setListings(publicListings(res.data)); })
@@ -47,6 +65,7 @@ function SearchContent() {
             <button type="submit" className="btn btn-primary">{copy.button}</button>
           </div>
         </form>
+        <p className="text-xs mb-3 max-w-2xl" style={{ color: 'rgba(255,255,255,0.65)' }}>{browse.labelsLegend}</p>
         <p role="status" aria-live="polite" className="text-xs mb-6" style={{ color: 'rgba(255,255,255,0.65)' }}>
           {loading ? copy.searching : ''}
         </p>
@@ -131,8 +150,9 @@ function SearchContent() {
 export default function SearchPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--color-navy)' }}>
-        <div className="spinner" />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3" style={{ background: 'var(--color-navy)' }} role="status" aria-live="polite">
+        <div className="spinner" aria-hidden="true" />
+        <p className="text-sm" style={{ color: 'rgba(255,255,255,0.75)' }}>{copy.loadingPage}</p>
       </div>
     }>
       <SearchContent />

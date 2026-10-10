@@ -21,24 +21,24 @@ export function SiteFooter() {
         <div>
           <p className="font-poppins font-bold text-white text-lg">Lodgist</p>
           <p className="mt-2 text-sm" style={{ color: "rgba(255,255,255,0.55)" }}>{brand.tagline}</p>
-          <p className="mt-3 text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>{brand.endorsement}</p>
+          <p className="mt-3 text-xs" style={{ color: "rgba(255,255,255,0.6)" }}>{brand.endorsement}</p>
         </div>
         <div>
           <p className="text-xs font-semibold text-white mb-3">{brand.productLabel}</p>
-          <ul className="space-y-2">
+          <ul className="space-y-1">
             {product.map(([label, href]) => (
               <li key={href + label}>
-                <Link href={href} className="nav-link" style={{ fontSize: "0.8rem" }}>{label}</Link>
+                <Link href={href} className="nav-link footer-link">{label}</Link>
               </li>
             ))}
           </ul>
         </div>
         <div>
           <p className="text-xs font-semibold text-white mb-3">{brand.companyLabel}</p>
-          <ul className="space-y-2">
+          <ul className="space-y-1">
             {company.map(([label, href]) => (
               <li key={label}>
-                <Link href={href} className="nav-link" style={{ fontSize: "0.8rem" }}>{label}</Link>
+                <Link href={href} className="nav-link footer-link">{label}</Link>
               </li>
             ))}
           </ul>

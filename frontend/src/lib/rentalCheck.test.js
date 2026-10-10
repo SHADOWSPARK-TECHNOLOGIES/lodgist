@@ -22,7 +22,8 @@ test("the case page arranges the fee on WhatsApp and does not call Paystack", ()
   const intake = read("src/components/rental/CheckIntake.tsx");
   const review = read("src/components/rental/ReviewWorkspace.tsx");
   const api = read("src/lib/api.ts");
-  const listing = read("src/app/listings/[id]/page.tsx");
+  // The detail page body lives in ListingDetailClient; page.tsx is the server 404 gate.
+  const listing = read("src/app/listings/[id]/ListingDetailClient.tsx");
   assert.match(status, /arrangePayment\.rentalCta/);
   assert.match(status, /recordPaymentReference/);
   assert.match(status, /whatsappArrangementRef/);

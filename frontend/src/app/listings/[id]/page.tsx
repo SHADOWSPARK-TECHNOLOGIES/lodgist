@@ -1,5 +1,10 @@
-'use client';
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { isValidListingId } from "@/lib/requestTimeout";
+import ListingDetailClient from "./ListingDetailClient";
 
+// Resolved per request so a missing listing returns a real 404 status.
+export const dynamic = "force-dynamic";
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -18,23 +23,30 @@ import { safeNextPath } from '@/lib/returnPath';
 import { paymentWhatsAppText, whatsappArrangementRef } from '@/lib/whatsappPayment';
 import type { Listing, TenantBooking } from '@/lib/types';
 
-type MoveIn = {
-  base_rent?: number;
-  agency_fee?: number;
-  legal_fee?: number;
-  caution_fee?: number;
-  inspection_fee?: number;
-  service_charge?: number;
-  total?: number;
-  currency?: string;
-  sample?: boolean;
+export const metadata: Metadata = {
+  title: "Home",
 };
 
-function asMoveIn(value: unknown): MoveIn | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  return value as MoveIn;
+function apiBase() {
+  return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "http://localhost:4000";
 }
 
+/**
+ * Anonymous lookup. Only a definite 404 counts as missing; an API outage or
+ * timeout still renders the page so its own retry state can show. Non-public
+ * listings are 404 here too, and not-found.tsx lets a signed-in owner or admin
+ * load them in the browser.
+ */
+async function publicLookup(id: string): Promise<"found" | "missing" | "unknown"> {
+  try {
+    const res = await fetch(`${apiBase()}/api/listings/${id}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(8000),
+    });
+    if (res.status === 404) return "missing";
+    return res.ok ? "found" : "unknown";
+  } catch {
+    return "unknown";
 function feeCategory(category?: string | null): 'residential' | 'commercial' | 'short-let' {
   const value = (category || '').toLowerCase();
   if (value.includes('commercial')) return 'commercial';
@@ -101,7 +113,13 @@ function ListingDetail({ id }: { id: number }) {
       </div>
     );
   }
+}
 
+export default async function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  if (!isValidListingId(id)) notFound();
+  if ((await publicLookup(id)) === "missing") notFound();
+  return <ListingDetailClient />;
   if (missing || !listing) {
     return (
       <div className="container py-16 text-center">
