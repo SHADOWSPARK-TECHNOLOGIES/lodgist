@@ -1,25 +1,33 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 const { isPublicListing } = require("./listingHonesty");
 const {
-  parseCoordinate,
   buildPublicSpatialContext,
   spatialPublicationDecision,
   straightLineLabel,
-  straightLineMeters,
-  externalDirectionsUrl,
-  urlLeaksCoordinates,
-  loadRoute,
-  loadAmenities,
-  filterAmenities,
   describeRoute,
+  externalDirectionsUrl,
+} = require("./spatialPublic");
+const { PRIVATE_LOCATION_KEYS: privacyKeys } = require("../../vendor/spatial-core/src/privacy.cjs");
+const { CAMPUSES: campusSource } = require("../../vendor/spatial-core/src/campuses.cjs");
+const {
+  parseCoordinate,
+  straightLineMeters,
+  urlLeaksCoordinates,
+  loadAmenities,
+  loadRoute,
+  filterAmenities,
   buildPreviewModel,
   mapGeometry,
   campusById,
   FIXTURE_AMENITIES,
   CAMPUSES,
-  tileLayer,
-} = require("./spatialLab");
+  PRIVATE_LOCATION_KEYS,
+} = require("@lodgist/spatial-core");
+const { tileLayer } = require("./spatialTiles");
+const { amenitiesFromTool, loadListingSpatial, routeFromTool } = require("./spatialTool");
 
 const PRIVATE = { lat: 5.497123, lng: 7.033812 };
 
@@ -35,6 +43,23 @@ function publicHome(extra = {}) {
     ...extra,
   };
 }
+
+test("privacy keys and campuses match the spatial-core sources", () => {
+  assert.deepEqual([...PRIVATE_LOCATION_KEYS].sort(), [...privacyKeys].sort());
+  assert.deepEqual(CAMPUSES, campusSource);
+  assert.equal(fs.existsSync(path.join(__dirname, "spatialLab.js")), false);
+  assert.equal(fs.existsSync(path.join(__dirname, "spatialCampuses.js")), false);
+  const tiles = fs.readFileSync(path.join(__dirname, "spatialTiles.js"), "utf8");
+  const tool = fs.readFileSync(path.join(__dirname, "spatialTool.js"), "utf8");
+  const route = fs.readFileSync(path.join(__dirname, "../app/api/spatial/listings/[id]/route.ts"), "utf8");
+  for (const source of [tiles, tool, route]) {
+    assert.equal(source.includes("OVERPASS_INTERPRETER_URL"), false);
+    assert.equal(source.includes("OSRM_BASE_URL"), false);
+    assert.equal(source.includes("PRIVATE_LOCATION_KEYS"), false);
+    assert.equal(source.includes("loadAmenities"), false);
+    assert.equal(source.includes("loadRoute"), false);
+  }
+});
 
 test("coordinate validation rejects strings, NaN, and out-of-range values", () => {
   assert.deepEqual(parseCoordinate(5.42, 7.04), { lat: 5.42, lng: 7.04 });
@@ -142,52 +167,88 @@ test("straight-line distance is labelled straight-line and has no travel time", 
   assert.equal(straightLineMeters({ lat: "5.4", lng: 7 }, campus), null);
 });
 
-test("routing and amenity failures stay empty", async () => {
+test("core amenity and route loaders stay quiet when provider env is unset", async () => {
+  let calls = 0;
   const focus = { precision: "approximate", label: "Near Nekede", lat: 5.4214, lng: 7.0419, radiusM: 800 };
-  const campus = campusById("fpno");
-  const failed = await loadRoute({
-    focus,
-    campus,
-    config: { osrmBaseUrl: "https://routing.example", overpassUrl: null, tileUrl: null },
-    fetchImpl: async () => {
-      throw new Error("down");
-    },
-  });
-  const described = describeRoute(failed);
-  assert.equal(failed.status, "failed");
-  assert.equal(failed.durationS, null);
-  assert.equal(described.primary, "Routing unavailable");
-  assert.equal(/min/.test(described.primary), false);
-
-  const missing = describeRoute(await loadRoute({
-    focus,
-    campus,
-    config: { osrmBaseUrl: null, overpassUrl: null, tileUrl: null },
-    fetchImpl: async () => {
-      throw new Error("should not be called");
-    },
-  }));
-  assert.equal(missing.primary, "Routing unavailable");
-
-  const amenities = await loadAmenities({
-    focus,
-    config: { osrmBaseUrl: null, overpassUrl: "https://overpass.example", tileUrl: null },
-    fetchImpl: async () => ({ ok: false, json: async () => ({}) }),
-    allowFixtures: false,
-  });
-  assert.equal(amenities.status, "failed");
+  const fetchImpl = async () => {
+    calls += 1;
+    throw new Error("should not be called");
+  };
+  const config = { osrmBaseUrl: null, overpassUrl: null, tileUrl: null, attribution: null };
+  const amenities = await loadAmenities({ focus, env: {}, config, fetchImpl, allowFixtures: false });
+  const route = await loadRoute({ focus, campus: campusById("fpno"), env: {}, config, fetchImpl });
+  assert.equal(amenities.status, "unconfigured");
   assert.deepEqual(amenities.items, []);
-  assert.equal(JSON.stringify(amenities).includes("DEV fixture"), false);
+  assert.equal(route.status, "unconfigured");
+  assert.equal(route.durationS, null);
+  assert.equal(calls, 0);
+  assert.equal(describeRoute(route).primary, "Routing unavailable");
+});
 
-  const unconfigured = await loadAmenities({
-    focus,
-    config: { osrmBaseUrl: null, overpassUrl: null, tileUrl: null },
-    fetchImpl: async () => {
-      throw new Error("should not be called");
+test("listing spatial uses the server tool and keeps the amenity and route shapes", async () => {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body);
+    calls.push({ url: String(url), body });
+    if (body.name === "spatial.nearby") {
+      return {
+        status: 200,
+        json: async () => ({
+          ok: true,
+          data: {
+            status: "ok",
+            items: [{ id: "osm-node-1", name: "Chemist", category: "pharmacy", lat: 5.496, lng: 7.036, provenance: "OpenStreetMap node 1", fixture: false, address: "12 Hidden Road" }],
+            provenance: "OpenStreetMap",
+          },
+        }),
+      };
+    }
+    return {
+      status: 502,
+      json: async () => ({ ok: false, code: "provider_unavailable" }),
+    };
+  };
+  const result = await loadListingSpatial({
+    listingId: 42,
+    campusId: "fpno",
+    precision: "approximate",
+    fetchImpl,
+    env: {
+      NEXT_PUBLIC_API_URL: "http://127.0.0.1:4000",
+      OVERPASS_INTERPRETER_URL: "https://overpass.example/interpreter",
+      OSRM_BASE_URL: "https://routing.example",
     },
   });
-  assert.equal(unconfigured.status, "unconfigured");
-  assert.deepEqual(unconfigured.items, []);
+  assert.deepEqual(calls.map((call) => call.url), [
+    "http://127.0.0.1:4000/api/spatial/tool",
+    "http://127.0.0.1:4000/api/spatial/tool",
+  ]);
+  assert.deepEqual(calls[0].body, { name: "spatial.nearby", input: { listingId: 42 } });
+  assert.deepEqual(calls[1].body, { name: "spatial.route", input: { listingId: 42, campusId: "fpno" } });
+  assert.equal(JSON.stringify(calls).includes("overpass.example"), false);
+  assert.equal(JSON.stringify(calls).includes("routing.example"), false);
+  assert.equal(result.amenities.status, "ok");
+  assert.equal(result.amenities.items[0].name, "Chemist");
+  assert.equal(Object.prototype.hasOwnProperty.call(result.amenities.items[0], "address"), false);
+  assert.equal(result.route.status, "failed");
+  assert.equal(result.route.durationS, null);
+  assert.equal(result.route.origin, "approximate");
+
+  const quiet = await loadListingSpatial({
+    listingId: 42,
+    campusId: null,
+    precision: "approximate",
+    fetchImpl: async () => ({ status: 200, json: async () => ({ ok: true, data: { status: "unconfigured", items: [], provenance: null } }) }),
+    env: { NEXT_PUBLIC_API_URL: "http://127.0.0.1:4000" },
+  });
+  assert.equal(quiet.amenities.status, "unconfigured");
+  assert.equal(quiet.route.status, "needs-campus");
+  const described = describeRoute(routeFromTool({
+    ok: true,
+    data: { route: { status: "ok", distanceM: 2100, durationS: 360 } },
+  }, "approximate"));
+  assert.match(described.primary, /2\.1 km by road, 6 min/);
+  assert.match(described.primary, /published area, not a building/);
 });
 
 test("fixtures stay out of public spatial results", () => {
@@ -257,4 +318,20 @@ test("a road result names the campus area center and not an entrance", () => {
   assert.match(copy.primary, /campus area center, not an entrance/);
   assert.match(copy.detail, /not a route to a campus entrance/);
   assert.equal(/to the campus entrance/i.test(copy.primary), false);
+});
+
+test("a tool payload that still carries a private field is stripped before the UI sees it", () => {
+  const amenities = amenitiesFromTool({
+    ok: true,
+    data: {
+      status: "ok",
+      provenance: "OpenStreetMap",
+      items: [{ name: "Shop", latitude: 5.497123, longitude: 7.033812, landmark: "gate" }],
+    },
+  });
+  const json = JSON.stringify(amenities);
+  assert.equal(json.includes("latitude"), false);
+  assert.equal(json.includes("longitude"), false);
+  assert.equal(json.includes("landmark"), false);
+  assert.equal(json.includes("5.497123"), false);
 });

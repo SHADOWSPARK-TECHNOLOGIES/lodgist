@@ -503,17 +503,28 @@ function providerEnvUrl(input, name, normalize) {
   return typeof normalize === "function" ? normalize(raw) : raw;
 }
 
-async function loadAmenitiesGuarded(input, focus, origin, envUrl, fetchImpl) {
+function amenityProvider(input) {
+  const selfUrl = providerEnvUrl(input, "OVERPASS_SELFHOSTED_URL");
+  const publicUrl = providerEnvUrl(input, "OVERPASS_INTERPRETER_URL");
+  if (selfUrl) return { id: "overpass-selfhosted", url: selfUrl };
+  if (publicUrl) {
+    const legacy = providerGate("overpass", input.registry);
+    return { id: legacy.status === "absent" ? "overpass-public" : "overpass", url: publicUrl };
+  }
+  return null;
+}
+
+async function loadAmenitiesGuarded(input, focus, origin, providerId, envUrl, fetchImpl) {
   const radius = Math.min(focus.radiusM, 2000);
   const elements = Array.isArray(input.overpassElements) ? input.overpassElements : ["node", "way", "area"];
   const query = buildAmenityQuery({ radius, lat: origin.lat, lng: origin.lng, elements });
   const source = envObject(input);
-  const gate = providerGate("overpass", input.registry);
-  const decision = providerCanRun("overpass", { registry: input.registry, env: source, production: input.production });
+  const gate = providerGate(providerId, input.registry);
+  const decision = providerCanRun(providerId, { registry: input.registry, env: source, production: input.production });
   if (!decision.ok) return amenityResult("unconfigured", [], null);
   const guarded = await withProviderSafeguards({
-    providerId: "overpass",
-    cacheKey: `overpass|${cellKey(focus, AMENITY_CATEGORIES)}`,
+    providerId,
+    cacheKey: `${providerId}|${cellKey(focus, AMENITY_CATEGORIES)}`,
     cleared: gate.cleared,
     state: input.safeguardState,
     now: input.now,
@@ -563,11 +574,11 @@ async function loadAmenities(input = {}) {
   }
   const origin = focusPoint(focus);
   if (!origin || !focus.radiusM) return amenityResult("unavailable", [], null);
-  const envUrl = providerEnvUrl(input, "OVERPASS_INTERPRETER_URL");
-  if (envUrl) {
+  const selected = amenityProvider(input);
+  if (selected) {
     const configUrl = config && typeof config.overpassUrl === "string" ? config.overpassUrl.trim() : "";
-    assertSameProviderUrl(envUrl, configUrl);
-    return loadAmenitiesGuarded(input, focus, origin, envUrl, fetchImpl);
+    assertSameProviderUrl(selected.url, configUrl);
+    return loadAmenitiesGuarded(input, focus, origin, selected.id, selected.url, fetchImpl);
   }
   const provider = config || readProviderConfig();
   if (!provider.overpassUrl) return amenityResult("unconfigured", [], null);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { buildPreviewModel } from "@/lib/spatialLab";
+import { buildPreviewModel } from "@/lib/spatialPublic";
 
 export const dynamic = "force-dynamic";
 

@@ -162,9 +162,21 @@ test("spatial context keeps the snapped area and refuses exact coordinates", () 
 });
 
 test("drift check reports Spatial Lab contract differences and is quiet when they match", () => {
-  const quiet = spatialLabDrift();
+  const live = spatialLabDrift();
+  assert.deepEqual(live.differences, [
+    { field: "providerIds", missing: ["overpass"], extra: [] },
+    { field: "providerIds", missing: [], extra: ["overpass-public", "overpass-selfhosted"] },
+  ]);
+  assert.equal(live.transit.enabled, false);
+  const quiet = spatialLabDrift({
+    revision: "a922a3bfa86683ab008dbada0a37a3c956760eb7",
+    allowedLayers: ["hospitals", "schools", "markets", "pharmacies", "roads"],
+    bannedLayers: SPATIAL_LAB_BANNED(),
+    amenityCategories: ["shop", "pharmacy", "clinic", "transport"],
+    providerIds: ["overpass", "tiles", "geocoder", "imagery", "weather", "traffic"],
+    transit: "undecided",
+  });
   assert.deepEqual(quiet.differences, []);
-  assert.equal(quiet.transit.enabled, false);
   const noisy = spatialLabDrift({
     revision: "different",
     allowedLayers: ["hospitals"],
