@@ -166,11 +166,12 @@ function viewerCanSeeListingInternals(user, listing) {
   return user.id != null && listing.ownerId === user.id;
 }
 
-// Shared by public list, search, and detail. ownerId, owner.id, and fraudReason
-// stay only when the viewer is that listing's owner or a STUDIO_ADMIN.
+// Shared by public list, search, and detail. ownerId, owner.id, fraudReason and
+// latestFraudSignal (its reasoning text) stay only when the viewer is that
+// listing's owner or a STUDIO_ADMIN.
 function redactPublicListing(payload, user, source) {
   if (viewerCanSeeListingInternals(user, source)) return payload;
-  const { ownerId: _ownerId, fraudReason: _fraudReason, owner, ...rest } = payload;
+  const { ownerId: _ownerId, fraudReason: _fraudReason, latestFraudSignal: _latestFraudSignal, owner, ...rest } = payload;
   if (owner && typeof owner === "object") {
     const { id: _id, ...ownerRest } = owner;
     return { ...rest, owner: ownerRest };
