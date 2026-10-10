@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { auth } from '@/lib/copy';
+import { PasswordToggle } from '@/components/ui/PasswordToggle';
 import { authErrorMessage } from '@/lib/authErrors';
 
 export default function RegisterForm({ nextPath }: { nextPath: string | null }) {
@@ -17,11 +18,16 @@ export default function RegisterForm({ nextPath }: { nextPath: string | null }) 
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<{ message: string; signInLink: boolean } | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const errorId = 'register-error';
   const invalid = error ? true : undefined;
   const describedBy = error ? errorId : undefined;
+  const passwordDescribedBy = [
+    'register-password-hint',
+    error ? errorId : null,
+  ].filter(Boolean).join(' ');
 
   // Move focus to the error so keyboard and screen reader users hear it.
   useEffect(() => {
@@ -80,8 +86,12 @@ export default function RegisterForm({ nextPath }: { nextPath: string | null }) 
           </div>
           <div>
             <label className="label" htmlFor="register-password">{auth.password}</label>
-            <input id="register-password" name="password" type="password" aria-invalid={invalid} aria-describedby={describedBy} autoComplete="new-password" className="input" placeholder={auth.passwordPlaceholder}
+            <div className="flex gap-2 items-stretch">
+              <input id="register-password" name="password" type={showPassword ? 'text' : 'password'} aria-invalid={invalid} aria-describedby={passwordDescribedBy} autoComplete="new-password" className="input flex-1" placeholder={auth.passwordPlaceholder}
               value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
+              <PasswordToggle shown={showPassword} controls="register-password" onToggle={() => setShowPassword(v => !v)} />
+            </div>
+            <p id="register-password-hint" className="text-xs mt-1" style={{ color: 'rgba(255,255,255,0.7)' }}>{auth.passwordRule}</p>
           </div>
           <button type="submit" disabled={loading} aria-busy={loading} className="btn btn-primary w-full justify-center">
             {loading ? <><span className="spinner" aria-hidden="true" /><span className="sr-only">{auth.creatingAccount}</span></> : auth.createAccount}

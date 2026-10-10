@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { auth } from '@/lib/copy';
+import { PasswordToggle } from '@/components/ui/PasswordToggle';
 import { authErrorMessage } from '@/lib/authErrors';
 
 export default function LoginForm({ nextPath }: { nextPath: string | null }) {
@@ -15,6 +16,7 @@ export default function LoginForm({ nextPath }: { nextPath: string | null }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<{ message: string; signInLink: boolean } | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
   const errorId = 'login-error';
@@ -68,8 +70,11 @@ export default function LoginForm({ nextPath }: { nextPath: string | null }) {
           </div>
           <div>
             <label className="label" htmlFor="login-password">{auth.password}</label>
-            <input id="login-password" name="password" type="password" aria-invalid={invalid} aria-describedby={describedBy} autoComplete="current-password" className="input" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+            <div className="flex gap-2 items-stretch">
+              <input id="login-password" name="password" type={showPassword ? 'text' : 'password'} aria-invalid={invalid} aria-describedby={describedBy} autoComplete="current-password" className="input flex-1" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
               value={password} onChange={e => setPassword(e.target.value)} required />
+              <PasswordToggle shown={showPassword} controls="login-password" onToggle={() => setShowPassword(v => !v)} />
+            </div>
           </div>
           <button type="submit" disabled={loading} aria-busy={loading} className="btn btn-primary w-full justify-center">
             {loading ? <><span className="spinner" aria-hidden="true" /><span className="sr-only">{auth.signingIn}</span></> : auth.signIn}
