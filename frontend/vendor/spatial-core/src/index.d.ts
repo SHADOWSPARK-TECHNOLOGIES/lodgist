@@ -302,11 +302,37 @@ export function relateListingToCampus(input: {
   straightLineLabel: string | null;
   travelTime: null;
 };
+export type CoverageGrade = "GOOD" | "PARTIAL" | "POOR" | "UNKNOWN";
+export type ComparisonConfidence = "supported" | "limited" | "low" | "unknown";
+export const COVERAGE_GRADES: readonly CoverageGrade[];
+export const INCOMPLETE_WARNING: string;
+export function assessPlaceCoverage(input?: {
+  campusId?: string | null;
+  label?: string | null;
+  title?: string | null;
+}): {
+  coverage: CoverageGrade;
+  warnings: string[];
+  analystNote: string;
+  benchmarkId: string | null;
+  locationStatus: "verified" | "unverified" | "unmatched";
+  source: string;
+  groundTruth: false;
+};
+export function weakestCoverage(grades?: string[]): CoverageGrade;
+export function comparisonConfidence(grades?: string[]): ComparisonConfidence;
 export function compareListings(input: {
   listingIds: Array<number | string>;
   listings?: object[];
   isPublicListing?: (listing: object | null) => boolean;
-}): { listingIds: Array<number | string>; comparisons: Array<{ fact: string; values: Record<string, unknown>; agreement: boolean }> };
+}): {
+  listingIds: Array<number | string>;
+  comparisons: Array<{ fact: string; values: Record<string, unknown>; agreement: boolean }>;
+  coverage: CoverageGrade;
+  comparisonConfidence: ComparisonConfidence;
+  warnings: string[];
+  analystNote: string;
+};
 export function mapLabLayer(layerId: string): "shop" | "pharmacy" | "clinic" | "transport" | null;
 export function spatialLabDrift(live?: {
   revision?: string;
@@ -344,6 +370,9 @@ export function buildSpatialContext(input: {
   straightLineLabel: string | null;
   travelTime: null;
   approxLocation: { lat: number; lng: number; radiusM: number } | null;
+  coverageQuality: CoverageGrade;
+  warnings: string[];
+  analystNote: string;
 }) | null;
 
 export const FRESHNESS: readonly SpatialFreshness[];

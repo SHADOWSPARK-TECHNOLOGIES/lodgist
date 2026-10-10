@@ -16,7 +16,7 @@ const {
 const { fetchAllowlisted } = require("../src/proxy.cjs");
 
 const publicLookup = async () => [{ address: "1.1.1.1", family: 4 }];
-const SHA = "6be25595b16491ce01ffd8d81e66921f321ee200";
+const SHA = "591f299d11f38a612629a274463196d57ae3862e";
 
 function home() {
   return {
@@ -208,11 +208,17 @@ test("unset map env does not fetch and keeps the legacy amenity shape", async ()
   assert.deepEqual(Object.keys(result).sort(), ["items", "provenance", "status"]);
 });
 
-test("the adoption ledger lists all 92 features at the pinned commit", () => {
+test("the adoption ledger lists all 94 features at the pinned commit", () => {
   const doc = fs.readFileSync(path.resolve(__dirname, "../../../docs/GEV_ADOPTION.md"), "utf8");
-  for (let n = 1; n <= 92; n += 1) {
+  for (let n = 1; n <= 94; n += 1) {
     const id = `F${String(n).padStart(2, "0")}`;
     assert.equal(doc.includes(`| ${id} `), true, id);
   }
-  assert.equal(doc.split(SHA).length - 1, 93);
+  assert.equal(doc.split(SHA).length - 1, 95);
+  assert.equal(doc.includes("6be25595b16491ce01ffd8d81e66921f321ee200"), false);
+  assert.equal(doc.includes("| F45 Monitoring surfaces |"), true);
+  assert.match(doc, /\| F45 .+\| IMPLEMENTED \|/);
+  assert.match(doc, /\| F49 .+\| IMPLEMENTED \|/);
+  assert.match(doc, /\| F93 .+\| REJECTED \|/);
+  assert.match(doc, /\| F94 .+\| PATTERN_REUSE \|/);
 });
