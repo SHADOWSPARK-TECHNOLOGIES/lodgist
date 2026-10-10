@@ -1,0 +1,4 @@
+# Lockfiles are generated. Never let git interleave their hunks: on a conflict,
+# take main's lockfile and regenerate (see docs/LOCKFILES.md).
+pnpm-lock.yaml merge=binary linguist-generated=true
+package-lock.json merge=binary linguist-generated=true

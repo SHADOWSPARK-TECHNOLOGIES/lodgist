@@ -48,18 +48,6 @@ export default function ListingsPage() {
       clearTimeout(timer);
       controller.abort();
     };
-    let cancelled = false;
-    const maxPrice = maxRent.trim() === '' ? undefined : Number(maxRent);
-    listingsApi.list({
-      search,
-      page: 1,
-      limit: 12,
-      maxPrice: maxPrice != null && !Number.isNaN(maxPrice) ? maxPrice : undefined,
-    })
-      .then(res => { if (!cancelled) setListings(publicListings(res.data ?? [])); })
-      .catch(() => { if (!cancelled) { setFailed(true); setListings([]); } })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
   }, [search, maxRent, reloadKey]);
 
   const area = search.trim();
