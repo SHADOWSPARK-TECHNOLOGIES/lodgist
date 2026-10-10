@@ -52,11 +52,6 @@ create mode 100644 apprunner.yaml
 
 Create these secrets first (AWS Console → Secrets Manager → Store a new secret → Other type of secret → Plaintext → paste JSON):
 
-**Secret: `lodgist/paystack`**
-```json
-{"PAYSTACK_SECRET_KEY":"sk_live_...","PAYSTACK_PUBLIC_KEY":"pk_live_..."}
-```
-
 **Secret: `lodgist/openai`**
 ```json
 {"OPENAI_API_KEY":"sk-..."}
@@ -76,8 +71,6 @@ Then in App Runner → Environment variables → Add from **Secrets Manager**:
 
 | Key | Secret Name |
 |-----|-------------|
-| `PAYSTACK_SECRET_KEY` | `lodgist/paystack` |
-| `PAYSTACK_PUBLIC_KEY` | `lodgist/paystack` |
 | `OPENAI_API_KEY` | `lodgist/openai` |
 | `GEMINI_API_KEY` | `lodgist/gemini` |
 | `WHATSAPP_API_TOKEN` | `lodgist/whatsapp` |
