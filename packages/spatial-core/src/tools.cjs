@@ -21,6 +21,11 @@ const {
   relateListingToCampus,
 } = require("./crossReference.cjs");
 const { evidenceEnvelope, dataQualityFromResult, spatialDataQuality } = require("./evidence.cjs");
+const { allProviderHealth } = require("./providerHealth.cjs");
+const { reconstructEvent, EVENT_TYPES } = require("./events.cjs");
+const { getSpatialHistory, getChangesSince } = require("./history.cjs");
+const { evaluateAnomalies } = require("./anomaly.cjs");
+const { createPropertyTour, createNeighborhoodTour, SCENE_TYPES } = require("./scene.cjs");
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
@@ -367,6 +372,109 @@ const SPATIAL_TOOLS = [
   tool("spatial.context", idSchema({ campusId: { type: "string", minLength: 1, maxLength: 32 } }), publicOne, contextHandler),
 ];
 
+/* ---- Phase 12 tools (12C, 12K, 12B, 12F-H, 12O). Hosts supply stored evidence via ctx loaders. ---- */
+function ctxNow(ctx) {
+  return typeof ctx.now === "function" ? ctx.now() : (typeof ctx.now === "number" ? ctx.now : Date.now());
+}
+
+async function storedHistory(input, ctx) {
+  if (typeof ctx.loadHistory !== "function") return null;
+  return ctx.loadHistory({ listingId: input.listingId });
+}
+
+function historyUnavailable() {
+  return { code: "history_unavailable", historyBeganAt: null, events: [], snapshots: [], changes: [], anomalies: [] };
+}
+
+async function historyHandler(input, ctx) {
+  const stored = await storedHistory(input, ctx);
+  if (!stored) return historyUnavailable();
+  return getSpatialHistory(Object.assign({}, stored, { from: input.from, to: input.to }), { env: ctx.env || {} });
+}
+
+async function changesHandler(input, ctx) {
+  const stored = await storedHistory(input, ctx);
+  if (!stored) return historyUnavailable();
+  return getChangesSince(Object.assign({}, stored, { since: input.since }), { env: ctx.env || {} });
+}
+
+async function anomaliesHandler(input, ctx) {
+  const stored = await storedHistory(input, ctx);
+  if (!stored) return historyUnavailable();
+  return evaluateAnomalies(Object.assign({}, stored, { now: ctxNow(ctx) }), { env: ctx.env || {} });
+}
+
+async function reconstructHandler(input, ctx) {
+  const listing = listingById(ctx, input.listingId);
+  const focus = focusFromPublicListing(listing);
+  const evidence = typeof ctx.loadEventEvidence === "function"
+    ? (await ctx.loadEventEvidence({ listingId: input.listingId, type: input.type, from: input.from, to: input.to })) || {}
+    : {};
+  return reconstructEvent({
+    type: input.type,
+    area: { areaLabel: focus.label, precision: "APPROXIMATE" },
+    timeRange: { from: input.from, to: input.to },
+    observations: evidence.observations || [],
+    anomalies: evidence.anomalies || [],
+  }, { now: ctxNow(ctx) });
+}
+
+function providerHealthHandler(input, ctx) {
+  const providers = allProviderHealth({
+    env: ctx.env || {}, registry: ctx.registry, production: ctx.production, state: ctx.healthState, now: ctxNow(ctx),
+  }).filter((row) => !input.providerId || row.providerId === input.providerId);
+  return { providers };
+}
+
+async function dataQualityHandler(input, ctx) {
+  const context = await callTool("spatial.context", { listingId: input.listingId }, ctx);
+  const nearby = await callTool("spatial.nearby", { listingId: input.listingId, category: "all" }, ctx);
+  return {
+    listingId: input.listingId,
+    parts: { context: context.dataQuality, nearby: nearby.dataQuality },
+    combined: spatialDataQuality({ inputs: [context.dataQuality, nearby.dataQuality], now: ctxNow(ctx) }),
+  };
+}
+
+async function propertyIntelligenceHandler(input, ctx) {
+  const inspect = await callTool("spatial.inspect", { listingId: input.listingId }, ctx);
+  const context = await callTool("spatial.context", { listingId: input.listingId }, ctx);
+  const nearby = await callTool("spatial.nearby", { listingId: input.listingId, category: "all" }, ctx);
+  const changes = await changesHandler(input, ctx);
+  return {
+    listingId: input.listingId,
+    inspect: inspect.ok ? inspect.data : null,
+    context: context.ok ? context.data : null,
+    nearby: nearby.ok ? { status: nearby.data.status, count: (nearby.data.items || []).length, coverage: nearby.data.coverage } : null,
+    changes: { code: changes.code, count: Array.isArray(changes.changes) ? changes.changes.length : 0 },
+    combinedQuality: spatialDataQuality({ inputs: [inspect.dataQuality, context.dataQuality, nearby.dataQuality], now: ctxNow(ctx) }),
+  };
+}
+
+async function createSceneHandler(input, ctx) {
+  if (input.sceneType === "NEIGHBORHOOD_OVERVIEW") return createNeighborhoodTour(input, ctx, callTool);
+  if (["PROPERTY_OVERVIEW", "COMMUTE_TOUR", "AMENITY_TOUR"].includes(input.sceneType)) {
+    return createPropertyTour({ listingId: input.listingId, destination: input.campusId, emphasis: input.sceneType === "AMENITY_TOUR" ? "amenities" : undefined }, ctx, callTool);
+  }
+  return { ok: false, code: "scene_type_unsupported", scene: null, supported: ["PROPERTY_OVERVIEW", "COMMUTE_TOUR", "AMENITY_TOUR", "NEIGHBORHOOD_OVERVIEW"] };
+}
+
+const RANGE_PROPS = { from: { type: "integer" }, to: { type: "integer" } };
+const PHASE12_TOOLS = [
+  tool("spatial.history", idSchema(RANGE_PROPS), publicOne, historyHandler),
+  tool("spatial.changes", idSchema({ since: { type: "integer" } }), publicOne, changesHandler),
+  tool("spatial.anomalies", idSchema(), publicOne, anomaliesHandler),
+  tool("spatial.reconstruct_event", idSchema(Object.assign({ type: { type: "string", enum: EVENT_TYPES.slice() } }, RANGE_PROPS)), publicOne, reconstructHandler),
+  tool("spatial.provider_health", { type: "object", additionalProperties: false, properties: { providerId: { type: "string", minLength: 1, maxLength: 64 } } }, () => ({ ok: true }), providerHealthHandler),
+  tool("spatial.data_quality", idSchema(), publicOne, dataQualityHandler),
+  tool("spatial.create_scene", idSchema({ sceneType: { type: "string", enum: SCENE_TYPES.slice() }, campusId: { type: "string", minLength: 1, maxLength: 32 } }), publicOne, createSceneHandler),
+  tool("lodgist.property_history", idSchema(RANGE_PROPS), publicOne, historyHandler),
+  tool("lodgist.area_changes", idSchema({ since: { type: "integer" } }), publicOne, changesHandler),
+  tool("lodgist.property_intelligence", idSchema(), publicOne, propertyIntelligenceHandler),
+  tool("lodgist.create_property_tour", idSchema({ destination: { type: "string", minLength: 1, maxLength: 32 }, emphasis: { type: "string", enum: ["amenities", "commute", "environment"] } }), publicOne, (input, ctx) => createPropertyTour(input, ctx, callTool)),
+  tool("lodgist.create_neighborhood_tour", idSchema(), publicOne, (input, ctx) => createNeighborhoodTour(input, ctx, callTool)),
+];
+
 const LODGIST_WRAPPERS = [
   ["lodgist.search_properties", "spatial.search"],
   ["lodgist.inspect_property", "spatial.inspect"],
@@ -380,7 +488,7 @@ const LODGIST_WRAPPERS = [
 const TOOLS = SPATIAL_TOOLS.concat(LODGIST_WRAPPERS.map(([name, target]) => {
   const source = SPATIAL_TOOLS.find((item) => item.name === target);
   return tool(name, source.inputSchema, source.authorize, source.handler);
-}));
+}), PHASE12_TOOLS);
 
 function listTools() {
   return TOOLS.map((item) => ({
