@@ -1,6 +1,7 @@
 const express = require("express");
 const spatial = require("../../../packages/spatial-core");
 const { approxLocation, isEligiblePublicListing } = require("./listings");
+const { saveMonitorRun } = require("../services/spatialMonitorStore");
 
 const URL_KEYS = ["url", "providerUrl", "userUrl", "endpoint", "baseUrl", "tileUrl", "interpreterUrl"];
 const MAX_BODY_CHARS = 32 * 1024;
@@ -42,6 +43,13 @@ async function loadListingFromPrisma(prisma, id) {
   };
 }
 
+function monitorEnv(options) {
+  if (options && Object.prototype.hasOwnProperty.call(options, "env")) {
+    return options.env && typeof options.env === "object" ? options.env : {};
+  }
+  return process.env;
+}
+
 function createSpatialRouter(options = {}) {
   const router = express.Router();
 
@@ -78,6 +86,47 @@ function createSpatialRouter(options = {}) {
         log: options.log,
       });
       const status = result.ok ? 200 : (result.code === "malformed" || result.code === "forbidden" ? 400 : 502);
+      return res.status(status).json(result);
+    } catch {
+      return res.status(502).json({ ok: false, code: "unavailable" });
+    }
+  });
+
+  router.post("/monitors/run", async (req, res) => {
+    const env = monitorEnv(options);
+    if (!spatial.monitoringEnabled(env)) {
+      return res.status(200).json({ ok: true, code: "flag_off", observations: [], alerts: [] });
+    }
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return res.status(400).json({ ok: false, code: "malformed" });
+    }
+    if (JSON.stringify(body).length > MAX_BODY_CHARS || hasUrlKey(body) || hasUrlKey(body.monitor)) {
+      return res.status(400).json({ ok: false, code: "forbidden" });
+    }
+    const monitor = body.monitor && typeof body.monitor === "object" && !Array.isArray(body.monitor) ? body.monitor : null;
+    if (!monitor) return res.status(400).json({ ok: false, code: "malformed" });
+    try {
+      let listing = null;
+      if (monitor.targetType === "listing") {
+        const listingId = monitor.target && monitor.target.listingId;
+        if (typeof options.loadListing === "function") listing = await options.loadListing(listingId);
+        else if (options.prisma) listing = await loadListingFromPrisma(options.prisma, listingId);
+      }
+      const readings = typeof options.readingsFor === "function" ? await options.readingsFor(monitor) : [];
+      const now = typeof options.now === "function" ? options.now() : Date.now();
+      const result = await spatial.runMonitor(monitor, now, {
+        env,
+        registry: options.registry,
+        readings,
+        listing,
+        production: options.production,
+        policy: options.policy,
+      });
+      if (result.code === "observed" && options.prisma) {
+        await saveMonitorRun(options.prisma, monitor, result);
+      }
+      const status = result.ok ? 200 : 400;
       return res.status(status).json(result);
     } catch {
       return res.status(502).json({ ok: false, code: "unavailable" });

@@ -835,3 +835,42 @@ model RentalCheckDraft {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
 }
+
+// Spatial monitoring. New tables only. listingId stays inside `target` JSON
+// so Listing is not altered. Observations are evidence envelopes, not alerts.
+model SpatialMonitor {
+  id                String                       @id
+  targetType        String
+  target            Json
+  providers         Json
+  observationType   String
+  baseline          Json?
+  conditions        Json
+  schedule          Json
+  lastObservedAt    DateTime?
+  state             String
+  provenance        Json?
+  privacy           String                       @default("APPROXIMATE")
+  monitoringBeganAt DateTime
+  createdAt         DateTime                     @default(now())
+  updatedAt         DateTime                     @updatedAt
+  observations      SpatialMonitorObservation[]
+
+  @@index([targetType])
+  @@index([state])
+}
+
+model SpatialMonitorObservation {
+  id             String         @id
+  monitorId      String
+  monitor        SpatialMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  envelope       Json
+  freshness      String
+  classification String
+  observedAt     DateTime?
+  retrievedAt    DateTime?
+  createdAt      DateTime       @default(now())
+
+  @@index([monitorId])
+  @@index([observedAt])
+}

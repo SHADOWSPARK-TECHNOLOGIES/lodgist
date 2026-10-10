@@ -4,4 +4,6 @@ module.exports = Object.assign(
   require("./crossReference.cjs"),
   require("./tools.cjs"),
   require("./evidence.cjs"),
+  require("./monitor.cjs"),
+  require("./notifyPolicy.cjs"),
 );

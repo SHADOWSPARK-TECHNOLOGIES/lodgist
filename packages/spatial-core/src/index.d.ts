@@ -367,3 +367,46 @@ export function evidenceEnvelope(input?: {
   license?: string | null;
   coverage?: string | null;
 }, options?: { now?: number | null; staleAfterMs?: number }): EvidenceEnvelope;
+
+export const TARGET_TYPES: readonly Array<"location" | "listing" | "neighborhood" | "provider" | "layer" | "event">;
+export const CONDITION_OPS: readonly Array<"eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "changed">;
+export const MONITORING_FLAG: "SPATIAL_MONITORING";
+export function monitoringEnabled(env?: Record<string, string | undefined> | null): boolean;
+export function minimumScheduleMs(row: { rateLimits?: { perMinuteDefault?: number; minIntervalMs?: number }; freshnessPolicy?: { minIntervalMs?: number; staleAfterMs?: number } } | null): number | null;
+export function assertSchedule(monitor: { providers?: string[]; schedule?: { intervalMs?: number } }, registry?: DataSourceRow[]): {
+  ok: boolean;
+  code: string;
+  provider?: string;
+  minimumIntervalMs?: number;
+  reason?: string;
+};
+export function evaluateConditions(baseline: { value?: unknown } | null, value: unknown, conditions?: Array<{ op?: string }>): Array<{
+  index: number;
+  op: string | null;
+  met: boolean;
+  reason: string;
+}>;
+export function beginMonitor(input: object, now: number): { ok: boolean; code?: string; monitor?: object };
+export const PRIVACY_GATES: readonly Array<"PUBLIC_EXACT" | "AUTHORIZED_EXACT" | "APPROXIMATE" | "HIDDEN">;
+export function runMonitor(monitor: object, now: number, ctx?: {
+  env?: Record<string, string | undefined>;
+  registry?: DataSourceRow[];
+  readings?: object[];
+  listing?: object | null;
+  authorization?: "PUBLIC_EXACT" | "AUTHORIZED_EXACT" | "APPROXIMATE" | "HIDDEN";
+  authorized?: boolean;
+  production?: boolean;
+}): {
+  ok: boolean;
+  code: string;
+  observations: EvidenceEnvelope[];
+  evaluated?: object[];
+  provenance?: { monitoringBeganAt?: number; retrievedAt?: number; observedAt?: number | null };
+  alerts?: Array<{ notify: false; reason: string; provider: string | null; channel: string | null }>;
+};
+export function decideNotification(observation?: { provider?: string | null } | null, policy?: { channel?: string | null } | null): {
+  notify: false;
+  reason: "notification_policy_stub";
+  provider: string | null;
+  channel: string | null;
+};
