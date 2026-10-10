@@ -14,4 +14,6 @@ module.exports = Object.assign(
   require("./costGovernor.cjs"),
   require("./entities.cjs"),
   require("./events.cjs"),
+  require("./shareState.cjs"),
+  require("./scene.cjs"),
 );

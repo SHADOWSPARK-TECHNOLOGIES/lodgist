@@ -253,6 +253,10 @@ function withDataQuality(result, options = {}) {
   return Object.assign({}, result, { dataQuality: dataQualityFromResult(result, options) });
 }
 
+/** Phase 12J claim grounding vocabulary (shared by scenes, tours, firewall). */
+const CLAIM_EVIDENCE_KINDS = Object.freeze(["DATABASE_EVIDENCE", "PROVIDER_EVIDENCE", "TOOL_RESULT", "APPROVED_STATIC_DATA"]);
+const CLAIM_FALLBACKS = Object.freeze(["UNKNOWN", "DATA_UNAVAILABLE", "COVERAGE_INCOMPLETE"]);
+
 function evidenceEnvelope(input = {}, options = {}) {
   const row = input && typeof input === "object" ? input : {};
   const observedAt = finiteTimestamp(row.observedAt);
@@ -284,6 +288,8 @@ module.exports = {
   ENVELOPE_KEYS,
   CONFIDENCE_RULES,
   DQ_COVERAGE,
+  CLAIM_EVIDENCE_KINDS,
+  CLAIM_FALLBACKS,
   DQ_FRESHNESS,
   DQ_RULES,
   spatialDataQuality,
