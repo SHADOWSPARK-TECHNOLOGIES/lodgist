@@ -159,4 +159,7 @@ export const {
   validateScene,
   createPropertyTour,
   createNeighborhoodTour,
+  evidenceIndex,
+  firewallClaims,
+  approvedStaticRefs,
 } = core;

@@ -85,7 +85,7 @@ function checkTarget(target, ctx, errors, where) {
 function validateScene(doc, ctx = {}) {
   const errors = [];
   if (!doc || typeof doc !== "object" || Array.isArray(doc)) return { ok: false, errors: ["scene must be an object"] };
-  Object.keys(doc).forEach((k) => { if (!["version", "type", "title", "steps", "fallback2d", "dataQuality"].includes(k)) errors.push(`unexpected ${k}`); });
+  Object.keys(doc).forEach((k) => { if (!["version", "type", "title", "steps", "fallback2d", "dataQuality", "evidenceRefs"].includes(k)) errors.push(`unexpected ${k}`); });
   if (doc.version !== SCENE_VERSION) errors.push("unsupported version");
   if (!SCENE_TYPES.includes(doc.type)) errors.push("unsupported scene type");
   checkText(doc.title, errors, "title");
@@ -148,8 +148,9 @@ function caption(text, evidence) {
   return { kind: "caption", text, factual: true, evidence };
 }
 
-function finalize(doc, ctx, inputs) {
+function finalize(doc, ctx, inputs, refs) {
   const scene = Object.assign({ fallback2d: true }, doc, {
+    evidenceRefs: (refs || []).filter(Boolean),
     dataQuality: spatialDataQuality({ inputs: inputs.filter(Boolean), now: typeof ctx.now === "function" ? ctx.now() : ctx.now }),
   });
   const checked = validateScene(scene, ctx);
@@ -207,7 +208,9 @@ async function createPropertyTour(input, ctx, callTool) {
     : emphasis === "environment" ? envSteps.concat(amenitySteps, routeSteps)
       : amenitySteps.concat(routeSteps, envSteps);
   steps.push(...ordered, { kind: "transition", style: "fade", durationMs: 800 }, { kind: "hold", durationMs: 1500 });
-  return finalize({ version: SCENE_VERSION, type: input.destination ? "COMMUTE_TOUR" : "PROPERTY_OVERVIEW", title: `Tour: ${inspect.data.title}`.slice(0, 120), steps }, ctx, [inspect.dataQuality, context.dataQuality, nearby.dataQuality, route && route.dataQuality]);
+  return finalize({ version: SCENE_VERSION, type: input.destination ? "COMMUTE_TOUR" : "PROPERTY_OVERVIEW", title: `Tour: ${inspect.data.title}`.slice(0, 120), steps }, ctx, [inspect.dataQuality, context.dataQuality, nearby.dataQuality, route && route.dataQuality],
+  [["lodgist.inspect_property", inspect], ["lodgist.property_context", context], ["lodgist.nearby_amenities", nearby], ["lodgist.calculate_commute", route]]
+    .filter(([, r]) => r && r.ok).map(([n]) => `tool:${n}`));
 }
 
 /** 12H: overview, roads, schools, healthcare, shopping, transport, environment, verified listings, closing. */
@@ -223,7 +226,7 @@ async function createNeighborhoodTour(input, ctx, callTool) {
   const steps = [
     { kind: "focus", target: { type: "listing", id: listingId } },
     { kind: "camera", zoom: 13, pitch: 0, bearing: 0, durationMs: 1500 },
-    caption(`Overview of ${area}.`, { kind: "TOOL_RESULT", ref: "tool:spatial.inspect" }),
+    caption(`Overview of ${area}.`, { kind: "TOOL_RESULT", ref: "tool:lodgist.inspect_property" }),
     { kind: "layer", layerId: "roads", visible: true, quality: "UNKNOWN" },
     caption("Roads: no approved road dataset is connected, so road detail is not described.", { kind: "DATA_UNAVAILABLE" }),
     { kind: "layer", layerId: "schools", visible: true, quality: "UNKNOWN" },
@@ -238,7 +241,8 @@ async function createNeighborhoodTour(input, ctx, callTool) {
     { kind: "transition", style: "fade", durationMs: 800 },
     { kind: "caption", text: "End of neighbourhood tour.", factual: false },
   ];
-  return finalize({ version: SCENE_VERSION, type: "NEIGHBORHOOD_OVERVIEW", title: `Neighbourhood: ${area}`.slice(0, 120), steps }, ctx, [inspect.dataQuality, nearby.dataQuality]);
+  return finalize({ version: SCENE_VERSION, type: "NEIGHBORHOOD_OVERVIEW", title: `Neighbourhood: ${area}`.slice(0, 120), steps }, ctx, [inspect.dataQuality, nearby.dataQuality],
+  [["lodgist.inspect_property", inspect], ["spatial.nearby", nearby]].filter(([, r]) => r && r.ok).map(([n]) => `tool:${n}`).concat(["db:listing.public"]));
 }
 
 module.exports = {
