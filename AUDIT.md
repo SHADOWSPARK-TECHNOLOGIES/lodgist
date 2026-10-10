@@ -14,7 +14,7 @@ Recorded before product changes on `main` @ `93fbe2ac` (origin/main matched).
 | Need | Existing piece | Decision |
 | --- | --- | --- |
 | Customer intake pattern | `POST /api/advertiser-leads`, `POST /api/leads` | New `RentalCheck` route. Do not overload advertiser intake. |
-| Paystack | `backend/src/services/paystackService.js`, `POST /api/payments/webhook` HMAC + `ProcessedWebhookEvent` | Reuse initialize/verify and the webhook. Do not trust redirect query params. |
+| Paystack | Retired 8 Oct 2026 (PR #64); routes and service removed. Payments go through WhatsApp with staff confirmation. Prisma paystack* columns kept for history. |
 | WhatsApp | `backend/src/routes/whatsapp.js` HMAC + `msg.id` dedupe | Add CHECK / STATUS / REPORT / HELP without weakening signature or dedupe. |
 | Spatial Lab | `frontend/src/lib/spatialLab.js` | Do not geocode a free-text location. Neighborhood stays "unavailable" unless a reviewer attaches a labelled note. |
 | Screenshots | No upload path on the live API | Not accepted in this pilot. |
@@ -36,6 +36,6 @@ No pre-existing failures in those commands.
 
 ## Env names in this workspace
 
-All MISSING here: `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`, `WHATSAPP_API_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_PUBLIC_URL`, `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL`, `CORS_ORIGIN`.
+All MISSING here: `WHATSAPP_API_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_APP_SECRET`, `WHATSAPP_PUBLIC_URL`, `DATABASE_URL`, `JWT_SECRET`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL`, `CORS_ORIGIN`.
 
 Payment and WhatsApp send stay fail-closed when those names are unset. Values were not printed.

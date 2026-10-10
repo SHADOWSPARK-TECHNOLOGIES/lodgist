@@ -497,14 +497,6 @@ export const truthIndexApi = {
 // ─── Escrow API ────────────────────────────────────────────────────────────
 
 export const escrowApi = {
-  /** Confirm payment (called after Paystack redirect) */
-  confirm: (id: number) =>
-    request<ApiResponse<EscrowTransaction>>("POST", `/api/escrow/${id}/confirm`),
-
-  /** Release funds to landlord */
-  release: (id: number) =>
-    request<ApiResponse<EscrowTransaction>>("POST", `/api/escrow/${id}/release`),
-
   /** List current user's escrow transactions */
   list: () => request<ApiResponse<EscrowTransaction[]>>("GET", "/api/escrow"),
 

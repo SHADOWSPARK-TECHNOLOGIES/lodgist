@@ -1,12 +1,6 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
-const PaystackService = require("../services/paystackService");
-const { paystackEnabled } = require("../services/paystackConfig");
 const logger = require("../utils/logger");
-
-// Booking payment references use this sub-prefix so the webhook handler can
-// route them away from EscrowTransaction lookups without touching paystackService.js.
-const BOOKING_REF_PREFIX = "LODG-ESC-BK-";
 
 const ADMIN_ROLES = ["STUDIO_ADMIN"];
 
@@ -177,83 +171,6 @@ function createBookingsRouter(prisma) {
       return res.status(201).json({ success: true, booking });
     } catch (error) {
       logger.error("[Bookings] Error creating booking", { error: error.message });
-      return res.status(500).json({ success: false, error: "Internal server error" });
-    }
-  });
-
-  // ── POST /api/bookings/:id/initiate-payment ──────────────────────────────
-  // Tenant initiates a Paystack payment for a booking.
-  // Creates a Paystack transaction and transitions status → PENDING_VERIFICATION.
-  // Manual payment fallback (PATCH /manual-payment) remains available for bank transfers.
-  //
-  // Paystack checkout is shelved unless PAYSTACK_ENABLED=true and a secret is set.
-  // A missing key returns 503 and does not change the booking.
-  router.post("/:id/initiate-payment", requireAuth, async (req, res) => {
-    const { id } = req.params;
-    const { email, callbackUrl } = req.body;
-
-    if (!paystackEnabled()) {
-      return res.status(503).json({
-        success: false,
-        error: "Online checkout is not open. Arrange payment on WhatsApp. The Lodgist team confirms it.",
-        code: "PAYSTACK_UNAVAILABLE",
-      });
-    }
-
-    if (!email) {
-      return res.status(400).json({ success: false, error: "email is required" });
-    }
-
-    try {
-      const booking = await prisma.booking.findUnique({ where: { id } });
-
-      if (!booking) {
-        return res.status(404).json({ success: false, error: "Booking not found" });
-      }
-
-      if (booking.tenantId !== req.user.id) {
-        return res.status(403).json({ success: false, error: "Forbidden" });
-      }
-
-      if (booking.status !== "PENDING") {
-        return res.status(409).json({
-          success: false,
-          error: `Booking is already in status ${booking.status}`,
-        });
-      }
-
-      const reference = `${BOOKING_REF_PREFIX}${id}`;
-
-      const payment = await PaystackService.initializePayment({
-        email,
-        amount: booking.totalAmount,
-        reference,
-        idempotencyKey: `booking-payment-${id}`,
-        metadata: {
-          type: "booking_payment",
-          bookingId: id,
-          tenantId: booking.tenantId,
-          listingId: booking.listingId,
-        },
-        ...(callbackUrl && { callbackUrl }),
-      });
-
-      await prisma.booking.update({
-        where: { id },
-        data: {
-          paystackReference: payment.reference,
-          status: "PENDING_VERIFICATION",
-        },
-      });
-
-      return res.json({
-        success: true,
-        paystackUrl: payment.authorization_url,
-        reference: payment.reference,
-        bookingId: id,
-      });
-    } catch (error) {
-      logger.error("[Bookings] Error initiating Paystack payment", { error: error.message, bookingId: id });
       return res.status(500).json({ success: false, error: "Internal server error" });
     }
   });
