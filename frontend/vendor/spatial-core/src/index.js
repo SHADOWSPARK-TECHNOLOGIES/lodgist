@@ -80,6 +80,8 @@ export const {
   FRESHNESS,
   ENVELOPE_KEYS,
   evidenceEnvelope,
+  CONFIDENCE_RULES,
+  dataQuality,
   COVERAGE_GRADES,
   INCOMPLETE_WARNING,
   assessPlaceCoverage,

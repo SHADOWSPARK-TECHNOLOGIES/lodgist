@@ -17,7 +17,7 @@ const {
   dataSources,
 } = require("./core.cjs");
 const { assertNoPrivateLocationKeys, stripPrivateLocationKeys } = require("./privacy.cjs");
-const { CLASSIFICATIONS, evidenceEnvelope, finiteTimestamp } = require("./evidence.cjs");
+const { CLASSIFICATIONS, dataQuality, evidenceEnvelope, finiteTimestamp } = require("./evidence.cjs");
 const { assessPlaceCoverage, comparisonConfidence, weakestCoverage } = require("./coverage.cjs");
 const CANONICAL_CATEGORIES = Object.freeze(["shop", "pharmacy", "clinic", "transport"]);
 const LAB_LAYER_TO_CATEGORY = Object.freeze({
@@ -170,7 +170,7 @@ function crossReference(input = {}) {
     if (!provenance.some((existing) => sameValue(existing, stamp))) provenance.push(stamp);
   });
 
-  return assertNoPrivateLocationKeys(stripPrivateLocationKeys({
+  const report = {
     observations,
     agreements,
     conflicts,
@@ -178,7 +178,9 @@ function crossReference(input = {}) {
     freshness: rollupFreshness(observations),
     provenance,
     coverage: observations.map((item) => item.coverage),
-  }));
+  };
+  report.dataQuality = dataQuality(report);
+  return assertNoPrivateLocationKeys(stripPrivateLocationKeys(report));
 }
 
 function publishedListing(listing, predicate) {

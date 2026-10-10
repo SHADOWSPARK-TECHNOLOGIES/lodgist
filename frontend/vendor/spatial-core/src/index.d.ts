@@ -390,6 +390,19 @@ export interface EvidenceEnvelope {
   license: string | null;
   coverage: string | null;
 }
+export const CONFIDENCE_RULES: Readonly<Record<string, string>>;
+export function dataQuality(input?: {
+  observations?: object[];
+  conflicts?: object[];
+  missing?: Array<{ reason?: string }>;
+  freshness?: string;
+}): {
+  freshness: SpatialFreshness;
+  confidenceRuleIds: string[];
+  completeness: "empty" | "partial" | "complete";
+  sourceConflicts: number;
+  warnings: string[];
+};
 export function evidenceEnvelope(input?: {
   value?: unknown;
   source?: string | null;
