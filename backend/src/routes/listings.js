@@ -100,6 +100,25 @@ const DIRECT_SOURCE_LABEL = "Direct submission";
 const REVIEWED_LABEL = "Lodgist-reviewed";
 const NOT_REVIEWED_LABEL = "Not reviewed by Lodgist";
 
+// Mirrors the Prisma ListingCategory enum (packages/db/prisma/schema.prisma).
+const LISTING_CATEGORIES = new Set(["RESIDENTIAL", "COMMERCIAL", "SHORT_LET"]);
+
+// Normalise an enum query param. Returns { value } (null when absent) or
+// { error } when the value is not one of the allowed enum members, so the
+// route can answer 400 instead of letting Prisma throw a 500.
+function parseEnumQuery(name, raw, allowed) {
+  if (raw === undefined || raw === null || raw === "") return { value: null };
+  if (typeof raw !== "string") {
+    return { error: `Invalid ${name}. Allowed values: ${[...allowed].join(", ")}` };
+  }
+  const value = raw.trim().toUpperCase().replace(/[-\s]+/g, "_");
+  if (!value) return { value: null };
+  if (!allowed.has(value)) {
+    return { error: `Invalid ${name} "${raw}". Allowed values: ${[...allowed].join(", ")}` };
+  }
+  return { value };
+}
+
 function explicitListingStatus(statusQuery) {
   return typeof statusQuery === "string" && LISTING_STATUSES.has(statusQuery) ? statusQuery : null;
 }
@@ -326,7 +345,17 @@ function listingsRouter(prisma) {
 
   // ─── GET /api/listings — Public, paginated listing browse ──────────────────
   router.get("/", optionalAuth, async (req, res) => {
-    const { q, search, category, status, minPrice, maxPrice, state, area, sort, page: pageQuery } = req.query;
+    const categoryParsed = parseEnumQuery("category", req.query.category, LISTING_CATEGORIES);
+    if (categoryParsed.error) {
+      return res.status(400).json({ success: false, error: categoryParsed.error });
+    }
+    const statusParsed = parseEnumQuery("status", req.query.status, LISTING_STATUSES);
+    if (statusParsed.error) {
+      return res.status(400).json({ success: false, error: statusParsed.error });
+    }
+    const category = categoryParsed.value;
+    const status = statusParsed.value;
+    const { q, search, minPrice, maxPrice, state, area, sort, page: pageQuery } = req.query;
     const queryText = (typeof q === "string" && q) || (typeof search === "string" && search) || "";
     const limitQuery = req.query.limit ?? req.query.pageSize;
     const pageSize = Math.min(50, Math.max(1, parseInt(limitQuery || "12", 10) || 12));
@@ -993,6 +1022,7 @@ function listingsRouter(prisma) {
 }
 
 module.exports = listingsRouter;
+module.exports.parseEnumQuery = parseEnumQuery;
 module.exports.approxLocation = approxLocation;
 module.exports.applyPublicBrowseFilter = applyPublicBrowseFilter;
 module.exports.publicSampleMatchFilter = publicSampleMatchFilter;
