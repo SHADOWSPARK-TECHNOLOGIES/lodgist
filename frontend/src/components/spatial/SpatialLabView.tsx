@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, type ReactNode } from "react";
+import type { AmenityPayload, Campus, RoutePayload, SpatialFocus } from "@lodgist/spatial-core";
 import {
   AMENITY_CATEGORIES,
   CATEGORY_LABEL,
@@ -12,11 +13,14 @@ import {
   filterAmenities,
   straightLineLabel,
   straightLineMeters,
-  type AmenityPayload,
-  type Campus,
-  type RoutePayload,
-  type SpatialFocus,
-} from "@/lib/spatialLab";
+} from "@/lib/spatialPublic";
+
+function focusPoint(focus: SpatialFocus): { lat: number; lng: number } | null {
+  if (focus.precision === "approximate" || focus.precision === "exact") {
+    return { lat: focus.lat, lng: focus.lng };
+  }
+  return null;
+}
 
 const SpatialMap = lazyMap();
 
@@ -81,7 +85,7 @@ function CampusList({
   onCampus: (id: string) => void;
   name: string;
 }) {
-  const point = focus.precision === "unknown" ? null : { lat: focus.lat, lng: focus.lng };
+  const point = focusPoint(focus);
   return (
     <fieldset className="spatial-fieldset">
       <legend>Campus</legend>
@@ -215,7 +219,7 @@ export default function SpatialLabView({
         </p>
         <ul className="spatial-amenity-list">
           {CAMPUSES.map((item) => {
-            const point = model.focus.precision === "unknown" ? null : { lat: model.focus.lat, lng: model.focus.lng };
+            const point = focusPoint(model.focus);
             const label = point ? straightLineLabel(straightLineMeters(point, item)) : null;
             return <li key={item.id}>{item.name}: {label || "straight-line distance unavailable"}</li>;
           })}
