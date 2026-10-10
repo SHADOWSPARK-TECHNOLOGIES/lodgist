@@ -37,8 +37,11 @@ test("DATA_SOURCES gate has no cleared provider and no OSRM row", () => {
   assert.equal(DATA_SOURCE_REVISION, "a922a3bfa86683ab008dbada0a37a3c956760eb7");
   const rows = dataSources();
   assert.equal(rows.some((row) => row.status === "cleared"), false);
-  assert.equal(providerGate("overpass").status, "under review");
-  assert.equal(providerGate("overpass").cleared, false);
+  assert.equal(providerGate("overpass").status, "absent");
+  assert.equal(providerGate("overpass-public").status, "under review");
+  assert.equal(providerGate("overpass-public").cleared, false);
+  assert.equal(providerGate("overpass-selfhosted").status, "not connected");
+  assert.equal(providerGate("overpass-selfhosted").cleared, false);
   assert.equal(providerGate("tiles").status, "not connected");
   assert.equal(providerGate("geocoder").status, "not connected");
   assert.equal(providerGate("imagery").status, "rejected");

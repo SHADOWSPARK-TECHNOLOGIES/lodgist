@@ -36,13 +36,14 @@ test("a schedule faster than the provider floor is rejected", () => {
 });
 
 test("the default registry rate limit is a finite floor", () => {
-  const overpass = providerRegistry().find((row) => row.id === "overpass");
+  const overpass = providerRegistry().find((row) => row.id === "overpass-public");
   const decision = assertSchedule({
-    providers: ["overpass"],
+    providers: ["overpass-public"],
     schedule: { intervalMs: 1000 },
   });
   assert.equal(decision.code, "schedule_too_fast");
   assert.equal(decision.minimumIntervalMs, Math.ceil(60000 / overpass.rateLimits.perMinuteDefault));
+  assert.equal(decision.minimumIntervalMs, 2000);
 });
 
 test("an unlimited provider schedule is refused", () => {
