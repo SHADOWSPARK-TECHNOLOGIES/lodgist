@@ -4,12 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import SpatialLabPanel from "@/components/spatial/SpatialLabPanel";
 import type { LabModel } from "@/components/spatial/SpatialLabView";
-import { buildPreviewModel, publicTileTemplate } from "@/lib/spatialLab";
+import { buildPreviewModel } from "@/lib/spatialLab";
 
 const SCENARIOS = [
   ["approximate", "Approximate area"],
   ["exact", "Exact fixture pin"],
-  ["area-only", "Named area only"],
   ["unknown", "Location unknown"],
   ["no-amenities", "No amenities returned"],
   ["amenities-failed", "Amenity provider failed"],
@@ -65,7 +64,8 @@ export default function PreviewClient() {
         onCampus={setCampusId}
         loading={false}
         unavailable={!built}
-        tileTemplate={publicTileTemplate()}
+        tileTemplate={process.env.NEXT_PUBLIC_MAP_TILE_URL || null}
+        tileAttribution={process.env.NEXT_PUBLIC_MAP_ATTRIBUTION || null}
         onClose={() => setOpen(false)}
         returnLabel="Return to this fixture"
         onReturn={() => {

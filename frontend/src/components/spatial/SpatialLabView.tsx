@@ -26,6 +26,7 @@ function lazyMap() {
     campus: Campus | null;
     amenities: ReturnType<typeof filterAmenities>;
     tileTemplate: string | null;
+    tileAttribution: string | null;
   }) {
     const [View, setView] = useState<typeof import("./SpatialMap").default | null>(null);
     const [failed, setFailed] = useState(false);
@@ -55,7 +56,6 @@ export type LabModel = {
   route: RoutePayload;
   allowExactOrigin: boolean;
   fixture: boolean;
-  subject?: string;
 };
 
 type Props = {
@@ -67,6 +67,7 @@ type Props = {
   onReturn: () => void;
   returnLabel: string;
   tileTemplate: string | null;
+  tileAttribution: string | null;
 };
 
 function CampusList({
@@ -80,9 +81,7 @@ function CampusList({
   onCampus: (id: string) => void;
   name: string;
 }) {
-  const point = focus.precision === "approximate" || focus.precision === "exact"
-    ? { lat: focus.lat, lng: focus.lng }
-    : null;
+  const point = focus.precision === "unknown" ? null : { lat: focus.lat, lng: focus.lng };
   return (
     <fieldset className="spatial-fieldset">
       <legend>Campus</legend>
@@ -118,11 +117,11 @@ export default function SpatialLabView({
   onReturn,
   returnLabel,
   tileTemplate,
+  tileAttribution,
 }: Props) {
   const [category, setCategory] = useState("all");
   const campusName = useId();
   const campus = CAMPUSES.find((item) => item.id === campusId) || null;
-  const subject = model.subject || "home";
   const routeCopy = describeRoute(model.route);
   const amenities = filterAmenities(model.amenities.items, category, model.fixture);
   const amenityCopy = amenityMessage(model.amenities.status);
@@ -140,7 +139,7 @@ export default function SpatialLabView({
   if (unavailable) {
     return (
       <div>
-        <h2 className="font-poppins text-xl text-white">This {subject} is not available</h2>
+        <h2 className="font-poppins text-xl text-white">This home is not available</h2>
         <p className="spatial-quiet">Spatial Lab does not open unpublished homes, samples, or fixtures from a public link.</p>
       </div>
     );
@@ -155,12 +154,11 @@ export default function SpatialLabView({
       <p className="spatial-quiet">
         {model.fixture && "This preview is excluded from the public inventory. "}
         {model.focus.precision === "approximate" && "You are looking at the published area, not an exact building pin."}
-        {model.focus.precision === "area-only" && `Known area: ${model.focus.label}. No coordinate was published, so none was added.`}
         {model.focus.precision === "exact" && "This pin exists only on the DEV fixture."}
-        {model.focus.precision === "unknown" && `Lodgist has not published a location for this ${subject}.`}
+        {model.focus.precision === "unknown" && "Lodgist has not published a location for this home."}
       </p>
 
-      {loading ? <div className="skeleton spatial-map-loading" /> : <SpatialMap focus={model.focus} campus={campus} amenities={amenities} tileTemplate={tileTemplate} />}
+      {loading ? <div className="skeleton spatial-map-loading" /> : <SpatialMap focus={model.focus} campus={campus} amenities={amenities} tileTemplate={tileTemplate} tileAttribution={tileAttribution} />}
 
       <CampusList focus={model.focus} campusId={campusId} onCampus={onCampus} name={campusName} />
 
@@ -175,12 +173,12 @@ export default function SpatialLabView({
         {directions && (
           <p className="mt-2">
             <a className="nav-link" href={directions} target="_blank" rel="noopener noreferrer">
-              {model.focus.precision === "approximate" || model.focus.precision === "area-only" ? "Directions from the area name" : model.focus.precision === "exact" ? "Directions from the fixture pin" : "Directions to the campus"}
+              {model.focus.precision === "approximate" ? "Directions from the area name" : model.focus.precision === "exact" ? "Directions from the fixture pin" : "Directions to the campus"}
             </a>
           </p>
         )}
-        {(model.focus.precision === "approximate" || model.focus.precision === "area-only") && (
-          <p className="spatial-quiet">The directions link uses the area name. It does not include a coordinate for this {subject}.</p>
+        {model.focus.precision === "approximate" && (
+          <p className="spatial-quiet">The directions link uses the area name and the campus name. It does not include a coordinate for this home or a campus entrance.</p>
         )}
       </section>
 
@@ -209,18 +207,15 @@ export default function SpatialLabView({
 
       <section className="spatial-block" aria-label="Text alternative">
         <h3 className="spatial-heading">Same details in text</h3>
-        <p className="spatial-quiet">Campus marks are OpenStreetMap area centers (ODbL), not building doors.</p>
+        <p className="spatial-quiet">Campus marks are OpenStreetMap area centers (ODbL), not building doors and not campus entrances. FUTO is not listed.</p>
         <p className="spatial-quiet">
           {model.focus.precision === "approximate" && `${model.focus.label}. Area radius about ${model.focus.radiusM} m. No building pin.`}
-          {model.focus.precision === "area-only" && `${model.focus.label}. Named area only. No pin or distance was added.`}
           {model.focus.precision === "exact" && `${model.focus.label}. Fixture pin only.`}
           {model.focus.precision === "unknown" && "Location unknown. No pin was placed."}
         </p>
         <ul className="spatial-amenity-list">
           {CAMPUSES.map((item) => {
-            const point = model.focus.precision === "approximate" || model.focus.precision === "exact"
-              ? { lat: model.focus.lat, lng: model.focus.lng }
-              : null;
+            const point = model.focus.precision === "unknown" ? null : { lat: model.focus.lat, lng: model.focus.lng };
             const label = point ? straightLineLabel(straightLineMeters(point, item)) : null;
             return <li key={item.id}>{item.name}: {label || "straight-line distance unavailable"}</li>;
           })}

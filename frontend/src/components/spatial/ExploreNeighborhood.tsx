@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { focusFromPublicListing, publicSubject, publicTileTemplate, type AmenityPayload, type RoutePayload, type SpatialFocus } from "@/lib/spatialLab";
+import { focusFromPublicListing, type AmenityPayload, type RoutePayload, type SpatialFocus } from "@/lib/spatialLab";
 import type { ApproxLocation } from "@/lib/types";
 import type { LabModel } from "./SpatialLabView";
 
@@ -23,14 +23,12 @@ export default function ExploreNeighborhood({
   place,
   approxLocation,
   startOpen = false,
-  subject,
 }: {
   listingId: number;
   title: string;
   place: string;
   approxLocation: ApproxLocation | null;
   startOpen?: boolean;
-  subject?: string;
 }) {
   const [open, setOpen] = useState(startOpen);
   const [Panel, setPanel] = useState<PanelComponent | null>(null);
@@ -102,7 +100,6 @@ export default function ExploreNeighborhood({
       .catch(() => setChunkFailed(true));
   }, [startOpen, Panel, chunkFailed]);
 
-  const noun = publicSubject(subject);
   const model: LabModel = {
     title: remote?.title || title,
     focus: remote?.focus || localFocus,
@@ -110,19 +107,18 @@ export default function ExploreNeighborhood({
     route: remote?.route || EMPTY_ROUTE,
     allowExactOrigin: false,
     fixture: false,
-    subject: noun,
   };
 
   return (
     <section className="card mb-4" aria-labelledby="explore-neighborhood">
       <h2 id="explore-neighborhood" className="font-poppins font-semibold text-white mb-2">Neighborhood</h2>
       <p className="text-sm mb-3" style={{ color: "rgba(255,255,255,0.65)" }}>
-        Spatial Lab shows the published area, the journey to a campus, and nearby places. A map does not prove who owns this {noun}.
+        Spatial Lab shows the published area, the journey to a campus, and nearby places. A map does not prove who owns the home.
       </p>
       <button type="button" className="btn btn-secondary" onClick={openLab}>Explore neighborhood</button>
       {chunkFailed && (
         <p className="text-sm mt-3" style={{ color: "rgba(255,255,255,0.7)" }}>
-          The neighborhood map could not load. You can still enquire about this {noun} below.
+          The neighborhood map could not load. You can still enquire about this home below.
         </p>
       )}
       {Panel && (
@@ -136,9 +132,10 @@ export default function ExploreNeighborhood({
           }}
           loading={loading}
           unavailable={unavailable}
-          tileTemplate={publicTileTemplate()}
+          tileTemplate={process.env.NEXT_PUBLIC_MAP_TILE_URL || null}
+          tileAttribution={process.env.NEXT_PUBLIC_MAP_ATTRIBUTION || null}
           onClose={() => setOpen(false)}
-          returnLabel={`Back to this ${noun}`}
+          returnLabel="Back to this home"
           onReturn={() => {
             setOpen(false);
             document.getElementById("listing-actions")?.scrollIntoView({ behavior: "smooth", block: "start" });
