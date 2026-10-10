@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic fixture for scripts/nigeria_benchmark.py. Not real OSM data. -->
+<osm version="0.6" generator="lodgist-fixture" timestamp="2026-10-09T20:21:04Z">
+  <node id="1" lat="4.9010" lon="6.9190"><tag k="amenity" v="hospital"/></node>
+  <node id="2" lat="4.9020" lon="6.9170"><tag k="amenity" v="pharmacy"/></node>
+  <node id="3" lat="4.8990" lon="6.9200"><tag k="shop" v="supermarket"/></node>
+  <node id="4" lat="4.9000" lon="6.9185"><tag k="amenity" v="bank"/></node>
+  <node id="5" lat="4.9500" lon="6.9180"><tag k="amenity" v="hospital"/></node>
+  <node id="6" lat="4.8668" lon="6.9970"><tag k="amenity" v="fuel"/></node>
+  <node id="10" lat="4.9001" lon="6.9181"/>
+  <node id="11" lat="4.9005" lon="6.9186"/>
+  <node id="12" lat="4.9010" lon="6.9181"/>
+  <node id="13" lat="4.9001" lon="6.9190"/>
+  <way id="100"><nd ref="10"/><nd ref="11"/><tag k="highway" v="residential"/><tag k="name" v="Choba Road"/></way>
+  <way id="101"><nd ref="11"/><nd ref="12"/><tag k="highway" v="track"/></way>
+  <way id="102"><nd ref="12"/><nd ref="13"/><tag k="highway" v="service"/></way>
+  <way id="103"><nd ref="10"/><nd ref="11"/><nd ref="12"/><nd ref="13"/><nd ref="10"/><tag k="amenity" v="school"/></way>
+</osm>

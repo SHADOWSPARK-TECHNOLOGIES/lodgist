@@ -103,6 +103,9 @@ export interface DataSourceRow {
   id: string;
   status: string;
   env?: string;
+  license?: string | null;
+  termsUrl?: string | null;
+  termsCheckedAt?: string | null;
 }
 
 export interface ProviderGate {
@@ -208,6 +211,9 @@ export interface RegistryProvider extends DataSourceRow {
   commercialUse: CommercialUse;
   authentication: { required: boolean; env?: string };
   attribution: string | null;
+  license: string | null;
+  termsUrl: string | null;
+  termsCheckedAt: string | null;
   cachePolicy: string;
   health: string;
   fallbackPriority: number;

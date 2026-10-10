@@ -71,11 +71,16 @@ const PROVIDER_CATEGORIES = Object.freeze([
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const TERMS_CHECKED_AT = "2026-10-10";
+
 function meta(partial) {
   return Object.assign({
     capabilities: [],
     authentication: { required: false },
     attribution: null,
+    license: null,
+    termsUrl: null,
+    termsCheckedAt: null,
     rateLimits: { perMinuteDefault: 30 },
     cachePolicy: "ttl",
     freshnessPolicy: { staleAfterMs: DAY_MS },
@@ -84,13 +89,42 @@ function meta(partial) {
   }, partial);
 }
 
-/** Wraps the Spatial Lab gate. OSRM is absent there, so it stays absent here. */
+/**
+ * Wraps the Spatial Lab gate. OSRM is absent there, so it stays absent here.
+ * `overpass` is not a shipped row. It remains so an override registry that
+ * still names that id keeps the previous amenity gate.
+ */
 const PROVIDER_METADATA = {
   overpass: meta({
     category: "places",
     capabilities: ["amenities"],
     commercialUse: "APPROVED_WITH_ATTRIBUTION",
     attribution: "© OpenStreetMap contributors",
+    license: "ODbL-1.0",
+    termsUrl: "https://opendatacommons.org/licenses/odbl/1-0/",
+    termsCheckedAt: TERMS_CHECKED_AT,
+    freshnessPolicy: { staleAfterMs: 7 * DAY_MS },
+    fallbackPriority: 10,
+  }),
+  "overpass-public": meta({
+    category: "places",
+    capabilities: ["amenities"],
+    commercialUse: "DEVELOPMENT_ONLY",
+    attribution: "© OpenStreetMap contributors",
+    license: "ODbL-1.0",
+    termsUrl: "https://dev.overpass-api.de/overpass-doc/en/preface/commons.html",
+    termsCheckedAt: TERMS_CHECKED_AT,
+    freshnessPolicy: { staleAfterMs: 7 * DAY_MS },
+    fallbackPriority: 20,
+  }),
+  "overpass-selfhosted": meta({
+    category: "places",
+    capabilities: ["amenities"],
+    commercialUse: "APPROVED_WITH_ATTRIBUTION",
+    attribution: "© OpenStreetMap contributors",
+    license: "ODbL-1.0",
+    termsUrl: "https://opendatacommons.org/licenses/odbl/1-0/",
+    termsCheckedAt: TERMS_CHECKED_AT,
     freshnessPolicy: { staleAfterMs: 7 * DAY_MS },
     fallbackPriority: 10,
   }),
@@ -99,12 +133,14 @@ const PROVIDER_METADATA = {
     capabilities: ["tiles"],
     commercialUse: "UNKNOWN",
     cachePolicy: "never",
+    termsCheckedAt: TERMS_CHECKED_AT,
     fallbackPriority: 10,
   }),
   geocoder: meta({
     category: "geocoding",
     capabilities: ["geocode"],
     commercialUse: "UNKNOWN",
+    termsCheckedAt: TERMS_CHECKED_AT,
     fallbackPriority: 10,
   }),
   imagery: meta({
@@ -112,18 +148,22 @@ const PROVIDER_METADATA = {
     capabilities: ["imagery"],
     commercialUse: "NON_COMMERCIAL",
     cachePolicy: "never",
+    termsCheckedAt: TERMS_CHECKED_AT,
     fallbackPriority: 50,
   }),
   weather: meta({
     category: "weather",
     capabilities: ["weather"],
     commercialUse: "NON_COMMERCIAL",
+    termsUrl: "https://open-meteo.com/en/license",
+    termsCheckedAt: TERMS_CHECKED_AT,
     fallbackPriority: 40,
   }),
   traffic: meta({
     category: "traffic",
     capabilities: ["traffic"],
     commercialUse: "UNKNOWN",
+    termsCheckedAt: TERMS_CHECKED_AT,
     fallbackPriority: 40,
   }),
   osrm: meta({
@@ -131,6 +171,9 @@ const PROVIDER_METADATA = {
     capabilities: ["route"],
     commercialUse: "NON_COMMERCIAL",
     attribution: "OSRM / ODbL; public FOSSGIS routing is not a commercial clearance",
+    license: "ODbL-1.0",
+    termsUrl: "https://www.openstreetmap.org/copyright",
+    termsCheckedAt: TERMS_CHECKED_AT,
     fallbackPriority: 20,
   }),
 };
@@ -143,11 +186,17 @@ function decorateProvider(row) {
   const commercialUse = COMMERCIAL_CLASSES.includes(row.commercialUse)
     ? row.commercialUse
     : base.commercialUse || "UNKNOWN";
+  const termsUrl = row.termsUrl !== undefined ? row.termsUrl : base.termsUrl;
+  const termsCheckedAt = row.termsCheckedAt !== undefined ? row.termsCheckedAt : base.termsCheckedAt;
+  const license = row.license !== undefined ? row.license : base.license;
   return Object.assign({}, base, row, {
     commercialUse: COMMERCIAL_CLASSES.includes(commercialUse) ? commercialUse : "UNKNOWN",
     category: PROVIDER_CATEGORIES.includes(row.category) ? row.category : base.category,
     authentication: row.authentication || base.authentication,
     health: row.health || base.health,
+    termsUrl: typeof termsUrl === "string" && termsUrl.trim() ? termsUrl : null,
+    termsCheckedAt: typeof termsCheckedAt === "string" && termsCheckedAt.trim() ? termsCheckedAt : null,
+    license: typeof license === "string" && license.trim() ? license : null,
   });
 }
 
@@ -197,6 +246,7 @@ function providerFallback(category, options = {}) {
 
 module.exports = {
   DATA_SOURCE_REVISION: DOCUMENT.sourceRevision,
+  TERMS_CHECKED_AT,
   COMMERCIAL_CLASSES,
   PROVIDER_CATEGORIES,
   dataSources,
