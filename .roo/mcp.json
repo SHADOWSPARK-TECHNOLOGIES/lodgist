@@ -47,10 +47,6 @@
 				"-y",
 				"@anthropic/mcp-server-sequential-thinking"
 			]
-		},
-		"context7": {
-			"type": "streamable-http",
-			"url": "https://context7-mcp-server.vercel.app/mcp"
 		}
 	}
 }

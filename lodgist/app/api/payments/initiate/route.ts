@@ -12,8 +12,11 @@ const initiatePaymentSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-const SUPPORT_WHATSAPP =
-  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace("+", "") ?? "2348000000000";
+function supportWhatsAppUrl(text: string): string | null {
+  const digits = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? "").replace(/\D/g, "");
+  if (!digits) return null;
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
+}
 
 // ─── POST /api/payments/initiate — Route tenant to support for payment ───────
 // Automated Paystack flow is temporarily replaced by a WhatsApp support handoff.
@@ -69,7 +72,7 @@ export async function POST(req: NextRequest) {
     const propertyTitle = booking.listing.title ?? "your property";
 
     // Build a pre-filled WhatsApp message so the support agent has context immediately
-    const waText = encodeURIComponent(
+    const supportUrl = supportWhatsAppUrl(
       `Hi Lodgist Support, I'd like to complete payment for my booking.\n\n` +
         `Booking ID: ${validated.bookingId}\n` +
         `Property: ${propertyTitle}\n` +
@@ -77,8 +80,6 @@ export async function POST(req: NextRequest) {
         `Email: ${validated.email}\n\n` +
         `Please assist me with next steps.`
     );
-
-    const supportUrl = `https://wa.me/${SUPPORT_WHATSAPP}?text=${waText}`;
 
     return NextResponse.json({
       mode: "support",

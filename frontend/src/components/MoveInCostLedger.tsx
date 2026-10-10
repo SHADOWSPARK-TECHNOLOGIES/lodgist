@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { moveIn } from "@/lib/copy";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -64,7 +65,7 @@ export default function MoveInCostLedger({
       <div className="rounded-xl border border-white/10 bg-deep-navy/60 p-5 backdrop-blur-sm">
         <div className="flex items-center gap-3 text-light-gray">
           <DollarSign className="h-5 w-5 text-vibrant-orange" />
-          <span className="text-sm">Move-in cost data not available</span>
+          <span className="text-sm">{moveIn.unavailable}</span>
         </div>
       </div>
     );
@@ -83,7 +84,7 @@ export default function MoveInCostLedger({
           </div>
           <div className="text-left">
             <h3 className="font-heading text-base font-semibold text-off-white">
-              Move-In Cost Ledger
+              {moveIn.title}
             </h3>
             <p className="text-xs text-light-gray">
               {currency} {total.toLocaleString()} total
@@ -133,7 +134,7 @@ export default function MoveInCostLedger({
 
           {/* Total */}
           <div className="flex items-center justify-between rounded-lg bg-teal/10 px-3 py-2">
-            <span className="text-sm font-semibold text-teal">Total</span>
+            <span className="text-sm font-semibold text-teal">{moveIn.total}</span>
             <span className="font-mono text-base font-bold text-teal">
               {currency} {total.toLocaleString()}
             </span>
@@ -150,7 +151,7 @@ export default function MoveInCostLedger({
 
           {/* Notes */}
           {notes && (
-            <p className="text-xs italic text-light-gray">Note: {notes}</p>
+            <p className="text-xs italic text-light-gray">{moveIn.note}: {notes}</p>
           )}
         </div>
       )}

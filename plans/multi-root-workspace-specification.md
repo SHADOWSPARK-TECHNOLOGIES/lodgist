@@ -961,11 +961,6 @@ This provides MCP servers available to **all** projects on this machine.
 ```jsonc
 {
   "mcpServers": {
-    // Context7 — documentation & code examples for libraries
-    "context7": {
-      "type": "streamable-http",
-      "url": "https://context7-mcp-server.vercel.app/mcp"
-    },
     // GitHub MCP — repository management, PRs, issues
     "github": {
       "type": "streamable-http",

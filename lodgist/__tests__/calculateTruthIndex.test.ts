@@ -404,7 +404,13 @@ describe("calculateTruthIndex", () => {
       data: expect.objectContaining({
         userId: 1,
         score: expect.any(Number),
-        metadata: expect.any(Object),
+        metadata: expect.objectContaining({
+          images: expect.any(Number),
+          description: expect.any(Number),
+          landlordVerified: expect.any(Number),
+          priceCompetitiveness: expect.any(Number),
+          reviews: expect.any(Number),
+        }),
       }),
     });
   });

@@ -8,7 +8,8 @@
  *   POST /api/payments/webhook — Paystack webhook receiver
  *
  * Security:
- *   - Verifies HMAC-SHA256 signature from x-paystack-signature header
+ *   - Verifies HMAC-SHA512 signature from x-paystack-signature header
+ *   - Paystack signs the raw body with the secret key (there is no separate webhook secret)
  *   - Idempotent: stores processed webhook event IDs to prevent replay
  *
  * Events handled:
@@ -20,34 +21,64 @@
 
 const express = require("express");
 const crypto = require("crypto");
+const {
+  isRentalPaystackReference,
+} = require("../services/rentalCheck");
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Verify a Paystack webhook HMAC-SHA256 signature.
+ * Verify a Paystack webhook HMAC-SHA512 signature.
  *
- * Paystack signs the raw JSON body with the secret key using HMAC-SHA256
- * and sends the hex digest in the `x-paystack-signature` header.
+ * Paystack signs the exact raw request bytes with PAYSTACK_SECRET_KEY
+ * (HMAC-SHA512, hex digest) and sends that digest in `x-paystack-signature`.
+ * There is no separate webhook secret.
  *
  * @param {string} signature - The value of x-paystack-signature header
- * @param {string} body - The raw JSON string of the request body
+ * @param {Buffer} rawBody - The exact request body bytes, before JSON parsing
  * @param {string} secret - The Paystack secret key
  * @returns {boolean}
  */
-function verifyPaystackSignature(signature, body, secret) {
-  if (!signature || !body || !secret) return false;
+function verifyPaystackSignature(signature, rawBody, secret) {
+  if (typeof signature !== "string" || signature.length === 0) return false;
+  if (typeof secret !== "string" || secret.length === 0) return false;
+  if (!Buffer.isBuffer(rawBody)) return false;
 
   const computed = crypto
-    .createHmac("sha256", secret)
-    .update(body)
+    .createHmac("sha512", secret)
+    .update(rawBody)
     .digest("hex");
 
-  // timingSafeEqual requires both buffers to be the same length.
-  // Use a constant-time comparison that handles different lengths gracefully.
-  if (computed.length !== signature.length) return false;
+  const provided = Buffer.from(signature);
+  const expected = Buffer.from(computed);
+  if (provided.length !== expected.length) return false;
 
-  return crypto.timingSafeEqual(Buffer.from(computed), Buffer.from(signature));
+  return crypto.timingSafeEqual(provided, expected);
+}
+
+/**
+ * Stable id for ProcessedWebhookEvent. Prefer Paystack's data.id so retries
+ * match rows already stored. Fall back to event type + reference. Never use
+ * a clock value — that cannot dedupe a retry.
+ *
+ * @param {object} event
+ * @returns {string|null}
+ */
+function stableWebhookEventId(event) {
+  const data = event && event.data;
+  if (data && data.id !== undefined && data.id !== null && String(data.id) !== "") {
+    return String(data.id);
+  }
+  if (
+    data &&
+    typeof event.event === "string" &&
+    typeof data.reference === "string" &&
+    data.reference.length > 0
+  ) {
+    return `${event.event}:${data.reference}`;
+  }
+  return null;
 }
 
 /**
@@ -62,29 +93,42 @@ function createPaymentsRouter(prisma) {
   const router = express.Router();
 
   // ─── POST /api/payments/webhook — Paystack webhook receiver ────────────────
-  // NOTE: This endpoint MUST use express.raw({ type: "application/json" })
-  // for HMAC verification to work (the raw body is needed to compute the HMAC).
-  // This is configured at the app level OR we handle it with text/raw parsing here.
-  //
-  // We receive raw body via req.body (already parsed as JSON by parent middleware),
-  // but for HMAC verification we need the raw string. The app-level express.json()
-  // parses the body before this middleware runs. We'll reconstruct the raw string
-  // by JSON-stringifying the parsed body for verification purposes.
-  //
-  // In production, use express.raw({ type: "application/json" }) on this route.
+  // express.raw({ type: "application/json" }) must run on this path BEFORE
+  // express.json() (see backend/src/index.js). Paystack signs those exact bytes.
+  // A parsed object is not the signed payload, so it is rejected.
 
   router.post("/webhook", async (req, res) => {
     try {
-      // 1. Decode raw body — express.raw() delivers a Buffer containing the exact bytes
-      //    Paystack signed. toString() preserves those bytes for HMAC verification.
-      //    The fallback to JSON.stringify is a safety net for non-raw invocations only.
-      const rawBody = Buffer.isBuffer(req.body)
-        ? req.body.toString("utf8")
-        : JSON.stringify(req.body);
+      // 1. Require the exact raw bytes. Do not re-serialize a parsed body.
+      if (!Buffer.isBuffer(req.body)) {
+        console.warn("[Paystack Webhook] Rejected: raw body was not captured before JSON parsing");
+        return res.status(400).json({ status: "error", message: "Raw body required" });
+      }
+
+      // 2. Verify HMAC-SHA512 before parsing or handling the event.
+      //    Paystack uses PAYSTACK_SECRET_KEY. There is no separate webhook secret.
+      const signatureHeader = req.headers["x-paystack-signature"];
+      const signature = typeof signatureHeader === "string" ? signatureHeader : "";
+      const secret = process.env.PAYSTACK_SECRET_KEY;
+
+      if (!secret) {
+        console.warn("[Paystack Webhook] Rejected: PAYSTACK_SECRET_KEY is unset");
+        return res.status(401).json({ status: "error", message: "Unauthorized" });
+      }
+
+      if (!signature) {
+        console.warn("[Paystack Webhook] Rejected: missing x-paystack-signature header");
+        return res.status(401).json({ status: "error", message: "Missing signature" });
+      }
+
+      if (!verifyPaystackSignature(signature, req.body, secret)) {
+        console.warn("[Paystack Webhook] Rejected: HMAC-SHA512 signature mismatch");
+        return res.status(401).json({ status: "error", message: "Invalid signature" });
+      }
 
       let event;
       try {
-        event = JSON.parse(rawBody);
+        event = JSON.parse(req.body.toString("utf8"));
       } catch {
         return res.status(400).json({ status: "error", message: "Invalid JSON payload" });
       }
@@ -93,26 +137,14 @@ function createPaymentsRouter(prisma) {
         return res.status(400).json({ status: "error", message: "Invalid webhook payload" });
       }
 
-      // 2. Verify HMAC signature against the exact raw bytes received
-      const signature = req.headers["x-paystack-signature"];
-      const secret = process.env.PAYSTACK_SECRET_KEY;
-
-      if (!signature || !secret) {
-        console.warn("[Paystack Webhook] Missing signature or secret key");
-        return res.status(401).json({ status: "error", message: "Missing signature" });
-      }
-
-      const isValid = verifyPaystackSignature(signature, rawBody, secret);
-
-      if (!isValid) {
-        console.warn("[Paystack Webhook] Invalid HMAC signature — possible forgery");
-        return res.status(401).json({ status: "error", message: "Invalid signature" });
-      }
-
       // 3. Idempotency — DB-backed; survives restarts and horizontal scaling.
       //    ProcessedWebhookEvent.id has a unique constraint; concurrent duplicates from
       //    Paystack retries or multiple App Runner instances will hit P2002 and short-circuit.
-      const eventId = event.data?.id ? String(event.data.id) : `${event.event}-${Date.now()}`;
+      const eventId = stableWebhookEventId(event);
+      if (!eventId) {
+        console.warn("[Paystack Webhook] Rejected: event has no id or reference for idempotency");
+        return res.status(400).json({ status: "error", message: "Event is not idempotent" });
+      }
 
       try {
         await prisma.processedWebhookEvent.create({ data: { id: eventId } });
@@ -181,6 +213,11 @@ async function handleChargeSuccess(prisma, data, eventId) {
   const bookingId = data?.metadata?.bookingId;
   if (isBookingReference(reference) || (bookingId && data?.metadata?.type === "booking_payment")) {
     await handleBookingChargeSuccess(prisma, data, reference, bookingId);
+    return;
+  }
+
+  if (isRentalPaystackReference(reference, data)) {
+    await handleRentalChargeSuccess(prisma, data);
     return;
   }
 
@@ -272,6 +309,11 @@ async function handleChargeFailed(prisma, data, eventId) {
   const bookingId = data?.metadata?.bookingId;
   if (isBookingReference(reference) || (bookingId && data?.metadata?.type === "booking_payment")) {
     await handleBookingChargeFailed(prisma, data, reference, bookingId);
+    return;
+  }
+
+  if (isRentalPaystackReference(reference, data)) {
+    await handleRentalChargeFailed(prisma, data);
     return;
   }
 
@@ -417,6 +459,16 @@ async function handleTransferFailed(prisma, data, eventId) {
   } catch (error) {
     console.error("[Paystack Webhook] Error in transfer.failed handler:", error);
   }
+}
+
+async function handleRentalChargeSuccess(_prisma, data) {
+  if (!data?.reference) return;
+  console.warn("[Paystack Webhook] Rental check charge ignored. Staff confirm a transfer reference.");
+}
+
+async function handleRentalChargeFailed(_prisma, data) {
+  if (!data?.reference) return;
+  console.warn("[Paystack Webhook] Rental check charge.failed ignored. It does not reject a transfer reference.");
 }
 
 module.exports = createPaymentsRouter;
