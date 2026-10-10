@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
-const core = require("./core.cjs");
+const core = require("./index.cjs");
 
 export const {
   DISCLAIMER,
@@ -47,12 +47,37 @@ export const {
   DATA_SOURCE_REVISION,
   dataSources,
   providerGate,
+  providerRegistry,
+  providerCanRun,
+  providerFallback,
+  COMMERCIAL_CLASSES,
+  PROVIDER_CATEGORIES,
   refuseUserSuppliedProviderUrl,
   cellKey,
   stripPrivateLocationKeys,
   assertNoPrivateLocationKeys,
   createSafeguardState,
   DEFAULT_CACHE_TTL_MS,
+  DEFAULT_DAILY_BUDGET,
   PROVIDER_BACKOFF_MS,
   DEFAULT_USER_AGENT,
+  cachePermitted,
+  CLASSIFICATIONS,
+  CANONICAL_CATEGORIES,
+  LAB_LAYER_TO_CATEGORY,
+  TRANSIT_POLICY,
+  SPATIAL_LAB_CONTRACT,
+  crossReference,
+  relateListingToCampus,
+  compareListings,
+  mapLabLayer,
+  spatialLabDrift,
+  buildSpatialContext,
+  DEFAULT_TIMEOUT_MS,
+  validate,
+  listTools,
+  callTool,
+  FRESHNESS,
+  ENVELOPE_KEYS,
+  evidenceEnvelope,
 } = core;

@@ -6,6 +6,11 @@ const {
   providerGate,
   refuseUserSuppliedProviderUrl,
   assertSameProviderUrl,
+  providerCanRun,
+  providerRegistry,
+  providerFallback,
+  COMMERCIAL_CLASSES,
+  PROVIDER_CATEGORIES,
 } = require("./registry.cjs");
 const {
   PRIVATE_LOCATION_KEYS,
@@ -14,8 +19,10 @@ const {
 } = require("./privacy.cjs");
 const {
   DEFAULT_CACHE_TTL_MS,
+  DEFAULT_DAILY_BUDGET,
   PROVIDER_BACKOFF_MS,
   DEFAULT_USER_AGENT,
+  cachePermitted,
   createSafeguardState,
   envObject,
   envString,
@@ -24,6 +31,8 @@ const {
   withUserAgent,
   withProviderSafeguards,
 } = require("./safeguards.cjs");
+const { fetchAllowlisted } = require("./proxy.cjs");
+const { LEGACY_AMENITY_QUERY, buildAmenityQuery } = require("./overpassQuery.cjs");
 
 let isPublicListing = function failClosed() {
   return false;
@@ -356,6 +365,8 @@ async function loadRouteGuarded(input, focus, origin, envUrl, campus, fetchImpl,
   const gate = providerGate("osrm", input.registry);
   const path = `/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=false`;
   const source = envObject(input);
+  const decision = providerCanRun("osrm", { registry: input.registry, env: source, production: input.production });
+  if (!decision.ok) return empty("unconfigured");
   const guarded = await withProviderSafeguards({
     providerId: "osrm",
     cacheKey: `osrm|${cellKey(focus)}|${campus.id}`,
@@ -364,13 +375,19 @@ async function loadRouteGuarded(input, focus, origin, envUrl, campus, fetchImpl,
     now: input.now,
     ttlMs: input.ttlMs,
     budgetLimit: input.budgetLimit,
+    cachePolicy: decision.row && decision.row.cachePolicy,
     envSource: source,
   }, async () => {
     try {
-      const response = await fetchImpl(`${envUrl}${path}`, withUserAgent({
-        cache: "no-store",
-        signal: providerSignal(),
-      }, userAgent(source)));
+      const response = await fetchAllowlisted({
+        url: `${envUrl}${path}`,
+        allowedHosts: [new URL(envUrl).hostname],
+        fetchImpl,
+        lookup: input.lookup,
+        timeoutMs: input.timeoutMs,
+        maxBytes: input.maxBytes,
+        init: withUserAgent({ cache: "no-store" }, userAgent(source)),
+      });
       const statusCode = statusOf(response);
       if (!response || !response.ok) return { statusCode, cacheable: false, value: empty("failed") };
       const body = await response.json();
@@ -444,7 +461,9 @@ function parseOverpass(body) {
   const amenities = [];
   for (const element of body.elements) {
     if (amenities.length >= 40) break;
-    const point = element && parseCoordinate(element.lat, element.lon);
+    const rawLat = element && element.lat != null ? element.lat : element && element.center && element.center.lat;
+    const rawLon = element && element.lon != null ? element.lon : element && element.center && element.center.lon;
+    const point = element && parseCoordinate(rawLat, rawLon);
     if (!point) continue;
     const category = categoryFromTags(element.tags);
     if (!category) continue;
@@ -486,9 +505,12 @@ function providerEnvUrl(input, name, normalize) {
 
 async function loadAmenitiesGuarded(input, focus, origin, envUrl, fetchImpl) {
   const radius = Math.min(focus.radiusM, 2000);
-  const query = `[out:json][timeout:12];(node["amenity"="pharmacy"](around:${radius},${origin.lat},${origin.lng});node["amenity"="clinic"](around:${radius},${origin.lat},${origin.lng});node["amenity"="doctors"](around:${radius},${origin.lat},${origin.lng});node["amenity"="hospital"](around:${radius},${origin.lat},${origin.lng});node["shop"](around:${radius},${origin.lat},${origin.lng});node["highway"="bus_stop"](around:${radius},${origin.lat},${origin.lng});node["amenity"="bus_station"](around:${radius},${origin.lat},${origin.lng}););out body 40;`;
+  const elements = Array.isArray(input.overpassElements) ? input.overpassElements : ["node", "way", "area"];
+  const query = buildAmenityQuery({ radius, lat: origin.lat, lng: origin.lng, elements });
   const source = envObject(input);
   const gate = providerGate("overpass", input.registry);
+  const decision = providerCanRun("overpass", { registry: input.registry, env: source, production: input.production });
+  if (!decision.ok) return amenityResult("unconfigured", [], null);
   const guarded = await withProviderSafeguards({
     providerId: "overpass",
     cacheKey: `overpass|${cellKey(focus, AMENITY_CATEGORIES)}`,
@@ -497,16 +519,24 @@ async function loadAmenitiesGuarded(input, focus, origin, envUrl, fetchImpl) {
     now: input.now,
     ttlMs: input.ttlMs,
     budgetLimit: input.budgetLimit,
+    cachePolicy: input.cachePolicy || (decision.row && decision.row.cachePolicy),
     envSource: source,
   }, async () => {
     try {
-      const response = await fetchImpl(envUrl, withUserAgent({
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `data=${encodeURIComponent(query)}`,
-        cache: "no-store",
-        signal: providerSignal(),
-      }, userAgent(source)));
+      const response = await fetchAllowlisted({
+        url: envUrl,
+        allowedHosts: [new URL(envUrl).hostname],
+        fetchImpl,
+        lookup: input.lookup,
+        timeoutMs: input.timeoutMs,
+        maxBytes: input.maxBytes,
+        init: withUserAgent({
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: `data=${encodeURIComponent(query)}`,
+          cache: "no-store",
+        }, userAgent(source)),
+      });
       const statusCode = statusOf(response);
       if (!response || !response.ok) {
         return { statusCode, cacheable: false, value: amenityResult("failed", [], "OpenStreetMap") };
@@ -542,7 +572,7 @@ async function loadAmenities(input = {}) {
   const provider = config || readProviderConfig();
   if (!provider.overpassUrl) return amenityResult("unconfigured", [], null);
   const radius = Math.min(focus.radiusM, 2000);
-  const query = `[out:json][timeout:12];(node["amenity"="pharmacy"](around:${radius},${origin.lat},${origin.lng});node["amenity"="clinic"](around:${radius},${origin.lat},${origin.lng});node["amenity"="doctors"](around:${radius},${origin.lat},${origin.lng});node["amenity"="hospital"](around:${radius},${origin.lat},${origin.lng});node["shop"](around:${radius},${origin.lat},${origin.lng});node["highway"="bus_stop"](around:${radius},${origin.lat},${origin.lng});node["amenity"="bus_station"](around:${radius},${origin.lat},${origin.lng}););out body 40;`;
+  const query = LEGACY_AMENITY_QUERY(radius, origin.lat, origin.lng);
   try {
     const response = await fetchImpl(provider.overpassUrl, {
       method: "POST",
@@ -728,12 +758,19 @@ module.exports = {
   DATA_SOURCE_REVISION,
   dataSources,
   providerGate,
+  providerRegistry,
+  providerCanRun,
+  providerFallback,
+  COMMERCIAL_CLASSES,
+  PROVIDER_CATEGORIES,
   refuseUserSuppliedProviderUrl,
   cellKey,
   stripPrivateLocationKeys,
   assertNoPrivateLocationKeys,
   createSafeguardState,
   DEFAULT_CACHE_TTL_MS,
+  DEFAULT_DAILY_BUDGET,
   PROVIDER_BACKOFF_MS,
   DEFAULT_USER_AGENT,
+  cachePermitted,
 };

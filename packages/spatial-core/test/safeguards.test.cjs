@@ -18,6 +18,8 @@ const focus = {
   radiusM: 800,
 };
 
+const publicLookup = async () => [{ address: "1.1.1.1", family: 4 }];
+
 const cleared = [
   { id: "overpass", status: "cleared", env: "OVERPASS_INTERPRETER_URL" },
   { id: "osrm", status: "cleared", env: "OSRM_BASE_URL" },
@@ -44,8 +46,8 @@ test("a cache hit skips the network", async () => {
     calls += 1;
     return { ok: true, status: 200, json: async () => overpassElements() };
   };
-  const first = await loadAmenities({ focus, env, registry: cleared, safeguardState: state, fetchImpl, now: () => 0 });
-  const second = await loadAmenities({ focus, env, registry: cleared, safeguardState: state, fetchImpl, now: () => 1000 });
+  const first = await loadAmenities({ focus, env, registry: cleared, lookup: publicLookup, safeguardState: state, fetchImpl, now: () => 0 });
+  const second = await loadAmenities({ focus, env, registry: cleared, lookup: publicLookup, safeguardState: state, fetchImpl, now: () => 1000 });
   assert.equal(first.status, "ok");
   assert.equal(first.items.length, 1);
   assert.equal(second.status, "ok");
@@ -64,7 +66,7 @@ test("cache expires when the configured ttl has passed", async () => {
   await loadAmenities({
     focus,
     env: { OVERPASS_INTERPRETER_URL: "https://overpass.example/interpreter", SPATIAL_CACHE_TTL_MS: "1000" },
-    registry: cleared,
+    registry: cleared, lookup: publicLookup,
     safeguardState: state,
     fetchImpl,
     now: () => now,
@@ -73,7 +75,7 @@ test("cache expires when the configured ttl has passed", async () => {
   await loadAmenities({
     focus,
     env: { OVERPASS_INTERPRETER_URL: "https://overpass.example/interpreter", SPATIAL_CACHE_TTL_MS: "1000" },
-    registry: cleared,
+    registry: cleared, lookup: publicLookup,
     safeguardState: state,
     fetchImpl,
     now: () => now,
@@ -91,12 +93,12 @@ test("429 backs off for 30 seconds and does not retry inside the window", async 
     calls += 1;
     return { ok: false, status: 429, json: async () => ({}) };
   };
-  const first = await loadRoute({ focus, campus, env, registry: cleared, safeguardState: state, fetchImpl, now: () => now });
+  const first = await loadRoute({ focus, campus, env, registry: cleared, lookup: publicLookup, safeguardState: state, fetchImpl, now: () => now });
   const second = await loadRoute({
     focus: { ...focus, lat: 5.43 },
     campus,
     env,
-    registry: cleared,
+    registry: cleared, lookup: publicLookup,
     safeguardState: state,
     fetchImpl,
     now: () => now + 1000,
@@ -108,7 +110,7 @@ test("429 backs off for 30 seconds and does not retry inside the window", async 
     focus: { ...focus, lat: 5.44 },
     campus,
     env,
-    registry: cleared,
+    registry: cleared, lookup: publicLookup,
     safeguardState: state,
     fetchImpl,
     now: () => now + PROVIDER_BACKOFF_MS,
@@ -128,11 +130,11 @@ test("an exhausted daily budget returns unconfigured without another request", a
     return { ok: true, status: 200, json: async () => ({ elements: [] }) };
   };
   const now = () => Date.UTC(2026, 9, 9, 12);
-  const first = await loadAmenities({ focus, env, registry: cleared, safeguardState: state, fetchImpl, now });
+  const first = await loadAmenities({ focus, env, registry: cleared, lookup: publicLookup, safeguardState: state, fetchImpl, now });
   const second = await loadAmenities({
     focus: { ...focus, lat: 5.5 },
     env,
-    registry: cleared,
+    registry: cleared, lookup: publicLookup,
     safeguardState: state,
     fetchImpl,
     now,
@@ -160,12 +162,12 @@ test("only one request is in flight per provider", async () => {
     inFlight -= 1;
     return { ok: true, status: 200, json: async () => ({ code: "Ok", routes: [{ distance: 1000, duration: 60 }] }) };
   };
-  const first = loadRoute({ focus, campus, env, registry: cleared, safeguardState: state, fetchImpl, now: () => 10 });
+  const first = loadRoute({ focus, campus, env, registry: cleared, lookup: publicLookup, safeguardState: state, fetchImpl, now: () => 10 });
   const second = loadRoute({
     focus: { ...focus, lat: 5.5 },
     campus,
     env,
-    registry: cleared,
+    registry: cleared, lookup: publicLookup,
     safeguardState: state,
     fetchImpl,
     now: () => 10,
@@ -185,7 +187,7 @@ test("safeguarded requests send an identifying User-Agent", async () => {
   await loadAmenities({
     focus,
     env: { OVERPASS_INTERPRETER_URL: "https://overpass.example/interpreter", SPATIAL_USER_AGENT: "Lodgist/test (ops@example.com)" },
-    registry: cleared,
+    registry: cleared, lookup: publicLookup,
     safeguardState: state,
     now: () => 5,
     fetchImpl: async (_url, init) => {
@@ -201,7 +203,7 @@ test("safeguarded requests send an identifying User-Agent", async () => {
     focus,
     campus: campusById("fpno"),
     env: { OSRM_BASE_URL: "https://routing.example" },
-    registry: cleared,
+    registry: cleared, lookup: publicLookup,
     safeguardState: createSafeguardState(),
     now: () => 5,
     fetchImpl: async (_url, init) => {

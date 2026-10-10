@@ -1,1 +1,7 @@
-module.exports = require("./core.cjs");
+module.exports = Object.assign(
+  {},
+  require("./core.cjs"),
+  require("./crossReference.cjs"),
+  require("./tools.cjs"),
+  require("./evidence.cjs"),
+);

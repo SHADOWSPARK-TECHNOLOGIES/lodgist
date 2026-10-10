@@ -33,6 +33,7 @@ const advertiserLeadsRouter = require("./routes/advertiserLeads")(prisma);
 const rentalChecksRouter = require("./routes/rentalChecks")(prisma);
 const adminListingsRouter = require("./routes/adminListings")(prisma);
 const healthRouter = require("./routes/health")(prisma);
+const createSpatialRouter = require("./routes/spatial");
 
 const app = express();
 // Railway sits behind one proxy; trust it so rate limiting keys on the client IP.
@@ -132,6 +133,7 @@ app.use(morgan("combined", { stream: logger.morganStream }));
 // ── Health Check ────────────────────────────────────────────────────────────
 
 app.use("/api/health", healthRouter);
+app.use("/api/spatial", createSpatialRouter({ prisma }));
 
 // ── API Routes ──────────────────────────────────────────────────────────────
 
