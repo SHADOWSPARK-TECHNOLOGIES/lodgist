@@ -15,9 +15,10 @@ test("the proxy covers the neighborhood route", () => {
 
 test("the neighborhood page never calls notFound() inside its try block", () => {
   const page = read("app/listings/[id]/neighborhood/page.tsx");
-  const tryBlock = page.slice(page.indexOf("try {"), page.indexOf("} catch"));
-  assert.ok(tryBlock.length > 0);
-  assert.doesNotMatch(tryBlock, /notFound\(\)/);
+  // The fetch lives in neighborhoodLoad.js; any try block left in the page
+  // must not contain notFound().
+  const start = page.indexOf("try {");
+  if (start !== -1) assert.doesNotMatch(page.slice(start, page.indexOf("} catch", start)), /notFound\(\)/);
   // API failures still render the error state.
   assert.match(page, /We could not load this home\./);
 });
