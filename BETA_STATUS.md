@@ -54,7 +54,7 @@ The private beta includes only the minimum flows required to validate trust, dem
 | Booking flow | READY | 5 | Admin creates bookings with sourceChannel. Tenant gets /mine. Verified live against Neon. |
 | Manual payment submission | READY | 5 | Tenant or STUDIO_ADMIN submits ref. Status machine enforced. Idempotency via status guard. |
 | Payment verification workflow | READY | 5 | Approve/reject/cancel all tested. adminNotes stored. verifiedBy+verifiedAt recorded. |
-| Role/permission enforcement | READY | 5 | STUDIO_ADMIN, LANDLORD, USER all enforced per route. Tested: wrong role → 403. |
+| Role/permission enforcement | READY | 5 | STUDIO_ADMIN, LANDLORD, USER all enforced per route. Tested: wrong role → 403. Booking admin actions now owner-scoped: LANDLORD is limited to bookings on listings they own; cross-landlord list/verify/cancel → 403 (verified live). STUDIO_ADMIN retains full access. |
 | Audit trail | READY | 5 | verifiedBy, verifiedAt, adminNotes, sourceChannel all persisted in Neon. |
 | DB persistence | READY | 5 | Neon connected in production at 14ms. All core models persisted. Confirmed via live /api/health. |
 | Social/chatbot-assisted ops support | READY | 5 | Admin booking queue, source channel tagging, admin notes — implemented and smoke-tested in production. |
@@ -215,6 +215,9 @@ Source-of-truth files for beta operations.
 - `packages/db/prisma/migrations/20260519000000_booking_concierge_fields/migration.sql`
 - `backend/.env` — channel_binding=require replaced with uselibpqcompat=true
 - `packages/db/.env` — same
+
+### Changed 2026-10-07 (branch `cursor/harden-booking-authz-2771`)
+- `backend/src/routes/bookings.js` — hardened landlord authorization. Previously `ADMIN_ROLES = [STUDIO_ADMIN, LANDLORD]` granted every LANDLORD unscoped access, so any landlord could list all tenants' bookings (cross-tenant PII) and approve/reject/cancel payments on bookings for listings they do not own. Now LANDLORD access is scoped to listings they own (`canAdministerBooking`), matching `rent.js`/`transactions.js` and the `lodgist` Next API convention. STUDIO_ADMIN unchanged. Verified live (before: landlord saw 5/5 and verify→409; after: landlord sees own 4/5 and cross-owner verify→403). Backend-only, no schema change. Deployment pending.
 
 ---
 
