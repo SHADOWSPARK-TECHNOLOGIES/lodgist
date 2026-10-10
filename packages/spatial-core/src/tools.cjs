@@ -217,6 +217,7 @@ async function nearbyHandler(input, ctx) {
     registry: ctx.registry,
     fetchImpl: ctx.fetchImpl,
     safeguardState: ctx.safeguardState,
+    cacheTrace: ctx.cacheTrace,
     now: ctx.now,
     lookup: ctx.lookup,
     timeoutMs: ctx.timeoutMs,
@@ -260,6 +261,7 @@ async function routeHandler(input, ctx) {
     registry: ctx.registry,
     fetchImpl: ctx.fetchImpl,
     safeguardState: ctx.safeguardState,
+    cacheTrace: ctx.cacheTrace,
     now: ctx.now,
     lookup: ctx.lookup,
     timeoutMs: ctx.timeoutMs,
@@ -561,34 +563,87 @@ async function callTool(name, input, ctx = {}) {
   if (!auth.ok) {
     return finish(ctx, started, name, { ok: false, code: auth.code || "forbidden", message: "not allowed" });
   }
+  const cacheTrace = [];
+  const run = Object.assign({}, ctx, { cacheTrace });
+  const done = (raw) => withCacheMeta(finish(ctx, started, name, raw), cacheTrace);
   try {
-    const data = await withTimeout(Promise.resolve(toolDef.handler(body, ctx)), ctx.timeoutMs || toolDef.timeoutMs);
+    const data = await withTimeout(Promise.resolve(toolDef.handler(body, run)), ctx.timeoutMs || toolDef.timeoutMs);
     const safe = assertNoPrivateLocationKeys(stripPrivateLocationKeys(data));
     const outputErrors = validate(toolDef.outputSchema, safe);
     if (outputErrors.length) {
-      return finish(ctx, started, name, { ok: false, code: "provider_error", message: "invalid provider result" });
+      return done({ ok: false, code: "provider_error", message: "invalid provider result" });
     }
     if (safe && (safe.status === "failed" || (safe.route && safe.route.status === "failed"))) {
-      return finish(ctx, started, name, {
+      return done({
         ok: false,
         code: "provider_unavailable",
         message: "provider unavailable",
         provenance: provenanceFor(safe, ctx),
       });
     }
-    return finish(ctx, started, name, {
+    return done({
       ok: true,
       data: safe,
       provenance: provenanceFor(safe, ctx),
     });
   } catch (error) {
     const code = error && error.code === "timeout" ? "timeout" : "provider_unavailable";
-    return finish(ctx, started, name, {
+    return done({
       ok: false,
       code,
       message: code === "timeout" ? "timed out" : "provider unavailable",
     });
   }
+}
+
+/**
+ * Explicit cache signal: meta.cache = { hit, servedBy }. On a hit the stored
+ * serving provider (which may be a fallback) is the source of provenance and
+ * dataQuality, so the primary is never named for data it did not fetch.
+ */
+function withCacheMeta(result, trace) {
+  if (!Array.isArray(trace) || trace.length === 0) return result;
+  const last = trace[trace.length - 1];
+  const hit = trace.every((entry) => entry.hit === true);
+  const served = last.servedBy || { provider: last.requested, commercialUse: null, attribution: null };
+  const cache = Object.assign({ hit }, last.stale ? { stale: true } : {}, { servedBy: Object.assign({}, served) });
+  const out = Object.assign({}, result, { meta: Object.assign({}, result.meta, { cache }) });
+  if (!hit) return out;
+  const fallback = served.provider !== last.requested;
+  out.servedBy = {
+    provider: served.provider,
+    requestedProvider: last.requested,
+    fallback,
+    commercialUse: served.commercialUse || "UNKNOWN",
+    attribution: served.attribution || null,
+  };
+  if (out.provenance && typeof out.provenance === "object") {
+    out.provenance = Object.assign({}, out.provenance, {
+      provider: served.provider,
+      attribution: served.attribution || out.provenance.attribution || null,
+      commercialUse: out.servedBy.commercialUse,
+      fallbackFrom: fallback ? last.requested : null,
+    });
+  }
+  if (out.dataQuality && typeof out.dataQuality === "object") {
+    out.dataQuality = Object.assign({}, out.dataQuality, {
+      servedBy: served.provider,
+      commercialUse: out.servedBy.commercialUse,
+      attribution: out.servedBy.attribution,
+    });
+  }
+  if (fallback) {
+    const warning = `Provider fallback used: ${last.requested} was not called; data served by ${served.provider} (${out.servedBy.commercialUse}).`;
+    out.warnings = [...(Array.isArray(result.warnings) ? result.warnings : []), warning];
+    if (out.dataQuality) {
+      const dq = out.dataQuality;
+      out.dataQuality = Object.assign({}, dq, {
+        warnings: [...(Array.isArray(dq.warnings) ? dq.warnings : []), warning],
+        ruleIds: [...(Array.isArray(dq.ruleIds) ? dq.ruleIds : []), "dq.provider.fallback"],
+      });
+    }
+  }
+  return out;
 }
 
 function provenanceFor(data, ctx) {

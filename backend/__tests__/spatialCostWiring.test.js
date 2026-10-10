@@ -284,3 +284,47 @@ test("a cold call records no cache hit", async () => {
   await callNearby({ prisma, fetchImpl: recordingFetch() });
   assert.equal(ledgerRow(prisma, "overpass-selfhosted").cacheHits, 0);
 });
+
+/* ---- Cache entries keep the provider that actually served the data ---- */
+
+test("a fallback-fetched result served from cache never names the primary and is metered under the fallback", async () => {
+  const prisma = fakePrisma();
+  const fetchImpl = recordingFetch();
+  const safeguardState = createSafeguardState();
+  const opts = { prisma, fetchImpl, safeguardState, costBudgets: { "overpass-selfhosted": { maxRequests: 0 } } };
+  const first = await callNearby(opts);
+  assert.equal(first.body.ok, true, JSON.stringify(first.body));
+  assert.deepEqual(first.body.meta.cache, {
+    hit: false,
+    servedBy: { provider: "overpass-public", commercialUse: "APPROVED_WITH_ATTRIBUTION", attribution: "© OpenStreetMap contributors" },
+  });
+  const selfBefore = ledgerRow(prisma, "overpass-selfhosted");
+  const { status, body } = await callNearby(opts);
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(fetchImpl.urls, [PUB], "second call served from cache");
+  assert.equal(body.meta.cache.hit, true);
+  assert.equal(body.meta.cache.servedBy.provider, "overpass-public");
+  assert.equal(body.provenance.provider, "overpass-public");
+  assert.equal(body.provenance.fallbackFrom, "overpass-selfhosted");
+  assert.equal(body.provenance.commercialUse, "APPROVED_WITH_ATTRIBUTION");
+  assert.equal(body.provenance.attribution, "© OpenStreetMap contributors");
+  assert.equal(body.servedBy.provider, "overpass-public");
+  assert.equal(body.servedBy.fallback, true);
+  assert.equal(body.dataQuality.servedBy, "overpass-public");
+  assert.ok(body.dataQuality.ruleIds.includes("dq.provider.fallback"));
+  assert.ok(body.warnings.some((w) => /fallback/i.test(w) && w.includes("overpass-public")));
+  const scrubbed = JSON.stringify(Object.assign({}, body, {
+    servedBy: Object.assign({}, body.servedBy, { requestedProvider: null }),
+    provenance: Object.assign({}, body.provenance, { fallbackFrom: null }),
+    warnings: [], dataQuality: null,
+  }));
+  assert.ok(!scrubbed.includes("overpass-selfhosted"), scrubbed);
+  // Ledger: the cache hit is recorded under the fallback provider at zero cost.
+  const pub = ledgerRow(prisma, "overpass-public");
+  assert.equal(pub.cacheHits, 1);
+  assert.equal(pub.requests, 1);
+  const hits = (r) => (r ? r.cacheHits : 0);
+  const cost = (r) => (r ? Number(r.estimatedCost) : 0);
+  assert.equal(hits(ledgerRow(prisma, "overpass-selfhosted")), hits(selfBefore));
+  assert.equal(cost(ledgerRow(prisma, "overpass-selfhosted")), cost(selfBefore));
+});

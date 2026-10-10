@@ -356,7 +356,22 @@ export function callTool(name: string, input: object, ctx?: {
   providers?: Array<{ id?: string; observations?: object[] }>;
   now?: number | (() => number);
   lookup?: (hostname: string) => Promise<Array<{ address: string; family?: number }>>;
-}): Promise<{ ok: boolean; code?: string; message?: string; data?: object; provenance?: object | null }>;
+}): Promise<{
+  ok: boolean;
+  code?: string;
+  message?: string;
+  data?: object;
+  provenance?: object | null;
+  servedBy?: SpatialServedBy & { requestedProvider: string; fallback: boolean };
+  warnings?: string[];
+  meta?: { cache?: { hit: boolean; stale?: boolean; servedBy: SpatialServedBy } };
+}>;
+
+export interface SpatialServedBy {
+  provider: string;
+  commercialUse: string | null;
+  attribution: string | null;
+}
 export function buildSpatialContext(input: {
   listing: object;
   campusId?: string | null;
