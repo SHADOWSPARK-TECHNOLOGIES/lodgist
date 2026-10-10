@@ -26,7 +26,7 @@ When a dependency changes, update the lockfile for that directory only:
 - `frontend/`, `lodgist/`, `packages/db/`, `packages/ai-core/`, and the repo root: `pnpm install`, then commit the `pnpm-lock.yaml` only if `pnpm install --frozen-lockfile` still succeeds.
 - `backend/`: `npm install`, then commit `package-lock.json` only if `npm ci` still succeeds.
 
-Do not regenerate both lockfile types for one package. Railway Railpack selects pnpm 9 from `lockfileVersion: 9.0`. Actions uses pnpm 10. A frozen install must pass on the lockfile you commit.
+Do not regenerate both lockfile types for one package. Railway Railpack selects pnpm 9 from `lockfileVersion: 9.0`. Actions also uses pnpm 9.15.9. A frozen install must pass on the lockfile you commit.
 
 ## Lockfile merge conflicts
 
