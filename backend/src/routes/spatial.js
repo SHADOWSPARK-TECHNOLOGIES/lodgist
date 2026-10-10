@@ -4,6 +4,7 @@ const { approxLocation, isEligiblePublicListing } = require("./listings");
 const { saveMonitorRun } = require("../services/spatialMonitorStore");
 const { loadStoredHistory, saveReportSnapshot } = require("../services/spatialHistoryStore");
 const { saveAnomalies } = require("../services/spatialAnomalyStore");
+const { createResilientCostLedger, createGovernedFetch } = require("../services/spatialCostGovernor");
 
 const URL_KEYS = ["url", "providerUrl", "userUrl", "endpoint", "baseUrl", "tileUrl", "interpreterUrl"];
 const MAX_BODY_CHARS = 32 * 1024;
@@ -54,6 +55,9 @@ function monitorEnv(options) {
 
 function createSpatialRouter(options = {}) {
   const router = express.Router();
+  // Phase 12L: every spatial provider call is metered by the persisted cost ledger
+  // (Prisma SpatialCostLedger, in-memory until that table exists).
+  const costLedger = options.costLedger || createResilientCostLedger(options.prisma, { log: options.log });
 
   // Phase 12B: every spatial response carries DataQuality (tool results already do).
   router.use((req, res, next) => {
@@ -92,7 +96,22 @@ function createSpatialRouter(options = {}) {
         listings,
         isPublicListing: (listing) => Boolean(listing && listing.public === true),
         env: options.env || {},
-        fetchImpl: options.fetchImpl,
+        fetchImpl: options.fetchImpl
+          ? createGovernedFetch(options.fetchImpl, {
+            env: options.env || {},
+            ledger: costLedger,
+            registry: options.registry,
+            production: options.production,
+            lookup: options.lookup,
+            tenant: options.costTenant,
+            agent: options.costAgent,
+            budgets: options.costBudgets,
+            paid: options.costPaid,
+            estimatedCost: options.costEstimates,
+            throttleDelayMs: options.throttleDelayMs,
+            now: options.now,
+          })
+          : undefined,
         lookup: options.lookup,
         registry: options.registry,
         safeguardState: options.safeguardState,
