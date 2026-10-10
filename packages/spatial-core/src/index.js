@@ -130,4 +130,10 @@ export const {
   allProviderHealth,
   canCallProvider,
   planProviders,
+  COST_DECISIONS,
+  costScope,
+  costKey,
+  costDecision,
+  createMemoryCostLedger,
+  governProviderCall,
 } = core;

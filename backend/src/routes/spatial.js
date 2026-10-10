@@ -105,6 +105,23 @@ function createSpatialRouter(options = {}) {
     }
   });
 
+  // Phase 12K: read-only provider health for agent planning. No secrets, no URLs.
+  router.get("/providers/health", (req, res) => {
+    const env = monitorEnv(options);
+    if (!["1", "true", "on", "yes"].includes(String(env.SPATIAL_PROVIDER_HEALTH || "").trim().toLowerCase())) {
+      return res.status(200).json({ ok: true, code: "flag_off", providers: [] });
+    }
+    const now = typeof options.now === "function" ? options.now() : Date.now();
+    const providers = spatial.allProviderHealth({
+      env,
+      registry: options.registry,
+      production: options.production,
+      state: options.healthState,
+      now,
+    });
+    return res.status(200).json({ ok: true, code: "ok", providers });
+  });
+
   router.post("/monitors/run", async (req, res) => {
     const env = monitorEnv(options);
     if (!spatial.monitoringEnabled(env)) {

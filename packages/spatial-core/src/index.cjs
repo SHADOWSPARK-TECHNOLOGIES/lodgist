@@ -11,4 +11,5 @@ module.exports = Object.assign(
   require("./anomaly.cjs"),
   require("./registry.cjs"),
   require("./providerHealth.cjs"),
+  require("./costGovernor.cjs"),
 );

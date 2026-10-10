@@ -917,3 +917,23 @@ model SpatialAnomaly {
   @@index([family])
   @@index([triggeredAt])
 }
+
+// Phase 12L cost governor ledger. New table only; keyed by provider, tenant,
+// agent and window start. No foreign keys, so no existing table is altered.
+model SpatialCostLedger {
+  id            String   @id
+  provider      String
+  tenant        String
+  agent         String
+  window        String
+  windowStart   DateTime
+  requests      Int      @default(0)
+  estimatedCost Float    @default(0)
+  cacheHits     Int      @default(0)
+  fallbackCalls Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@unique([provider, tenant, agent, windowStart])
+  @@index([windowStart])
+}
