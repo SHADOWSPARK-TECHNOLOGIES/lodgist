@@ -1,31 +1,17 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const PaystackService = require("../services/paystackService");
+const { paystackEnabled } = require("../services/paystackConfig");
 const logger = require("../utils/logger");
 
 // Booking payment references use this sub-prefix so the webhook handler can
 // route them away from EscrowTransaction lookups without touching paystackService.js.
 const BOOKING_REF_PREFIX = "LODG-ESC-BK-";
 
-// Authorization model (matches the rest of the backend and the lodgist Next API):
-//   - STUDIO_ADMIN → full access to every booking (concierge/support staff)
-//   - LANDLORD     → scoped to bookings on listings they own
-// Any other role has no administrative access to bookings.
-function isStudioAdmin(user) {
-  return user.role === "STUDIO_ADMIN";
-}
+const ADMIN_ROLES = ["STUDIO_ADMIN"];
 
-// Roles permitted to perform administrative booking actions (subject to the
-// per-booking ownership check in canAdministerBooking for non-STUDIO_ADMIN).
-function isBookingManagerRole(user) {
-  return user.role === "STUDIO_ADMIN" || user.role === "LANDLORD";
-}
-
-// True when the user may administer THIS booking. The caller must have selected
-// `booking.listing.ownerId`.
-function canAdministerBooking(user, booking) {
-  if (isStudioAdmin(user)) return true;
-  return user.role === "LANDLORD" && booking.listing?.ownerId === user.id;
+function isAdmin(user) {
+  return ADMIN_ROLES.includes(user.role);
 }
 
 function createBookingsRouter(prisma) {
@@ -37,7 +23,7 @@ function createBookingsRouter(prisma) {
   // This is the concierge operations queue — support staff use this to see
   // pending payment verifications and manage the pipeline.
   router.get("/", requireAuth, async (req, res) => {
-    if (!isBookingManagerRole(req.user)) {
+    if (!isAdmin(req.user) && req.user.role !== "LANDLORD") {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
@@ -50,10 +36,9 @@ function createBookingsRouter(prisma) {
     if (status) where.status = status;
     if (tenantId) where.tenantId = parseInt(tenantId, 10);
     if (listingId) where.listingId = parseInt(listingId, 10);
-    // Landlords are scoped to bookings on listings they own; STUDIO_ADMIN sees all.
-    if (!isStudioAdmin(req.user)) {
-      where.listing = { ownerId: req.user.id };
-    }
+    // Landlords only see bookings on their own listings, without tenant contact details.
+    const landlord = req.user.role !== "STUDIO_ADMIN";
+    if (landlord) where.listing = { ownerId: req.user.id };
 
     try {
       const [total, bookings] = await Promise.all([
@@ -61,7 +46,7 @@ function createBookingsRouter(prisma) {
         prisma.booking.findMany({
           where,
           include: {
-            tenant: { select: { id: true, name: true, email: true, phone: true } },
+            tenant: { select: { id: true, name: true, email: !landlord, phone: !landlord } },
             listing: { select: { id: true, title: true, price: true } },
             verifier: { select: { id: true, name: true } },
           },
@@ -73,7 +58,7 @@ function createBookingsRouter(prisma) {
 
       return res.json({
         success: true,
-        data: bookings,
+        data: landlord ? bookings.map(({ adminNotes, ...b }) => b) : bookings,
         pagination: { total, page, pageSize, pages: Math.ceil(total / pageSize) },
       });
     } catch (error) {
@@ -101,18 +86,21 @@ function createBookingsRouter(prisma) {
   });
 
   // ── POST /api/bookings ────────────────────────────────────────────────────
-  // Admin or LANDLORD creates a booking on behalf of a tenant.
+  // Admin, or a LANDLORD for their own listing (tenant must be a USER who has a
+  // viewing request on that listing), creates a booking on behalf of a tenant.
   // Used in the manual concierge flow: lead arrives via social/chatbot,
   // admin creates the booking, tenant then submits payment reference via
   // PATCH /manual-payment, admin verifies via PATCH /verify-payment.
   router.post("/", requireAuth, async (req, res) => {
-    if (!isBookingManagerRole(req.user)) {
+    if (!isAdmin(req.user) && req.user.role !== "LANDLORD") {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
     const { listingId, tenantId, startDate, endDate, totalAmount, currency, notes, sourceChannel } = req.body;
+    const admin = isAdmin(req.user);
 
-    if (!listingId || !tenantId || !startDate || !endDate || totalAmount == null) {
+    // Landlords don't set the amount; it is computed from the listing price below.
+    if (!listingId || !tenantId || !startDate || !endDate || (admin && totalAmount == null)) {
       return res.status(400).json({
         success: false,
         error: "Missing required fields: listingId, tenantId, startDate, endDate, totalAmount",
@@ -127,20 +115,51 @@ function createBookingsRouter(prisma) {
 
       if (!listing) return res.status(404).json({ success: false, error: "Listing not found" });
       if (!tenant)  return res.status(404).json({ success: false, error: "Tenant not found" });
-
-      // Landlords may only create bookings on their own listings.
-      if (!isStudioAdmin(req.user) && listing.ownerId !== req.user.id) {
+      if (!admin && listing.ownerId !== req.user.id) {
         return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+
+      // Sane dates for everyone (admin and landlord).
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      if (isNaN(start) || isNaN(end) || end <= start || start < today) {
+        return res.status(400).json({ success: false, error: "Invalid dates: end must be after start, and start cannot be in the past" });
+      }
+
+      let amount = parseFloat(totalAmount);
+      if (!admin) {
+        // Landlords may only book a regular USER account that has already asked
+        // to view this listing (a non-cancelled ViewingRequest), so they can't
+        // attach bookings to arbitrary accounts.
+        if (tenant.role !== "USER") {
+          return res.status(400).json({ success: false, error: "Tenant must be a regular user account" });
+        }
+        const viewing = await prisma.viewingRequest.findFirst({
+          where: {
+            listingId: listing.id,
+            requesterId: tenant.id,
+            status: { in: ["REQUESTED", "SCHEDULED", "COMPLETED"] },
+          },
+          select: { id: true },
+        });
+        if (!viewing) {
+          return res.status(403).json({ success: false, error: "Tenant has no viewing request for this listing" });
+        }
+        // Amount is the listing's yearly price pro-rated by days
+        // (listing.price is yearly rent in the frontend).
+        amount = Math.round(((listing.price * (end - start)) / (365 * 24 * 60 * 60 * 1000)) * 100) / 100;
       }
 
       const booking = await prisma.booking.create({
         data: {
           listingId:     listing.id,
           tenantId:      tenant.id,
-          startDate:     new Date(startDate),
-          endDate:       new Date(endDate),
-          totalAmount:   parseFloat(totalAmount),
-          currency:      currency || "NGN",
+          startDate:     start,
+          endDate:       end,
+          totalAmount:   amount,
+          currency:      admin ? currency || "NGN" : listing.currency || "NGN",
           notes:         notes || null,
           sourceChannel: sourceChannel || null,
           status:        "PENDING",
@@ -166,9 +185,20 @@ function createBookingsRouter(prisma) {
   // Tenant initiates a Paystack payment for a booking.
   // Creates a Paystack transaction and transitions status → PENDING_VERIFICATION.
   // Manual payment fallback (PATCH /manual-payment) remains available for bank transfers.
+  //
+  // Paystack checkout is shelved unless PAYSTACK_ENABLED=true and a secret is set.
+  // A missing key returns 503 and does not change the booking.
   router.post("/:id/initiate-payment", requireAuth, async (req, res) => {
     const { id } = req.params;
     const { email, callbackUrl } = req.body;
+
+    if (!paystackEnabled()) {
+      return res.status(503).json({
+        success: false,
+        error: "Online checkout is not open. Arrange payment on WhatsApp. The Lodgist team confirms it.",
+        code: "PAYSTACK_UNAVAILABLE",
+      });
+    }
 
     if (!email) {
       return res.status(400).json({ success: false, error: "email is required" });
@@ -229,8 +259,8 @@ function createBookingsRouter(prisma) {
   });
 
   // ── GET /api/bookings/:id ─────────────────────────────────────────────────
-  // Tenant reads their own booking; admin reads any.
-  // adminNotes are excluded from tenant responses.
+  // Tenant reads their own booking; the listing's landlord reads it; admin reads any.
+  // adminNotes are excluded from non-admin responses.
   router.get("/:id", requireAuth, async (req, res) => {
     try {
       const booking = await prisma.booking.findUnique({
@@ -242,12 +272,13 @@ function createBookingsRouter(prisma) {
       });
       if (!booking) return res.status(404).json({ success: false, error: "Booking not found" });
 
-      const admin = canAdministerBooking(req.user, booking);
-      if (!admin && booking.tenantId !== req.user.id) {
+      const admin = isAdmin(req.user);
+      const owner = req.user.role === "LANDLORD" && booking.listing?.ownerId === req.user.id;
+      if (!admin && !owner && booking.tenantId !== req.user.id) {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
-      // Hide internal admin notes from tenants
+      // Hide internal admin notes from tenants and landlords
       const response = admin ? booking : { ...booking, adminNotes: undefined };
       return res.json({ success: true, booking: response });
     } catch (error) {
@@ -263,16 +294,13 @@ function createBookingsRouter(prisma) {
     const { id } = req.params;
 
     try {
-      const booking = await prisma.booking.findUnique({
-        where: { id },
-        include: { listing: { select: { ownerId: true } } },
-      });
+      const booking = await prisma.booking.findUnique({ where: { id } });
 
       if (!booking) {
         return res.status(404).json({ success: false, error: "Booking not found" });
       }
 
-      const admin = canAdministerBooking(req.user, booking);
+      const admin = isAdmin(req.user);
       if (!admin && booking.tenantId !== req.user.id) {
         return res.status(403).json({ success: false, error: "Forbidden" });
       }
@@ -356,7 +384,7 @@ function createBookingsRouter(prisma) {
     const { id } = req.params;
     const { adminNotes } = req.body;
 
-    if (!isBookingManagerRole(req.user)) {
+    if (!isAdmin(req.user)) {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
@@ -365,15 +393,8 @@ function createBookingsRouter(prisma) {
     }
 
     try {
-      const booking = await prisma.booking.findUnique({
-        where: { id },
-        include: { listing: { select: { ownerId: true } } },
-      });
+      const booking = await prisma.booking.findUnique({ where: { id } });
       if (!booking) return res.status(404).json({ success: false, error: "Booking not found" });
-
-      if (!canAdministerBooking(req.user, booking)) {
-        return res.status(403).json({ success: false, error: "Forbidden" });
-      }
 
       const updated = await prisma.booking.update({
         where: { id },
@@ -400,22 +421,15 @@ function createBookingsRouter(prisma) {
       return res.status(400).json({ success: false, error: "action must be approve | reject | cancel" });
     }
 
-    if (!isBookingManagerRole(req.user)) {
+    if (!isAdmin(req.user)) {
       return res.status(403).json({ success: false, error: "Forbidden" });
     }
 
     try {
-      const booking = await prisma.booking.findUnique({
-        where: { id },
-        include: { listing: { select: { ownerId: true } } },
-      });
+      const booking = await prisma.booking.findUnique({ where: { id } });
 
       if (!booking) {
         return res.status(404).json({ success: false, error: "Booking not found" });
-      }
-
-      if (!canAdministerBooking(req.user, booking)) {
-        return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
       if (booking.status !== "PENDING_VERIFICATION") {

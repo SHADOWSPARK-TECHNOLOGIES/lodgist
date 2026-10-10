@@ -2,6 +2,8 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const webauthnService = require("../services/webauthnService");
+const { notifySignup } = require("../utils/notifySignup");
+const { requireAuth } = require("../middleware/auth");
 
 module.exports = (prisma) => {
   const router = express.Router();
@@ -77,6 +79,8 @@ module.exports = (prisma) => {
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "30d" }
       );
+
+      notifySignup({ role: user.role, method: "password" });
 
       res.status(201).json({
         success: true,
@@ -179,7 +183,7 @@ module.exports = (prisma) => {
 
   // POST /api/auth/passkey/register/options
   // Step 1 of registration ceremony: get challenge
-  router.post("/passkey/register/options", async (req, res) => {
+  router.post("/passkey/register/options", requireAuth, async (req, res) => {
     try {
       if (!webauthnService.isWebAuthnEnabled()) {
         return res.status(501).json({
@@ -188,12 +192,11 @@ module.exports = (prisma) => {
         });
       }
 
-      const { userId } = req.body;
-      if (!userId) {
-        return res.status(400).json({
-          success: false,
-          error: "userId is required",
-        });
+      // A passkey can only be added to the signed-in account. A body userId
+      // is accepted for compatibility but must match the token.
+      const userId = req.user.id;
+      if (req.body.userId !== undefined && Number(req.body.userId) !== userId) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
       // Fetch user
@@ -238,7 +241,7 @@ module.exports = (prisma) => {
 
   // POST /api/auth/passkey/register/verify
   // Step 2 of registration ceremony: verify and store credential
-  router.post("/passkey/register/verify", async (req, res) => {
+  router.post("/passkey/register/verify", requireAuth, async (req, res) => {
     try {
       if (!webauthnService.isWebAuthnEnabled()) {
         return res.status(501).json({
@@ -247,11 +250,15 @@ module.exports = (prisma) => {
         });
       }
 
-      const { userId, credential } = req.body;
-      if (!userId || !credential) {
+      const userId = req.user.id;
+      const { credential } = req.body;
+      if (req.body.userId !== undefined && Number(req.body.userId) !== userId) {
+        return res.status(403).json({ success: false, error: "Forbidden" });
+      }
+      if (!credential) {
         return res.status(400).json({
           success: false,
-          error: "userId and credential are required",
+          error: "credential is required",
         });
       }
 
@@ -456,21 +463,10 @@ module.exports = (prisma) => {
   });
 
   // GET /api/auth/passkeys — List user's registered passkeys
-  router.get("/passkeys", async (req, res) => {
+  router.get("/passkeys", requireAuth, async (req, res) => {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({
-          success: false,
-          error: "Authentication required",
-        });
-      }
-
-      const token = authHeader.slice(7);
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
       const passkeys = await prisma.passkeyCredential.findMany({
-        where: { userId: decoded.id },
+        where: { userId: req.user.id },
         select: {
           id: true,
           credentialId: true,
@@ -494,19 +490,8 @@ module.exports = (prisma) => {
   });
 
   // DELETE /api/auth/passkeys/:credentialId — Remove a passkey
-  router.delete("/passkeys/:credentialId", async (req, res) => {
+  router.delete("/passkeys/:credentialId", requireAuth, async (req, res) => {
     try {
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({
-          success: false,
-          error: "Authentication required",
-        });
-      }
-
-      const token = authHeader.slice(7);
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
       const { credentialId } = req.params;
 
       // Verify ownership
@@ -514,7 +499,7 @@ module.exports = (prisma) => {
         where: { credentialId },
       });
 
-      if (!credential || credential.userId !== decoded.id) {
+      if (!credential || credential.userId !== req.user.id) {
         return res.status(404).json({
           success: false,
           error: "Passkey not found",

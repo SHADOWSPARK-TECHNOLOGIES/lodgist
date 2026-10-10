@@ -12,6 +12,7 @@ const { requireAuth } = require("./middleware/auth");
 const authRouter = require("./routes/auth")(prisma);
 const usersRouter = require("./routes/users")(prisma);
 const listingsRouter = require("./routes/listings")(prisma);
+const listingPhotosRouter = require("./routes/listingPhotos")(prisma);
 const verificationRouter = require("./routes/verification");
 const aiAnalysisRouter = require("./routes/ai-analysis");
 const agreementsRouter = require("./routes/agreements");
@@ -27,8 +28,16 @@ const createPaymentsRouter = require("./routes/payments");
 const paymentsRouter = createPaymentsRouter(prisma);
 const createBookingsRouter = require("./routes/bookings");
 const bookingsRouter = createBookingsRouter(prisma);
+const leadsRouter = require("./routes/leads")(prisma);
+const advertiserLeadsRouter = require("./routes/advertiserLeads")(prisma);
+const rentalChecksRouter = require("./routes/rentalChecks")(prisma);
+const adminListingsRouter = require("./routes/adminListings")(prisma);
+const healthRouter = require("./routes/health")(prisma);
+const createSpatialRouter = require("./routes/spatial");
 
 const app = express();
+// Railway sits behind one proxy; trust it so rate limiting keys on the client IP.
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || "0.0.0.0";
 const NODE_ENV = process.env.NODE_ENV || "development";
@@ -123,39 +132,16 @@ app.use(morgan("combined", { stream: logger.morganStream }));
 
 // ── Health Check ────────────────────────────────────────────────────────────
 
-app.get("/api/health", async (_req, res) => {
-  let dbStatus = "unknown";
-  let dbLatency = null;
-
-  try {
-    const start = Date.now();
-    await prisma.user.count();
-    dbLatency = Date.now() - start;
-    dbStatus = "connected";
-  } catch (err) {
-    dbStatus = "disconnected";
-    logger.error("Health check — DB unreachable", { code: err.code, error: err.message, cause: String(err.cause) });
-  }
-
-  res.json({
-    status: dbStatus === "connected" ? "ok" : "degraded",
-    service: "Lodgist API",
-    version: "5.0.0",
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    database: {
-      status: dbStatus,
-      latencyMs: dbLatency,
-    },
-    memory: process.memoryUsage(),
-  });
-});
+app.use("/api/health", healthRouter);
+app.use("/api/spatial", createSpatialRouter({ prisma }));
 
 // ── API Routes ──────────────────────────────────────────────────────────────
 
 app.use("/api/auth", authLimiter, authRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/listings", listingPhotosRouter);
 app.use("/api/listings", listingsRouter);
+app.use("/api/admin/listings", adminListingsRouter);
 app.use("/api/reviews", reviewsRouter);
 app.use("/api/truth-index", truthIndexRouter);
 app.use("/api/verification", verificationRouter);
@@ -166,6 +152,9 @@ app.use("/api/rent", rentRouter);
 app.use("/api/escrow", escrowRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/bookings", bookingsRouter);
+app.use("/api/leads", leadsRouter);
+app.use("/api/advertiser-leads", advertiserLeadsRouter);
+app.use("/api/rental-checks", rentalChecksRouter);
 app.use("/api/whatsapp", whatsappRouter);
 
 // 404 handler
@@ -182,7 +171,8 @@ app.listen(PORT, HOST, () => {
   logger.info(`  GET  /api/health`);
   logger.info(`  /api/auth (register, login, passkey)`);
   logger.info(`  /api/users`);
-  logger.info(`  /api/listings`);
+  logger.info(`  /api/listings (browse, detail, photos, viewing-requests)`);
+  logger.info(`  /api/admin/listings (pending, approve, reject, verify)`);
   logger.info(`  /api/reviews`);
   logger.info(`  /api/truth-index`);
   logger.info(`  /api/verification`);
@@ -193,6 +183,9 @@ app.listen(PORT, HOST, () => {
   logger.info(`  /api/escrow`);
   logger.info(`  /api/payments (webhook)`);
   logger.info(`  /api/bookings (list[admin], mine, create, get, cancel, manual-payment, admin-notes, verify-payment)`);
+  logger.info(`  /api/leads (public create, admin list)`);
+  logger.info(`  /api/advertiser-leads (public create, admin list)`);
+  logger.info(`  /api/rental-checks (intake, pay, report, admin review)`);
   logger.info(`  /api/whatsapp`);
 
   // Warm up the Neon connection pool on startup so the first real request doesn't

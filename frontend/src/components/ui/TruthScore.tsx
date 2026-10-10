@@ -1,13 +1,15 @@
+import { jargon } from '@/lib/copy';
+
 interface TruthScoreProps { score: number; size?: 'sm' | 'md'; }
 
 export function TruthScore({ score, size = 'md' }: TruthScoreProps) {
   const color = score >= 80 ? 'var(--color-teal)' : score >= 60 ? 'var(--color-orange)' : '#ef4444';
-  const label = score >= 80 ? 'Verified' : score >= 60 ? 'Moderate' : 'Low Trust';
+  const label = score >= 90 ? jargon.strong : score >= 75 ? jargon.solid : score >= 60 ? jargon.average : jargon.weak;
   const isSmall = size === 'sm';
 
   return (
     <div className="inline-flex items-center gap-1.5"
-         title={`Truth Index Score: ${score}/100`}>
+         title={`${jargon.trustScore}: ${score}/100. ${jargon.trustHint}`}>
       <div style={{
         width: isSmall ? 32 : 44,
         height: isSmall ? 32 : 44,
@@ -29,7 +31,7 @@ export function TruthScore({ score, size = 'md' }: TruthScoreProps) {
       {!isSmall && (
         <div>
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color, fontFamily: 'var(--font-poppins)' }}>{label}</div>
-          <div style={{ fontSize: '0.65rem', color: 'var(--color-text-faint)' }}>Truth Index</div>
+          <div style={{ fontSize: '0.65rem', color: 'var(--color-text-faint)' }}>{jargon.trustScore}</div>
         </div>
       )}
     </div>

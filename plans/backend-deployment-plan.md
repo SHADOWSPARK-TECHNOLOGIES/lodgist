@@ -348,7 +348,6 @@ aws apprunner describe-service \
 
 ### Cross-Service Wiring
 
-After both App Runner (backend) and Amplify/Vercel (frontend) are deployed:
 
 1. **Frontend env var**: Set `NEXT_PUBLIC_API_URL` to the App Runner service URL
 2. **Backend CORS**: Set `CORS_ORIGIN` to the frontend URL

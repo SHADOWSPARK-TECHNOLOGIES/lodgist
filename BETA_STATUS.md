@@ -1,3 +1,5 @@
+> Historical 19 May note. This is not the current work queue or deployment source of truth. Production runs on Railway at https://lodgist.online.
+
 # BETA_STATUS.md — Lodgist
 
 Last Updated: 2026-05-19 23:45 WAT
@@ -48,7 +50,6 @@ The private beta includes only the minimum flows required to validate trust, dem
 
 | Area | Status | Confidence | Notes |
 |---|---|---:|---|
-| Frontend market readiness | PARTIAL | 3 | Amplify deprecated (14 consecutive build failures). Active path is Vercel at lodgist.shadowspark-tech.site. Vercel build status not yet confirmed. |
 | Backend auth | READY | 5 | JWT register/login working. Role in token. Guards on all sensitive routes. |
 | Booking flow | READY | 5 | Admin creates bookings with sourceChannel. Tenant gets /mine. Verified live against Neon. |
 | Manual payment submission | READY | 5 | Tenant or STUDIO_ADMIN submits ref. Status machine enforced. Idempotency via status guard. |
@@ -185,7 +186,6 @@ The Lodgist stack has two independent auth and data systems. This caused the sig
 
 | Layer | System | URL | Database | Auth |
 |---|---|---|---|---|
-| Frontend (Next.js) | Vercel | lodgist.shadowspark-tech.site | RDS (own DATABASE_URL) | NextAuth — email/password + GitHub + Google |
 | Backend (Express) | App Runner | 3trpjpyhu2.us-east-1.awsapprunner.com | Neon | JWT — own /api/auth/register + /api/auth/login |
 
 These systems share a Prisma schema but write to different databases. A user registered on the frontend is not automatically in the backend's Neon database and vice versa. The frontend never calls the backend for auth. The backend's CORS settings are irrelevant to frontend signup.
@@ -202,12 +202,9 @@ Source-of-truth files for beta operations.
 - `backend/src/routes/whatsapp.js` — WhatsApp webhook + send (STUDIO_ADMIN guarded)
 - `backend/src/index.js` — app entry, middleware, route mounting, startup guards
 
-### Frontend (Vercel — user-facing)
 - `lodgist/app/api/auth/register/route.ts` — signup route (writes to its own DATABASE_URL)
 - `lodgist/auth.ts` — NextAuth config (email/password + GitHub + Google)
 - `lodgist/lib/prisma.ts` — Prisma client using frontend's own DATABASE_URL
-- `lodgist/vercel.json` — Vercel build config; NEXTAUTH_URL set to lodgist.shadowspark-tech.site
-- `lodgist/.vercel/project.json` — Vercel project ID prj_80RSePWk2hKRaOAGuPu80bAcQcye
 
 ### Changed This Session (commit 23a09e76)
 - `backend/src/routes/bookings.js` — new endpoints, sourceChannel, adminNotes, logger
@@ -226,18 +223,13 @@ Source-of-truth files for beta operations.
 
 ## 10. Open Questions
 
-- Is the Vercel deployment at `lodgist.shadowspark-tech.site` currently live and passing build? This is now the active frontend path.
-- Vercel env vars must include `NEXTAUTH_URL=https://lodgist.shadowspark-tech.site`, `NEXTAUTH_SECRET`, `DATABASE_URL` (pointing to RDS or Neon — confirm which), and OAuth callback URLs registered for that domain.
-- The Express backend (App Runner) is not called by the Next.js frontend for auth or signup. CORS_ORIGIN on the backend does not need to include the Vercel domain unless frontend pages make direct fetch calls to App Runner — none currently do.
 - `lodgist.ng` remains NXDOMAIN. If that domain is the intended beta URL, DNS must be configured before any users can reach the site.
 
 ---
 
 ## 11. Next 5 Actions
 
-1. Confirm Vercel build at `lodgist.shadowspark-tech.site` is passing and `/api/auth/register` returns a response (not 404). This is the active signup path.
 2. Register OAuth callback URLs for `https://lodgist.shadowspark-tech.site` in the GitHub and Google OAuth app consoles — current callbacks are likely still pointing to the Amplify URL.
-3. Confirm Vercel env vars include `NEXTAUTH_URL=https://lodgist.shadowspark-tech.site`, `NEXTAUTH_SECRET`, and a working `DATABASE_URL` (RDS or Neon).
 4. Create at least one real beta listing in production Neon so incoming leads have something to book.
 5. Brief the ops team on the admin endpoints: `GET /api/bookings?status=PENDING_VERIFICATION` for the daily queue, `PATCH /verify-payment` to approve/reject, `PATCH /admin-notes` to record decisions.
 

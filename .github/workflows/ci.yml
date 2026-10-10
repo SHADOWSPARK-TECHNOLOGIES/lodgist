@@ -10,7 +10,8 @@ env:
   DATABASE_URL: ${{ secrets.DATABASE_URL }}
   DIRECT_URL: ${{ secrets.DIRECT_URL }}
   NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-  NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+  # Blank repository secrets become "" and NextAuth calls new URL(""), which crashes prerender.
+  NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL || 'http://localhost:3000' }}
 
 jobs:
   ci:
@@ -22,39 +23,73 @@ jobs:
 
       - uses: pnpm/action-setup@v3
         with:
-          version: 9.15.9
+          version: 10
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
+          cache-dependency-path: |
+            packages/db/pnpm-lock.yaml
+            lodgist/pnpm-lock.yaml
 
-      - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm --dir packages/db install --frozen-lockfile
-          pnpm --dir lodgist install --frozen-lockfile
+      - name: Install database package
+        working-directory: packages/db
+        run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: cd lodgist && npx prisma generate
+        working-directory: packages/db
+        run: pnpm exec prisma generate --config prisma.config.ts
+
+      - name: Install Lodgist app
+        working-directory: lodgist
+        run: pnpm install --frozen-lockfile
 
       - name: TypeScript check
-        run: cd lodgist && npx tsc --noEmit
+        working-directory: lodgist
+        run: npx tsc --noEmit
 
       - name: Run tests
-        run: cd lodgist && npx vitest run
+        working-directory: lodgist
+        run: npx vitest run
 
       - name: Build
-        run: cd lodgist && npx next build
+        working-directory: lodgist
+        run: npx next build
 
-  deploy:
-    name: Deploy to Vercel
-    needs: ci
+  frontend:
+    name: Frontend Build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-
+    defaults:
+      run:
+        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: npx tsc --noEmit
+      - run: pnpm test
+      - run: npx next build
 
-      - name: Deploy to Vercel Production
-        run: cd lodgist && npx vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }} --yes
+  backend:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test

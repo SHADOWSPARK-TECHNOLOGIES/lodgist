@@ -28,6 +28,11 @@ const TRUST_COMPONENTS = [
   { key: "legal_consent",        label: "Legal Consent on File",        weight: 5  },
 ] as const;
 
+if (process.env.LODGIST_LEGACY_FICTIONAL_SEED !== "1") {
+  console.error("Refusing prisma/seed-trust.ts. It invents homes, a verified user, and a trust score. Use: node prisma/seed-owerri-home.js");
+  process.exit(1);
+}
+
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },

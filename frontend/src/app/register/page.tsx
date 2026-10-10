@@ -1,13 +1,17 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
-import { useState } from 'react';
+import { auth } from '@/lib/copy';
+import { safeNextPath } from '@/lib/returnPath';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = safeNextPath(searchParams.get('next'));
   const { register } = useAuth();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -15,16 +19,18 @@ export default function RegisterPage() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const loginHref = nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : '/login';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       await register(email, password, name, phone || undefined);
-      toast('Account created successfully!', 'success');
-      router.push('/listings');
-    } catch (err: any) {
-      toast(err.message ?? 'Registration failed', 'error');
+      toast(auth.registrationSuccess, 'success');
+      router.push(nextPath || '/listings');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : auth.registrationFailure;
+      toast(message || auth.registrationFailure, 'error');
     } finally {
       setLoading(false);
     }
@@ -34,39 +40,48 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="font-poppins font-bold text-2xl text-white mb-2">Get started free</h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>Create your Lodgist account</p>
+          <h1 className="font-poppins font-bold text-2xl text-white mb-2">{auth.getStarted}</h1>
+          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{auth.createAccountSubtitle}</p>
+          <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.35)' }}>{auth.curatorLine}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4">
           <div>
-            <label className="label">Full Name</label>
-            <input type="text" className="input" placeholder="Chioma Okonkwo"
+            <label className="label">{auth.fullName}</label>
+            <input type="text" className="input" placeholder={auth.namePlaceholder}
               value={name} onChange={e => setName(e.target.value)} required />
           </div>
           <div>
-            <label className="label">Email</label>
-            <input type="email" className="input" placeholder="you@example.com"
+            <label className="label">{auth.email}</label>
+            <input type="email" className="input" placeholder={auth.emailPlaceholder}
               value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div>
-            <label className="label">Phone (optional)</label>
-            <input type="tel" className="input" placeholder="+234 913 609 4315"
+            <label className="label">{auth.phoneOptional}</label>
+            <input type="tel" className="input" placeholder={auth.phonePlaceholder}
               value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
           <div>
-            <label className="label">Password</label>
-            <input type="password" className="input" placeholder="At least 8 characters"
+            <label className="label">{auth.password}</label>
+            <input type="password" className="input" placeholder={auth.passwordPlaceholder}
               value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
           </div>
           <button type="submit" disabled={loading} className="btn btn-primary w-full justify-center">
-            {loading ? <span className="spinner" /> : 'Create account'}
+            {loading ? <span className="spinner" /> : auth.createAccount}
           </button>
           <p className="text-center text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            Already have an account? <Link href="/login" className="text-orange hover:underline">Sign in</Link>
+            {auth.alreadyHaveAccount} <Link href={loginHref} className="text-orange hover:underline">{auth.signIn}</Link>
           </p>
         </form>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <RegisterForm />
+    </Suspense>
   );
 }

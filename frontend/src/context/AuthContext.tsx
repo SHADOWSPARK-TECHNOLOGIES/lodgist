@@ -9,6 +9,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   type ReactNode,
 } from "react";
 import { startRegistration, startAuthentication } from "@simplewebauthn/browser";
@@ -21,6 +22,7 @@ import {
   logout as doLogout,
 } from "@/lib/auth";
 import { authApi } from "@/lib/api";
+import { track } from "@/lib/gtag";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -67,6 +69,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { isLoaded: false, user: null, token: null };
   });
 
+  // A signed-out visitor has no token, so the initialiser above leaves
+  // isLoaded false. Finish the stored-auth check on mount so pages that wait
+  // on isLoaded (admin queues, dashboard) show a sign-in state instead of
+  // "Loading" forever.
+  useEffect(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setState((prev) => (prev.isLoaded ? prev : { isLoaded: true, token: getToken(), user: getStoredUser() }));
+    });
+    return () => { active = false; };
+  }, []);
+
   // ── Core Auth Methods ──
 
   const register = useCallback(
@@ -75,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(res.token);
       setStoredUser(res.user);
       setState({ isLoaded: true, user: res.user, token: res.token });
+      track("sign_up", { method: "email", ...(res.user?.role && { role: res.user.role }) });
     },
     []
   );
@@ -82,11 +98,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginFn = useCallback(async (email: string, password: string) => {
     const res = await authApi.login({ email, password });
     if (!res.success || !res.data || !res.data.token) {
-      throw new Error(res.message || "Login failed");
+      throw new Error(res.message || "We could not sign you in. Check your email and password, or create an account.");
     }
     setToken(res.data.token);
     setStoredUser(res.data.user);
     setState({ isLoaded: true, user: res.data.user, token: res.data.token });
+    track("login", { method: "email" });
   }, []);
 
   const logout = useCallback(() => {

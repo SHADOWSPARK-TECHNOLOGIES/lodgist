@@ -1,6 +1,10 @@
 const express = require("express");
 const { requireAuth } = require("../middleware/auth");
 const { requireLiveness } = require("../middleware/livenessGate");
+const { paystackEnabled } = require("../services/paystackConfig");
+
+// ponytail: hardcoded 5% platform fee; move to env/config only if the rate changes
+const COMMISSION_RATE = 0.05;
 
 /**
  * Create an Express router for escrow endpoints.
@@ -35,6 +39,14 @@ function createEscrowRouter(prisma, paystackService) {
         return res.status(400).json({
           success: false,
           error: "tenantEmail is required for Paystack payment",
+        });
+      }
+
+      if (!paystackEnabled()) {
+        return res.status(503).json({
+          success: false,
+          error: "Online checkout is not open. Arrange payment on WhatsApp. The Lodgist team confirms it.",
+          code: "PAYSTACK_UNAVAILABLE",
         });
       }
 
@@ -259,11 +271,13 @@ function createEscrowRouter(prisma, paystackService) {
         });
       }
 
-      // 6. Trigger the transfer to the landlord
+      // 6. Deduct commission, then transfer the net to the landlord
       const transferReference = `LODG-REL-${escrowTransaction.reference.replace("LODG-ESC-", "")}-${Date.now()}`;
+      const commissionAmount = Number((escrowTransaction.amount * COMMISSION_RATE).toFixed(2));
+      const landlordAmount = Number((escrowTransaction.amount - commissionAmount).toFixed(2));
 
       const transfer = await PaystackService.transferToLandlord({
-        amount: escrowTransaction.amount,
+        amount: landlordAmount,
         recipientCode,
         reference: transferReference,
         reason: `Rent escrow release — ${escrowTransaction.description || "Lodgist"}`,
@@ -275,6 +289,7 @@ function createEscrowRouter(prisma, paystackService) {
         data: {
           status: "RELEASED",
           releaseDate: new Date(),
+          commissionAmount,
         },
       });
 
@@ -314,6 +329,15 @@ function createEscrowRouter(prisma, paystackService) {
           success: false,
           error: "Escrow transaction not found",
         });
+      }
+
+      // Only the tenant, the landlord or a STUDIO_ADMIN may read it (it
+      // carries both parties' emails).
+      const isParty =
+        escrowTransaction.tenantId === req.user.id ||
+        escrowTransaction.landlordId === req.user.id;
+      if (!isParty && req.user.role !== "STUDIO_ADMIN") {
+        return res.status(403).json({ success: false, error: "Forbidden" });
       }
 
       res.json({ success: true, data: escrowTransaction });

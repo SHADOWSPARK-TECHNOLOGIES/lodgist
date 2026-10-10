@@ -3,10 +3,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useState } from 'react';
+import { nav } from '@/lib/copy';
 
 const links = [
-  { href: '/listings', label: 'Browse' },
-  { href: '/dashboard', label: 'Dashboard', authRequired: true },
+  { href: '/check', label: 'Check a rental' },
+  { href: '/listings', label: nav.browse },
+  { href: '/mission', label: nav.aim },
+  { href: '/dashboard', label: nav.dashboard, authRequired: true },
 ];
 
 export function NavBar() {
@@ -18,7 +21,6 @@ export function NavBar() {
     <nav className="sticky top-0 z-40 border-b border-white/5 backdrop-blur-md"
          style={{ background: 'rgba(11,27,43,0.85)' }}>
       <div className="container flex items-center justify-between h-16">
-        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 font-poppins font-bold text-white text-xl">
           <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-label="Lodgist logo">
             <rect width="28" height="28" rx="8" fill="#FF6F3C"/>
@@ -28,7 +30,6 @@ export function NavBar() {
           Lodgist
         </Link>
 
-        {/* Desktop links */}
         <div className="hidden md:flex items-center gap-1">
           {links.map(l => (!l.authRequired || user) && (
             <Link key={l.href} href={l.href}
@@ -36,26 +37,34 @@ export function NavBar() {
               {l.label}
             </Link>
           ))}
+          {user?.role === "STUDIO_ADMIN" && (
+            <Link href="/admin/listings" className={`nav-link ${pathname === "/admin/listings" ? "text-white bg-white/5" : ""}`}>
+              Listing review
+            </Link>
+          )}
+          {user?.role === "STUDIO_ADMIN" && (
+            <Link href="/admin/rental-checks" className={`nav-link ${pathname === "/admin/rental-checks" ? "text-white bg-white/5" : ""}`}>
+              Rental checks
+            </Link>
+          )}
         </div>
 
-        {/* Desktop auth */}
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <>
               <span className="text-sm text-white/60 max-w-[120px] truncate">{user.name}</span>
-              <button onClick={logout} className="btn btn-secondary btn-sm">Sign out</button>
+              <button onClick={logout} className="btn btn-secondary btn-sm">{nav.signOut}</button>
             </>
           ) : (
             <>
-              <Link href="/login" className="nav-link">Sign in</Link>
-              <Link href="/register" className="btn btn-primary btn-sm">Get started</Link>
+              <Link href="/login" className="nav-link">{nav.signIn}</Link>
+              <Link href="/register" className="btn btn-primary btn-sm">{nav.getStarted}</Link>
             </>
           )}
         </div>
 
-        {/* Mobile hamburger */}
-        <button className="md:hidden p-2 rounded-lg hover:bg-white/5" onClick={() => setOpen(!open)}
-          aria-label="Toggle menu">
+        <button type="button" className="md:hidden inline-flex items-center justify-center min-w-11 min-h-11 p-3 rounded-lg hover:bg-white/5" onClick={() => setOpen(!open)}
+          aria-label="Toggle menu" aria-expanded={open}>
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5">
             {open
               ? <path d="M4 4L16 16M16 4L4 16" strokeLinecap="round"/>
@@ -64,7 +73,6 @@ export function NavBar() {
         </button>
       </div>
 
-      {/* Mobile menu */}
       {open && (
         <div className="md:hidden border-t border-white/5 px-4 py-4 flex flex-col gap-2"
              style={{ background: 'rgba(11,27,43,0.97)' }}>
@@ -72,13 +80,23 @@ export function NavBar() {
             <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
               className="nav-link text-base py-3">{l.label}</Link>
           ))}
+          {user?.role === "STUDIO_ADMIN" && (
+            <Link href="/admin/listings" onClick={() => setOpen(false)} className="nav-link text-base py-3">
+              Listing review
+            </Link>
+          )}
+          {user?.role === "STUDIO_ADMIN" && (
+            <Link href="/admin/rental-checks" onClick={() => setOpen(false)} className="nav-link text-base py-3">
+              Rental checks
+            </Link>
+          )}
           {user ? (
             <button onClick={() => { logout(); setOpen(false); }}
-              className="btn btn-secondary mt-2">Sign out</button>
+              className="btn btn-secondary mt-2">{nav.signOut}</button>
           ) : (
             <div className="flex flex-col gap-2 mt-2">
-              <Link href="/login" onClick={() => setOpen(false)} className="btn btn-secondary">Sign in</Link>
-              <Link href="/register" onClick={() => setOpen(false)} className="btn btn-primary">Get started free</Link>
+              <Link href="/login" onClick={() => setOpen(false)} className="btn btn-secondary">{nav.signIn}</Link>
+              <Link href="/register" onClick={() => setOpen(false)} className="btn btn-primary">{nav.getStartedFree}</Link>
             </div>
           )}
         </div>

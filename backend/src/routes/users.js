@@ -1,5 +1,17 @@
 const express = require("express");
-const { requireAuth, requireRole } = require("../middleware/auth");
+const { requireAuth, requireRole, optionalAuth } = require("../middleware/auth");
+
+// Fields anyone may see on another user's profile. No contact details
+// (email, phone, whatsappId), no wealth flags (isHNW, hnwVerifiedAt).
+const PUBLIC_USER_SELECT = {
+  id: true,
+  name: true,
+  role: true,
+  isVerified: true,
+  truthIndex: true,
+  avatarUrl: true,
+  createdAt: true,
+};
 
 module.exports = (prisma) => {
   const router = express.Router();
@@ -28,14 +40,17 @@ module.exports = (prisma) => {
     }
   });
 
-  // GET /api/users/:id — Public profile (no auth required, but excludes sensitive fields)
-  router.get("/:id", async (req, res) => {
+  // GET /api/users/:id — Public profile. Strangers get PUBLIC_USER_SELECT only;
+  // the user themselves or a STUDIO_ADMIN get the full record minus passwordHash.
+  router.get("/:id", optionalAuth, async (req, res) => {
     try {
       const userId = parseInt(req.params.id, 10);
       if (isNaN(userId)) {
         return res.status(400).json({ success: false, error: "Invalid user ID" });
       }
 
+      const isSelfOrAdmin =
+        Boolean(req.user) && (req.user.id === userId || req.user.role === "STUDIO_ADMIN");
       const include = {};
       if (req.query.include) {
         const parts = req.query.include.split(",");
@@ -49,15 +64,18 @@ module.exports = (prisma) => {
             include: { listing: { select: { id: true, title: true } } },
           };
         }
-        if (parts.includes("passkeys")) {
+        if (parts.includes("passkeys") && isSelfOrAdmin) {
           // Only include passkey count, not the actual credentials
           include._count = { select: { passkeys: true } };
         }
       }
 
+      const hasInclude = Object.keys(include).length > 0;
       const user = await prisma.user.findUnique({
         where: { id: userId },
-        include: Object.keys(include).length > 0 ? include : undefined,
+        ...(isSelfOrAdmin
+          ? { include: hasInclude ? include : undefined }
+          : { select: { ...PUBLIC_USER_SELECT, ...include } }),
       });
 
       if (!user) {
