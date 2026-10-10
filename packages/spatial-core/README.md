@@ -23,3 +23,5 @@ Stable entry (package root):
 - `evidenceEnvelope()`
 
 `ctx` carries server-side listings, `isPublicListing`, `env`, and `fetchImpl`. Tool inputs are listing ids and campus ids. Do not pass raw coordinates.
+
+The 92-feature reconciliation lives in `docs/GEV_ADOPTION.md` at the lodgist repo root.
