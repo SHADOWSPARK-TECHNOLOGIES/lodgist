@@ -12,4 +12,6 @@ module.exports = Object.assign(
   require("./registry.cjs"),
   require("./providerHealth.cjs"),
   require("./costGovernor.cjs"),
+  require("./entities.cjs"),
+  require("./events.cjs"),
 );

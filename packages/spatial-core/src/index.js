@@ -136,4 +136,13 @@ export const {
   costDecision,
   createMemoryCostLedger,
   governProviderCall,
+  ENTITY_TYPES,
+  ENTITY_STATES,
+  validateEntity,
+  entityFreshness,
+  createEntityStore,
+  EVENT_TYPES,
+  TIMELINE_KINDS,
+  LIVE_WARNING,
+  reconstructEvent,
 } = core;
