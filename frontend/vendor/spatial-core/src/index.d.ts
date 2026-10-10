@@ -280,6 +280,21 @@ export function spatialLabDrift(live?: {
   providerIds?: string[];
   transit?: string;
 }): { revision: string; differences: object[]; transit: { enabled: false } };
+export const DEFAULT_TIMEOUT_MS: number;
+export function validate(schema: object, value: unknown): string[];
+export function listTools(): Array<{ name: string; permission: "read"; inputSchema: object; outputSchema: object }>;
+export function callTool(name: string, input: object, ctx?: {
+  listings?: object[];
+  isPublicListing?: (listing: object | null) => boolean;
+  env?: Record<string, string | undefined>;
+  registry?: DataSourceRow[];
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+  log?: (event: { tool: string; ok: boolean; code: string; ms: number }) => void;
+  providers?: Array<{ id?: string; observations?: object[] }>;
+  now?: number | (() => number);
+  lookup?: (hostname: string) => Promise<Array<{ address: string; family?: number }>>;
+}): Promise<{ ok: boolean; code?: string; message?: string; data?: object; provenance?: object | null }>;
 export function buildSpatialContext(input: {
   listing: object;
   campusId?: string | null;

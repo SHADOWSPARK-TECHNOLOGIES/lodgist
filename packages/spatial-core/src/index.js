@@ -66,4 +66,8 @@ export const {
   mapLabLayer,
   spatialLabDrift,
   buildSpatialContext,
+  DEFAULT_TIMEOUT_MS,
+  validate,
+  listTools,
+  callTool,
 } = core;
