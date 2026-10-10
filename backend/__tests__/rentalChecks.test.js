@@ -6,7 +6,13 @@ const jwt = require("jsonwebtoken");
 const rentalChecksRouter = require("../src/routes/rentalChecks");
 const createPaymentsRouter = require("../src/routes/payments");
 const createWhatsAppRouter = require("../src/routes/whatsapp");
-const { validateIntake, validateReview, createRentalCheck, RECOMMENDATION_COPY } = require("../src/services/rentalCheck");
+const {
+  validateIntake,
+  validateReview,
+  createRentalCheck,
+  containsPaymentSecret,
+  RECOMMENDATION_COPY,
+} = require("../src/services/rentalCheck");
 const { handleRentalCheckMessage } = require("../src/services/whatsapp/rentalCheck");
 
 const ENV = ["JWT_SECRET", "PAYSTACK_SECRET_KEY", "WHATSAPP_PUBLIC_URL", "WHATSAPP_APP_SECRET", "FRONTEND_URL"];
@@ -209,6 +215,36 @@ test("invalid intake is rejected and does not mention a verified home", () => {
   const shots = validateIntake({ ...intake, screenshots: ["https://example.test/a.jpg"] });
   assert.equal(shots.ok, false);
   assert.ok(shots.errors.includes("screenshots"));
+});
+
+test("free-text notes cannot carry a card number, PIN, or OTP", () => {
+  const cardInNotes = validateIntake({ ...intake, customerNotes: "He gave me card 4111 1111 1111 1111 to pay." });
+  assert.equal(cardInNotes.ok, false);
+  assert.deepEqual(cardInNotes.errors, ["customerNotes"]);
+
+  const verveCard = validateIntake({ ...intake, customerNotes: "Verve 5061-0100-0000-0000-005 was sent" });
+  assert.equal(verveCard.ok, false);
+
+  const pinInNotes = validateIntake({ ...intake, customerNotes: "They asked for my PIN: 1234 and OTP." });
+  assert.equal(pinInNotes.ok, false);
+  const otpInNotes = validateIntake({ ...intake, customerNotes: "otp 482913 came after I paid" });
+  assert.equal(otpInNotes.ok, false);
+
+  const spacedCardInNarration = validateIntake({
+    ...intake,
+    paymentDetails: { method: "bank_transfer", narration: "pay to 4111 1111 1111 1111" },
+  });
+  assert.equal(spacedCardInNarration.ok, false);
+  assert.ok(spacedCardInNarration.errors.includes("paymentDetails"));
+
+  const phonesAndMoney = validateIntake({
+    ...intake,
+    customerNotes:
+      "Agent on 08031234567 and +234 803 999 8888 wants 450000 by Friday. Account 0123456789 at GTBank. Viewing was 12/10/2026.",
+  });
+  assert.equal(phonesAndMoney.ok, true);
+  assert.equal(containsPaymentSecret("Rent is 450,000 and the caution fee is 100,000"), false);
+  assert.equal(containsPaymentSecret("Call 2348031234567 or 2347012345678"), false);
 });
 
 test("cases get distinct references and retry a reference collision", async () => {
@@ -599,7 +635,10 @@ test("whatsapp CHECK collects a case and REPORT stays behind the sender phone", 
   await send("450000");
   await send("SKIP");
   await send("SKIP");
-  await send("SKIP");
+  const blocked = await send("They want my card 4111 1111 1111 1111 and PIN 1234");
+  assert.match(blocked.replyText, /Do not send card numbers, PINs, or OTPs/);
+  assert.equal(prisma.drafts[0].step, "notes");
+  await send("They asked for rent before a viewing.");
   const done = await send("SKIP");
   assert.match(done.replyText, /RSC-/);
   assert.match(done.replyText, /https:\/\/lodgist\.test\/check\//);
