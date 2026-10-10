@@ -18,6 +18,7 @@ const {
 } = require("./core.cjs");
 const { assertNoPrivateLocationKeys, stripPrivateLocationKeys } = require("./privacy.cjs");
 const { CLASSIFICATIONS, evidenceEnvelope, finiteTimestamp } = require("./evidence.cjs");
+const { assessPlaceCoverage, comparisonConfidence, weakestCoverage } = require("./coverage.cjs");
 const CANONICAL_CATEGORIES = Object.freeze(["shop", "pharmacy", "clinic", "transport"]);
 const LAB_LAYER_TO_CATEGORY = Object.freeze({
   hospitals: "clinic",
@@ -230,6 +231,15 @@ function publicProjection(listing) {
   };
 }
 
+function coverageForListing(listing, campusId) {
+  const focus = listing && typeof listing === "object" ? focusFromPublicListing(listing) : null;
+  return assessPlaceCoverage({
+    campusId,
+    label: focus ? focus.label : null,
+    title: listing && typeof listing.title === "string" ? listing.title : null,
+  });
+}
+
 function compareListings(input = {}) {
   refuseRawCoordinates(input, "compare");
   const ids = Array.isArray(input.listingIds) ? input.listingIds : [];
@@ -237,8 +247,17 @@ function compareListings(input = {}) {
   const listings = Array.isArray(input.listings) ? input.listings : [];
   const projections = ids.map((id) => {
     const listing = listings.find((item) => item && String(item.id) === String(id)) || null;
-    if (!publishedListing(listing, input.isPublicListing)) return { id, available: false };
-    return { available: true, ...publicProjection(listing) };
+    if (!publishedListing(listing, input.isPublicListing)) {
+      return { id, available: false, coverage: "UNKNOWN", warnings: [] };
+    }
+    const quality = coverageForListing(listing, null);
+    return {
+      available: true,
+      coverage: quality.coverage,
+      warnings: quality.warnings,
+      analystNote: quality.analystNote,
+      ...publicProjection(listing),
+    };
   });
   const facts = ["category", "locationState", "areaLabel"];
   const comparisons = facts.map((fact) => {
@@ -253,9 +272,22 @@ function compareListings(input = {}) {
       agreement: present.length === 2 && sameValue(present[0], present[1]),
     };
   });
+  const grades = projections.map((item) => item.coverage || "UNKNOWN");
+  const coverage = weakestCoverage(grades);
+  const warnings = [];
+  projections.forEach((item) => {
+    (item.warnings || []).forEach((warning) => {
+      if (!warnings.includes(warning)) warnings.push(warning);
+    });
+  });
+  const note = projections.find((item) => item.coverage === coverage && item.analystNote);
   return assertNoPrivateLocationKeys(stripPrivateLocationKeys({
     listingIds: ids.map((id) => projections.find((item) => String(item.id) === String(id)) ? id : id),
     comparisons,
+    coverage,
+    comparisonConfidence: comparisonConfidence(grades),
+    warnings,
+    analystNote: note ? note.analystNote : assessPlaceCoverage({}).analystNote,
   }));
 }
 
@@ -328,6 +360,7 @@ function buildSpatialContext(input = {}) {
     now: input.now,
     staleAfterMs: input.staleAfterMs,
   });
+  const quality = coverageForListing(listing, campusId);
   const approx = focus.precision === "approximate"
     ? { lat: focus.lat, lng: focus.lng, radiusM: focus.radiusM }
     : null;
@@ -341,6 +374,9 @@ function buildSpatialContext(input = {}) {
     straightLineLabel: campusId ? relation.straightLineLabel : null,
     travelTime: null,
     ...report,
+    coverageQuality: quality.coverage,
+    warnings: quality.warnings,
+    analystNote: quality.analystNote,
   }));
 }
 
@@ -353,6 +389,7 @@ module.exports = {
   crossReference,
   relateListingToCampus,
   compareListings,
+  coverageForListing,
   mapLabLayer,
   spatialLabDrift,
   buildSpatialContext,

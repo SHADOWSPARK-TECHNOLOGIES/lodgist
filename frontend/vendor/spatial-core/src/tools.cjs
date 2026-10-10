@@ -16,6 +16,7 @@ const { assertNoPrivateLocationKeys, stripPrivateLocationKeys } = require("./pri
 const {
   buildSpatialContext,
   compareListings,
+  coverageForListing,
   crossReference,
   relateListingToCampus,
 } = require("./crossReference.cjs");
@@ -151,10 +152,16 @@ function searchHandler(input, ctx) {
     return haystack.includes(query);
   });
   return {
-    matches: rows.map((listing) => ({
-      listingId: listing.id,
-      title: typeof listing.title === "string" ? listing.title : "Home",
-    })),
+    matches: rows.map((listing) => {
+      const quality = coverageForListing(listing, null);
+      return {
+        listingId: listing.id,
+        title: typeof listing.title === "string" ? listing.title : "Home",
+        coverage: quality.coverage,
+        warnings: quality.warnings,
+        analystNote: quality.analystNote,
+      };
+    }),
   };
 }
 
@@ -165,6 +172,15 @@ function navigateHandler(input, ctx) {
     listings: ctx.listings,
     isPublicListing: ctx.isPublicListing,
   });
+}
+
+function coverageFields(listing, campusId) {
+  const quality = coverageForListing(listing, campusId);
+  return {
+    coverage: quality.coverage,
+    warnings: quality.warnings,
+    analystNote: quality.analystNote,
+  };
 }
 
 function inspectHandler(input, ctx) {
@@ -179,6 +195,7 @@ function inspectHandler(input, ctx) {
     approxLocation: focus.precision === "approximate"
       ? { lat: focus.lat, lng: focus.lng, radiusM: focus.radiusM }
       : null,
+    ...coverageFields(listing, null),
   };
 }
 
@@ -186,7 +203,7 @@ async function nearbyHandler(input, ctx) {
   const listing = listingById(ctx, input.listingId);
   const focus = focusFromPublicListing(listing);
   if (!ctx.fetchImpl) {
-    return { status: "unconfigured", items: [], provenance: null };
+    return { status: "unconfigured", items: [], provenance: null, ...coverageFields(listing, null) };
   }
   const payload = await loadAmenities({
     focus,
@@ -205,10 +222,11 @@ async function nearbyHandler(input, ctx) {
     : payload.items;
   return {
     status: payload.status,
-    items,
+    items: Array.isArray(items) ? items : [],
     provenance: payload.provenance,
     source: "OpenStreetMap",
     license: "ODbL-1.0",
+    ...coverageFields(listing, null),
   };
 }
 
@@ -277,13 +295,21 @@ function compareHandler(input, ctx) {
 }
 
 function crossHandler(input, ctx) {
-  return crossReference({
+  const listing = listingById(ctx, input.listingId);
+  const report = crossReference({
     location: { listingId: input.listingId, campusId: input.campusId || null },
     subjects: [`listing:${input.listingId}`],
     providers: ctx.providers || [],
     constraints: ctx.constraints,
     now: typeof ctx.now === "function" ? ctx.now() : ctx.now,
   });
+  const quality = coverageFields(listing, input.campusId || null);
+  return {
+    ...report,
+    coverageQuality: quality.coverage,
+    warnings: quality.warnings,
+    analystNote: quality.analystNote,
+  };
 }
 
 function visualizeHandler(input, ctx) {
