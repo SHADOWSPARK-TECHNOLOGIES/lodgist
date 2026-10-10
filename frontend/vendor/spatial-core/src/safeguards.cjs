@@ -1,4 +1,5 @@
 const DEFAULT_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_DAILY_BUDGET = 200;
 const PROVIDER_BACKOFF_MS = 30 * 1000;
 const BACKOFF_STATUSES = new Set([429, 406]);
 const DEFAULT_USER_AGENT = "Lodgist/spatial-core (+https://lodgist.online)";
@@ -36,13 +37,20 @@ function resolveTtl(source, override) {
 }
 
 function resolveBudget(source, providerId, override) {
-  if (override === null) return null;
-  if (typeof override === "number" && Number.isInteger(override) && override >= 0) return override;
+  if (typeof override === "number" && Number.isInteger(override) && override > 0) return override;
   const raw = envString(source, `SPATIAL_DAILY_BUDGET_${String(providerId || "").toUpperCase()}`);
-  if (!raw) return null;
-  const parsed = Number(raw);
-  if (!Number.isInteger(parsed) || parsed < 0) return null;
-  return parsed;
+  if (raw) {
+    const parsed = Number(raw);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return DEFAULT_DAILY_BUDGET;
+}
+
+function cachePermitted(providerId, cachePolicy) {
+  const id = String(providerId || "").toLowerCase();
+  if (id.includes("google")) return false;
+  if (cachePolicy === "never") return false;
+  return true;
 }
 
 function userAgent(source) {
@@ -80,21 +88,18 @@ async function withProviderSafeguards(options, run) {
   const source = options.envSource || {};
   const ttl = resolveTtl(source, options.ttlMs);
 
-  const readCache = () => {
+  const readCache = (allowStale) => {
     if (!cacheKey) return null;
     const hit = box.cache.get(cacheKey);
     if (!hit) return null;
-    if (clock() - hit.storedAt >= ttl) {
-      box.cache.delete(cacheKey);
-      return null;
-    }
+    if (!allowStale && clock() - hit.storedAt >= ttl) return null;
     return cloneJson(hit.value);
   };
 
-  if (readCache()) return { outcome: "hit", value: readCache() };
+  if (readCache(false)) return { outcome: "hit", value: readCache(false) };
 
   const exec = async () => {
-    const again = readCache();
+    const again = readCache(false);
     if (again) return { outcome: "hit", value: again };
     const t = clock();
     if ((box.backoffUntil.get(providerId) || 0) > t) return { outcome: "backoff" };
@@ -107,12 +112,19 @@ async function withProviderSafeguards(options, run) {
     }
     const result = await run();
     const statusCode = result && typeof result.statusCode === "number" ? result.statusCode : 0;
+    const permitted = cachePermitted(providerId, options.cachePolicy);
     if (BACKOFF_STATUSES.has(statusCode)) {
       box.backoffUntil.set(providerId, clock() + PROVIDER_BACKOFF_MS);
+      const stale = readCache(true);
+      if (stale) return { outcome: "stale", value: stale };
       return { outcome: "backoff", value: result.value };
     }
-    if (result && result.cacheable && cacheKey) {
+    if (result && result.cacheable && cacheKey && permitted) {
       box.cache.set(cacheKey, { storedAt: clock(), value: cloneJson(result.value) });
+    }
+    if (!(result && result.cacheable)) {
+      const stale = readCache(true);
+      if (stale) return { outcome: "stale", value: stale };
     }
     return { outcome: "miss", value: result ? result.value : null };
   };
@@ -125,8 +137,10 @@ async function withProviderSafeguards(options, run) {
 
 module.exports = {
   DEFAULT_CACHE_TTL_MS,
+  DEFAULT_DAILY_BUDGET,
   PROVIDER_BACKOFF_MS,
   DEFAULT_USER_AGENT,
+  cachePermitted,
   createSafeguardState,
   envObject,
   envString,

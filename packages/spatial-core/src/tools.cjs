@@ -196,6 +196,7 @@ async function nearbyHandler(input, ctx) {
     safeguardState: ctx.safeguardState,
     now: ctx.now,
     lookup: ctx.lookup,
+    timeoutMs: ctx.timeoutMs,
     allowFixtures: false,
   });
   const items = input.category && input.category !== "all"
@@ -237,6 +238,7 @@ async function routeHandler(input, ctx) {
     safeguardState: ctx.safeguardState,
     now: ctx.now,
     lookup: ctx.lookup,
+    timeoutMs: ctx.timeoutMs,
   });
   return {
     straightLineLabel: straight.straightLineLabel,

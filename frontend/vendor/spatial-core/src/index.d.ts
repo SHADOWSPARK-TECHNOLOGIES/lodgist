@@ -137,6 +137,8 @@ export const ALLOWED_LAYERS: readonly string[];
 export const BANNED_LAYERS: readonly string[];
 export const DATA_SOURCE_REVISION: string;
 export const DEFAULT_CACHE_TTL_MS: number;
+export const DEFAULT_DAILY_BUDGET: number;
+export function cachePermitted(providerId: string, cachePolicy?: string): boolean;
 export const PROVIDER_BACKOFF_MS: number;
 export const DEFAULT_USER_AGENT: string;
 

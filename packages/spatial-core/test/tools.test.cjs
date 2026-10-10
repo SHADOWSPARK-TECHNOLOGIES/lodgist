@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { callTool, listTools, createSafeguardState } = require("../src/index.cjs");
 
 const isPublic = (listing) => listing && listing.public === true;
+const publicLookup = async () => [{ address: "1.1.1.1", family: 4 }];
 
 function home(extra = {}) {
   return {
@@ -98,6 +99,7 @@ test("a cleared provider call returns amenities and logs without coordinates", a
   const result = await callTool("spatial.nearby", { listingId: 42 }, ctx({
     env: { OVERPASS_INTERPRETER_URL: "https://overpass.example/interpreter" },
     registry: [{ id: "overpass", status: "cleared" }],
+    lookup: publicLookup,
     safeguardState: createSafeguardState(),
     log: (event) => logs.push(event),
     fetchImpl: async () => ({
@@ -120,6 +122,7 @@ test("provider failure and timeout are reported without upstream text", async ()
   const failed = await callTool("spatial.nearby", { listingId: 42 }, ctx({
     env: { OVERPASS_INTERPRETER_URL: "https://overpass.example/interpreter" },
     registry: [{ id: "overpass", status: "cleared" }],
+    lookup: publicLookup,
     safeguardState: createSafeguardState(),
     fetchImpl: async () => ({ ok: false, status: 503, json: async () => ({ error: "secret upstream" }) }),
   }));
@@ -135,6 +138,7 @@ test("provider failure and timeout are reported without upstream text", async ()
     timeoutMs: 30,
     env: { OVERPASS_INTERPRETER_URL: "https://overpass.example/interpreter" },
     registry: [{ id: "overpass", status: "cleared" }],
+    lookup: publicLookup,
     safeguardState: createSafeguardState(),
     fetchImpl: () => new Promise(() => {}),
   });
