@@ -27,3 +27,20 @@ When a dependency changes, update the lockfile for that directory only:
 - `backend/`: `npm install`, then commit `package-lock.json` only if `npm ci` still succeeds.
 
 Do not regenerate both lockfile types for one package. Railway Railpack selects pnpm 9 from `lockfileVersion: 9.0`. Actions uses pnpm 10. A frozen install must pass on the lockfile you commit.
+
+## Lockfile merge conflicts
+
+`.gitattributes` marks every `pnpm-lock.yaml` and `package-lock.json` as `merge=binary`, so git reports a conflict on the whole file. It does not mix the two sides. Never resolve a lockfile with "accept both" or by editing hunks. That leaves duplicate keys or conflict markers, and the frozen install fails.
+
+On a conflict in `<dir>/pnpm-lock.yaml` while merging `main` into your branch:
+
+```bash
+git checkout origin/main -- <dir>/pnpm-lock.yaml   # main's lockfile
+(cd <dir> && pnpm install)                         # re-add your branch's dependency changes
+(cd <dir> && pnpm install --frozen-lockfile)       # must pass before you commit
+git add <dir>/pnpm-lock.yaml
+```
+
+For `backend/package-lock.json`, do the same with `npm install` and then `npm ci`.
+
+Source files are different. If a conflict is in code, read both sides and keep one working version. "Accept both" on code usually leaves duplicate imports, two `export default` statements, or duplicated effect bodies.
