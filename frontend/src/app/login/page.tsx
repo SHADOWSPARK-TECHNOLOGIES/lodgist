@@ -45,17 +45,17 @@ function LoginForm() {
 
         <form onSubmit={handleSubmit} className="card space-y-5">
           <div>
-            <label className="label">{auth.email}</label>
-            <input type="email" className="input" placeholder="you@example.com"
+            <label className="label" htmlFor="login-email">{auth.email}</label>
+            <input id="login-email" name="email" type="email" autoComplete="email" className="input" placeholder="you@example.com"
               value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div>
-            <label className="label">{auth.password}</label>
-            <input type="password" className="input" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
+            <label className="label" htmlFor="login-password">{auth.password}</label>
+            <input id="login-password" name="password" type="password" autoComplete="current-password" className="input" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
               value={password} onChange={e => setPassword(e.target.value)} required />
           </div>
-          <button type="submit" disabled={loading} className="btn btn-primary w-full justify-center">
-            {loading ? <span className="spinner" /> : auth.signIn}
+          <button type="submit" disabled={loading} aria-busy={loading} className="btn btn-primary w-full justify-center">
+            {loading ? <><span className="spinner" aria-hidden="true" /><span className="sr-only">{auth.signingIn}</span></> : auth.signIn}
           </button>
           <p className="text-center text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
             {auth.noAccount} <Link href={registerHref} className="text-orange hover:underline">{auth.createOne}</Link>
