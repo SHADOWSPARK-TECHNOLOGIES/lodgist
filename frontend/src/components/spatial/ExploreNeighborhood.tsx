@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { focusFromPublicListing, type AmenityPayload, type RoutePayload, type SpatialFocus } from "@/lib/spatialLab";
+import type { AmenityPayload, RoutePayload, SpatialFocus } from "@lodgist/spatial-core";
+import { focusFromPublicListing } from "@/lib/spatialPublic";
 import type { ApproxLocation } from "@/lib/types";
 import type { LabModel } from "./SpatialLabView";
 

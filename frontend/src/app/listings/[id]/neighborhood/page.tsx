@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ExploreNeighborhood from "@/components/spatial/ExploreNeighborhood";
-import { buildPublicSpatialContext } from "@/lib/spatialLab";
+import { buildPublicSpatialContext } from "@/lib/spatialPublic";
 import type { ApproxLocation } from "@/lib/types";
 
 export const dynamic = "force-dynamic";

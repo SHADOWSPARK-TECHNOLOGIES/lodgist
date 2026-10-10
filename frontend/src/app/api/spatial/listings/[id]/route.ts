@@ -1,11 +1,6 @@
 import { NextResponse } from "next/server";
-import {
-  buildPublicSpatialContext,
-  campusById,
-  loadAmenities,
-  loadRoute,
-  readProviderConfig,
-} from "@/lib/spatialLab";
+import { buildPublicSpatialContext, campusById } from "@/lib/spatialPublic";
+import { loadListingSpatial } from "@/lib/spatialTool";
 
 export const dynamic = "force-dynamic";
 
@@ -44,11 +39,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const campus = campusById(new URL(request.url).searchParams.get("campus"));
-  const config = readProviderConfig();
-  const [amenities, route] = await Promise.all([
-    loadAmenities({ focus: context.focus, config, fetchImpl: fetch, allowFixtures: false }),
-    loadRoute({ focus: context.focus, campus, config, fetchImpl: fetch }),
-  ]);
+  const { amenities, route } = await loadListingSpatial({
+    listingId: Number(id),
+    campusId: campus ? campus.id : null,
+    precision: context.focus.precision,
+    fetchImpl: fetch,
+  });
 
   return NextResponse.json(
     { success: true, data: { ...context, amenities, route } },
