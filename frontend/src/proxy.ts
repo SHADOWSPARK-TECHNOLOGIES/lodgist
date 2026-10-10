@@ -22,4 +22,4 @@ export async function proxy(req: NextRequest) {
   return NextResponse.rewrite(new URL(decision.rewrite, req.url), { status: decision.status });
 }
 
-export const config = { matcher: ["/listings/:id", "/listing-not-found/:id"] };
+export const config = { matcher: ["/listings/:id", "/listings/:id/neighborhood", "/listing-not-found/:id"] };
