@@ -42,7 +42,7 @@ test("400 validation text from the server is shown; anything else is generic", (
 });
 
 test("pages render an inline alert, focus it, and tie it to the inputs", () => {
-  for (const file of ["login/page.tsx", "register/page.tsx"]) {
+  for (const file of ["login/LoginForm.tsx", "register/RegisterForm.tsx"]) {
     const src = fs.readFileSync(path.join(__dirname, "..", "app", file), "utf8");
     assert.match(src, /authErrorMessage\(/, file);
     assert.match(src, /role="alert"/, file);

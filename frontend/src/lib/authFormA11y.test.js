@@ -14,8 +14,8 @@ function fields(src) {
 }
 
 const expected = {
-  "login/page.tsx": { "login-email": ["email", "email"], "login-password": ["password", "current-password"] },
-  "register/page.tsx": {
+  "login/LoginForm.tsx": { "login-email": ["email", "email"], "login-password": ["password", "current-password"] },
+  "register/RegisterForm.tsx": {
     "register-name": ["name", "name"],
     "register-email": ["email", "email"],
     "register-phone": ["phone", "tel"],
