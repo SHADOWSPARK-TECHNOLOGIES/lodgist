@@ -19,7 +19,7 @@ Stable entry (package root):
 - `listTools()`
 - `callTool(name, input, ctx)`
 - `crossReference()`
-- `providerRegistry()` once the registry slice is present
-- `evidenceEnvelope()` once the evidence slice is present
+- `providerRegistry()`
+- `evidenceEnvelope()`
 
 `ctx` carries server-side listings, `isPublicListing`, `env`, and `fetchImpl`. Tool inputs are listing ids and campus ids. Do not pass raw coordinates.

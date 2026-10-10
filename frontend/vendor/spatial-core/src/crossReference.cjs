@@ -17,8 +17,7 @@ const {
   dataSources,
 } = require("./core.cjs");
 const { assertNoPrivateLocationKeys, stripPrivateLocationKeys } = require("./privacy.cjs");
-
-const CLASSIFICATIONS = Object.freeze(["VERIFIED", "OBSERVED", "DERIVED", "ESTIMATED", "UNKNOWN"]);
+const { CLASSIFICATIONS, evidenceEnvelope, finiteTimestamp } = require("./evidence.cjs");
 const CANONICAL_CATEGORIES = Object.freeze(["shop", "pharmacy", "clinic", "transport"]);
 const LAB_LAYER_TO_CATEGORY = Object.freeze({
   hospitals: "clinic",
@@ -65,48 +64,16 @@ function refuseRawCoordinates(value, label) {
   }
 }
 
-function finiteTimestamp(value) {
-  if (value == null || value === "") return null;
-  const number = typeof value === "number" ? value : Number(value);
-  if (!Number.isFinite(number) || number <= 0) return null;
-  return number;
-}
-
-function freshnessOf(observedAt, now, staleAfterMs) {
-  if (observedAt == null) return "unknown";
-  if (now - observedAt > staleAfterMs) return "stale";
-  return "fresh";
-}
-
-function classificationOf(value) {
-  return CLASSIFICATIONS.includes(value) ? value : "UNKNOWN";
-}
-
-function confidenceOf(value) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  if (value < 0 || value > 1) return null;
-  return value;
-}
-
 function normalizeObservation(row, providerId, now, staleAfterMs) {
   const source = row && typeof row === "object" ? row : {};
-  const observedAt = finiteTimestamp(source.observedAt);
-  const coverage = typeof source.coverage === "string" ? source.coverage : null;
-  return {
-    subjectId: source.subjectId == null ? null : String(source.subjectId),
+  const envelope = evidenceEnvelope(Object.assign({}, source, {
     provider: typeof source.provider === "string" && source.provider ? source.provider : providerId || null,
+  }), { now, staleAfterMs });
+  return Object.assign({
+    subjectId: source.subjectId == null ? null : String(source.subjectId),
     kind: typeof source.kind === "string" ? source.kind : "unknown",
     fact: typeof source.fact === "string" ? source.fact : "",
-    value: source.value === undefined ? null : source.value,
-    observedAt,
-    retrievedAt: finiteTimestamp(source.retrievedAt),
-    freshness: freshnessOf(observedAt, now, staleAfterMs),
-    confidence: confidenceOf(source.confidence),
-    classification: classificationOf(source.classification),
-    coverage,
-    source: typeof source.source === "string" ? source.source : null,
-    license: typeof source.license === "string" ? source.license : null,
-  };
+  }, envelope);
 }
 
 function sameValue(a, b) {

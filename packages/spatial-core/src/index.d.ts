@@ -246,9 +246,10 @@ export interface SpatialObservation {
   freshness: SpatialFreshness;
   confidence: number | null;
   classification: SpatialClassification;
+  attribution: string | null;
+  license: string | null;
   coverage: string | null;
   source: string | null;
-  license: string | null;
 }
 
 export interface CrossReferenceReport {
@@ -338,3 +339,31 @@ export function buildSpatialContext(input: {
   travelTime: null;
   approxLocation: { lat: number; lng: number; radiusM: number } | null;
 }) | null;
+
+export const FRESHNESS: readonly SpatialFreshness[];
+export const ENVELOPE_KEYS: readonly string[];
+export interface EvidenceEnvelope {
+  value: unknown;
+  source: string | null;
+  provider: string | null;
+  observedAt: number | null;
+  retrievedAt: number | null;
+  freshness: SpatialFreshness;
+  confidence: number | null;
+  classification: SpatialClassification;
+  attribution: string | null;
+  license: string | null;
+  coverage: string | null;
+}
+export function evidenceEnvelope(input?: {
+  value?: unknown;
+  source?: string | null;
+  provider?: string | null;
+  observedAt?: number | string | null;
+  retrievedAt?: number | string | null;
+  confidence?: number | null;
+  classification?: string | null;
+  attribution?: string | null;
+  license?: string | null;
+  coverage?: string | null;
+}, options?: { now?: number | null; staleAfterMs?: number }): EvidenceEnvelope;

@@ -19,6 +19,7 @@ const {
   crossReference,
   relateListingToCampus,
 } = require("./crossReference.cjs");
+const { evidenceEnvelope } = require("./evidence.cjs");
 
 const DEFAULT_TIMEOUT_MS = 8000;
 
@@ -454,14 +455,22 @@ async function callTool(name, input, ctx = {}) {
 
 function provenanceFor(data, ctx) {
   const now = typeof ctx.now === "function" ? ctx.now() : (typeof ctx.now === "number" ? ctx.now : null);
-  return {
-    source: data && data.source ? data.source : "lodgist",
-    provider: data && data.provenance ? data.provenance : null,
+  const prior = data && data.provenance && typeof data.provenance === "object" ? data.provenance : null;
+  const provider = prior && typeof prior.provider === "string"
+    ? prior.provider
+    : (data && typeof data.provenance === "string" ? data.provenance : null);
+  return evidenceEnvelope({
+    value: data && Object.prototype.hasOwnProperty.call(data, "value") ? data.value : null,
+    source: data && typeof data.source === "string" ? data.source : "lodgist",
+    provider,
+    observedAt: prior ? prior.observedAt : null,
     retrievedAt: now,
-    observedAt: null,
-    freshness: "unknown",
-    license: data && data.license ? data.license : null,
-  };
+    confidence: prior ? prior.confidence : null,
+    classification: prior && prior.classification ? prior.classification : "DERIVED",
+    attribution: prior ? prior.attribution : null,
+    license: data && typeof data.license === "string" ? data.license : null,
+    coverage: prior ? prior.coverage : null,
+  }, { now });
 }
 
 module.exports = {

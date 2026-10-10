@@ -77,4 +77,7 @@ export const {
   validate,
   listTools,
   callTool,
+  FRESHNESS,
+  ENVELOPE_KEYS,
+  evidenceEnvelope,
 } = core;
