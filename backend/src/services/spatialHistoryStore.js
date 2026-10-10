@@ -22,6 +22,9 @@ function toHistoryInput(monitor, observations, snapshots) {
       targetType: monitor.targetType,
       target: monitor.target,
       privacy: monitor.privacy,
+      observationType: monitor.observationType,
+      baseline: monitor.baseline == null ? null : monitor.baseline,
+      providers: monitor.providers,
     },
     observations: (observations || []).map((row) => ({
       id: row.id,

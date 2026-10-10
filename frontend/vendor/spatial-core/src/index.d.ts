@@ -469,3 +469,59 @@ export function recordReportSnapshot(monitor: { monitoringBeganAt?: number | str
   historyBeganAt: number | null;
   snapshot?: object;
 };
+
+export const ANOMALY_FLAG: "SPATIAL_ANOMALIES";
+export const ANOMALY_FAMILIES: readonly string[];
+export function anomaliesEnabled(env?: Record<string, string | undefined> | null): boolean;
+export interface SpatialAnomaly {
+  family: string;
+  severity: "low" | "medium" | "high";
+  confidence: number;
+  reason: string;
+  observationIds: string[];
+  rule: { name: string; threshold: object; statistic?: object };
+  provider: string | null;
+  triggeredAt: number;
+  evidence: EvidenceEnvelope;
+  provenance: {
+    source: string | null;
+    provider: string | null;
+    observedAt: number | null;
+    retrievedAt: number | null;
+    freshness: string;
+    classification: string;
+    license: string | null;
+    historyBeganAt: number | null;
+    rule: string;
+  };
+  explanation: string | null;
+}
+export interface SpatialAnomalyResult {
+  ok: boolean;
+  code: string;
+  historyBeganAt?: number | null;
+  anomalies: SpatialAnomaly[];
+  skipped: Array<{ family: string; code: string; reason: string }>;
+  alerts: [];
+  explanation: string | null;
+  decidedBy: "rule";
+  provenance?: {
+    source?: string | null;
+    historyBeganAt?: number | null;
+    observedAt?: number | null;
+    retrievedAt?: number | null;
+  };
+}
+export function evaluateAnomalies(input?: {
+  monitor?: { monitoringBeganAt?: number | string | Date | null; baseline?: object | null; observationType?: string; target?: object } | null;
+  observations?: object[];
+  snapshots?: object[];
+  now?: number | null;
+  families?: string[];
+}, ctx?: {
+  env?: Record<string, string | undefined>;
+  authorized?: boolean;
+  authorization?: string;
+  explain?: (input: object) => string | { explanation?: string } | null;
+}): SpatialAnomalyResult;
+export function attachAnomalyExplanation(result: SpatialAnomalyResult, produced?: string | { explanation?: string; severity?: string; anomalies?: object[] } | null): SpatialAnomalyResult;
