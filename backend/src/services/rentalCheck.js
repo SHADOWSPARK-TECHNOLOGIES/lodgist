@@ -3,7 +3,6 @@ const crypto = require("crypto");
 const PRODUCT_NAME = "Rental Safety Check";
 const PRICE_NGN = 5000;
 const PRICE_KOBO = 500000;
-const PAYSTACK_REFERENCE_PREFIX = "LODG-ESC-RSC-";
 const REFERENCE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 const RECOMMENDATION_COPY = {
@@ -303,24 +302,6 @@ function phonesMatch(left, right) {
   const b = digits(right);
   if (a.length < 10 || b.length < 10) return false;
   return a.slice(-10) === b.slice(-10);
-}
-
-function isRentalPaystackReference(reference, data) {
-  if (data && data.metadata && data.metadata.type === "rental_safety_check") return true;
-  return typeof reference === "string" && reference.startsWith(PAYSTACK_REFERENCE_PREFIX);
-}
-
-function chargeAmountAccepted(data) {
-  if (!data || Number(data.amount) !== PRICE_KOBO) return false;
-  if (data.currency && data.currency !== "NGN") return false;
-  return true;
-}
-
-function verifyAmountAccepted(verified) {
-  if (!verified || verified.status !== "success") return false;
-  if (Number(verified.amount) !== PRICE_NGN) return false;
-  if (verified.currency && verified.currency !== "NGN") return false;
-  return true;
 }
 
 function paidPaymentUpdate(check) {
@@ -624,16 +605,10 @@ function summarizeMetrics({ submitted, paidCount, delivered, paidAmounts, comple
   };
 }
 
-function paystackCustomerEmail(check) {
-  if (check.customerEmail) return check.customerEmail;
-  return `checks+${String(check.publicReference).toLowerCase()}@lodgist.online`;
-}
-
 module.exports = {
   PRODUCT_NAME,
   PRICE_NGN,
   PRICE_KOBO,
-  PAYSTACK_REFERENCE_PREFIX,
   RECOMMENDATION_COPY,
   SECTION_LABELS,
   STATE_LABELS,
@@ -645,9 +620,6 @@ module.exports = {
   tokenMatches,
   createRentalCheck,
   phonesMatch,
-  isRentalPaystackReference,
-  chargeAmountAccepted,
-  verifyAmountAccepted,
   paidPaymentUpdate,
   publicStatus,
   validateManualPaymentRef,
@@ -657,7 +629,6 @@ module.exports = {
   adminView,
   summarizeMetrics,
   defaultEvidence,
-  paystackCustomerEmail,
   hasBannedClaim,
   containsPaymentSecret,
   isReferenceCollision,

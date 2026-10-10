@@ -4,15 +4,13 @@ const express = require("express");
 const jwt = require("jsonwebtoken");
 const createBookingsRouter = require("../src/routes/bookings");
 
-const ENV = ["JWT_SECRET", "PAYSTACK_SECRET_KEY", "PAYSTACK_ENABLED"];
+const ENV = ["JWT_SECRET"];
 let saved;
 
 beforeEach(() => {
   saved = {};
   for (const key of ENV) saved[key] = process.env[key];
   process.env.JWT_SECRET = "test-secret";
-  process.env.PAYSTACK_SECRET_KEY = "sk_test_should_not_charge";
-  delete process.env.PAYSTACK_ENABLED;
 });
 
 afterEach(() => {
@@ -69,7 +67,7 @@ async function send(server, path, { method, user, body }) {
 const tenant = { id: 7, email: "ada@example.com", name: "Ada", role: "USER" };
 const admin = { id: 1, email: "reviewer@example.com", name: "Reviewer", role: "STUDIO_ADMIN" };
 
-test("booking checkout stays closed without the flag and manual review still confirms", async () => {
+test("Paystack booking checkout is gone and the WhatsApp manual review confirms", async () => {
   const booking = {
     id: "bk_whatsapp_1",
     tenantId: 7,
@@ -82,25 +80,11 @@ test("booking checkout stays closed without the flag and manual review still con
   const prisma = memoryPrisma(booking);
   const server = await listen(prisma);
   try {
-    const closed = await send(server, "/api/bookings/bk_whatsapp_1/initiate-payment", {
-      method: "POST",
-      user: tenant,
-      body: { email: "ada@example.com" },
-    });
-    assert.equal(closed.status, 503);
-    assert.equal(closed.body.code, "PAYSTACK_UNAVAILABLE");
+    const port = server.address().port;
+    const closed = await fetch(`http://127.0.0.1:${port}/api/bookings/bk_whatsapp_1/initiate-payment`, { method: "POST" });
+    assert.equal(closed.status, 404);
     assert.equal(prisma.rows.get(booking.id).status, "PENDING");
     assert.equal(prisma.rows.get(booking.id).manualPaymentRef, null);
-
-    process.env.PAYSTACK_ENABLED = "true";
-    delete process.env.PAYSTACK_SECRET_KEY;
-    const missingKey = await send(server, "/api/bookings/bk_whatsapp_1/initiate-payment", {
-      method: "POST",
-      user: tenant,
-      body: { email: "ada@example.com" },
-    });
-    assert.equal(missingKey.status, 503);
-    assert.equal(prisma.rows.get(booking.id).status, "PENDING");
 
     const queued = await send(server, "/api/bookings/bk_whatsapp_1/manual-payment", {
       method: "PATCH",

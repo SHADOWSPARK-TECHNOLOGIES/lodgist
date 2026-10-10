@@ -105,34 +105,6 @@ function rentalChecksRouter(prisma) {
     }
   });
 
-  router.post("/pay/verify", async (req, res) => {
-    const publicReference = req.body && req.body.publicReference;
-    const paystackReference = req.body && req.body.paystackReference;
-    const token = readToken(req);
-    if (!publicReference && !paystackReference) {
-      return res.status(400).json({ success: false, error: "A case reference is required." });
-    }
-    try {
-      const check = await prisma.rentalCheck.findFirst({
-        where: publicReference ? { publicReference } : { paystackReference },
-      });
-      if (!check || !tokenMatches(check, token)) {
-        return res.status(401).json({ success: false, error: "This case link is not valid." });
-      }
-      if (check.paymentStatus === "PAID") {
-        return res.json({ success: true, data: publicStatus(check), alreadyPaid: true });
-      }
-      return res.status(409).json({
-        success: false,
-        error: "A Paystack return does not confirm this fee. Staff confirm a transfer reference.",
-        code: "MANUAL_REVIEW_REQUIRED",
-      });
-    } catch (error) {
-      logger.error("Rental check verify failed", { message: error.message });
-      return res.status(502).json({ success: false, error: "We could not confirm payment with Paystack." });
-    }
-  });
-
   router.get("/:reference/admin", requireAuth, requireRole("STUDIO_ADMIN"), async (req, res) => {
     try {
       const check = await prisma.rentalCheck.findUnique({ where: { publicReference: req.params.reference } });
@@ -169,30 +141,6 @@ function rentalChecksRouter(prisma) {
     } catch (error) {
       logger.error("Rental check report failed", { message: error.message });
       return res.status(500).json({ success: false, error: "We could not load this report." });
-    }
-  });
-
-  router.post("/:reference/pay", async (req, res) => {
-    const token = readToken(req);
-    try {
-      const check = await prisma.rentalCheck.findUnique({ where: { publicReference: req.params.reference } });
-      if (!check || !tokenMatches(check, token)) {
-        return res.status(401).json({ success: false, error: "This case link is not valid." });
-      }
-      if (check.paymentStatus === "PAID") {
-        return res.json({ success: true, data: publicStatus(check), alreadyPaid: true });
-      }
-      if (check.status === "CANCELLED") {
-        return res.status(409).json({ success: false, error: "This case is cancelled." });
-      }
-      return res.status(503).json({
-        success: false,
-        error: "Online checkout is not open. Arrange this fee on WhatsApp. The Lodgist team confirms it.",
-        code: "PAYSTACK_UNAVAILABLE",
-      });
-    } catch (error) {
-      logger.error("Rental check pay init failed", { message: error.message });
-      return res.status(502).json({ success: false, error: "We could not start checkout." });
     }
   });
 
