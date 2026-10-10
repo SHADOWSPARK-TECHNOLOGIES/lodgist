@@ -55,6 +55,17 @@ function monitorEnv(options) {
 function createSpatialRouter(options = {}) {
   const router = express.Router();
 
+  // Phase 12B: every spatial response carries DataQuality (tool results already do).
+  router.use((req, res, next) => {
+    const send = res.json.bind(res);
+    res.json = (body) => {
+      if (!body || typeof body !== "object" || Array.isArray(body) || body.dataQuality) return send(body);
+      const now = typeof options.now === "function" ? options.now() : Date.now();
+      return send(spatial.withDataQuality(body, { now }));
+    };
+    next();
+  });
+
   router.post("/tool", async (req, res) => {
     const body = req.body;
     if (!body || typeof body !== "object" || Array.isArray(body)) {

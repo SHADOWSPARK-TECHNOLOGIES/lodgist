@@ -573,3 +573,13 @@ export function evaluateAnomalies(input?: {
   explain?: (input: object) => string | { explanation?: string } | null;
 }): SpatialAnomalyResult;
 export function attachAnomalyExplanation(result: SpatialAnomalyResult, produced?: string | { explanation?: string; severity?: string; anomalies?: object[] } | null): SpatialAnomalyResult;
+export const DQ_COVERAGE: any;
+export const DQ_FRESHNESS: any;
+export const DQ_RULES: any;
+export const spatialDataQuality: any;
+export const dataQualityFromResult: any;
+export const withDataQuality: any;
+export const COVERAGE_DATASETS: any;
+export const coverageKey: any;
+export const coverageRecords: any;
+export const coverageFor: any;
