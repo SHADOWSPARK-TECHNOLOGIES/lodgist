@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { mapGeometry, projectOnLayer, tileLayer, type Amenity, type Campus, type SpatialFocus } from "@/lib/spatialLab";
+import type { Amenity, Campus, SpatialFocus } from "@lodgist/spatial-core";
+import { mapGeometry } from "@/lib/spatialPublic";
+import { projectOnLayer, tileLayer } from "@/lib/spatialTiles";
 
 type Props = {
   focus: SpatialFocus;

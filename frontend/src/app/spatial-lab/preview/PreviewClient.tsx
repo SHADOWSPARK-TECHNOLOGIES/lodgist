@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import SpatialLabPanel from "@/components/spatial/SpatialLabPanel";
 import type { LabModel } from "@/components/spatial/SpatialLabView";
-import { buildPreviewModel } from "@/lib/spatialLab";
+import { buildPreviewModel } from "@/lib/spatialPublic";
 
 const SCENARIOS = [
   ["approximate", "Approximate area"],
