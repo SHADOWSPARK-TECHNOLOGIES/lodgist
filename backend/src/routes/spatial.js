@@ -3,6 +3,7 @@ const spatial = require("../../../packages/spatial-core");
 const { approxLocation, isEligiblePublicListing } = require("./listings");
 const { saveMonitorRun } = require("../services/spatialMonitorStore");
 const { loadStoredHistory, saveReportSnapshot } = require("../services/spatialHistoryStore");
+const { saveAnomalies } = require("../services/spatialAnomalyStore");
 
 const URL_KEYS = ["url", "providerUrl", "userUrl", "endpoint", "baseUrl", "tileUrl", "interpreterUrl"];
 const MAX_BODY_CHARS = 32 * 1024;
@@ -202,6 +203,71 @@ function createSpatialRouter(options = {}) {
           : spatial.getSpatialHistory(input, ctx);
       const status = result.ok ? 200 : 400;
       return res.status(status).json(result);
+    } catch {
+      return res.status(502).json({ ok: false, code: "unavailable" });
+    }
+  });
+
+  router.post("/anomalies", async (req, res) => {
+    const env = monitorEnv(options);
+    if (!spatial.anomaliesEnabled(env)) {
+      return res.status(200).json({
+        ok: true,
+        code: "flag_off",
+        anomalies: [],
+        alerts: [],
+        explanation: null,
+        decidedBy: "rule",
+      });
+    }
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return res.status(400).json({ ok: false, code: "malformed" });
+    }
+    if (JSON.stringify(body).length > MAX_BODY_CHARS || hasUrlKey(body)) {
+      return res.status(400).json({ ok: false, code: "forbidden" });
+    }
+    const monitorId = typeof body.monitorId === "string" ? body.monitorId : "";
+    if (!monitorId) return res.status(400).json({ ok: false, code: "malformed" });
+    if (!options.prisma) {
+      return res.status(503).json({ ok: false, code: "store_unavailable", anomalies: [], alerts: [] });
+    }
+    try {
+      const stored = await loadStoredHistory(options.prisma, monitorId);
+      if (!stored) return res.status(404).json({ ok: false, code: "monitor_not_found", anomalies: [], alerts: [] });
+      const now = typeof options.now === "function" ? options.now() : Date.now();
+      const ctx = { env };
+      if (options.authorized === true && options.authorization === "AUTHORIZED_EXACT") {
+        ctx.authorized = true;
+        ctx.authorization = "AUTHORIZED_EXACT";
+      }
+      let result = spatial.evaluateAnomalies({
+        monitor: stored.monitor,
+        observations: stored.observations,
+        snapshots: stored.snapshots,
+        now,
+      }, ctx);
+      if (typeof options.explain === "function" && result.anomalies.length) {
+        let produced = null;
+        try {
+          produced = await options.explain({
+            decidedBy: "rule",
+            anomalies: result.anomalies.map((anomaly) => ({
+              family: anomaly.family,
+              severity: anomaly.severity,
+              confidence: anomaly.confidence,
+              reason: anomaly.reason,
+            })),
+          });
+        } catch {
+          produced = null;
+        }
+        result = spatial.attachAnomalyExplanation(result, produced);
+      }
+      if (result.code === "ok" && result.anomalies.length) {
+        await saveAnomalies(options.prisma, monitorId, result, stored.monitor.monitoringBeganAt);
+      }
+      return res.status(200).json(result);
     } catch {
       return res.status(502).json({ ok: false, code: "unavailable" });
     }

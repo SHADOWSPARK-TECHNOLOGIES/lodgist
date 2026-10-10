@@ -856,6 +856,7 @@ model SpatialMonitor {
   updatedAt         DateTime                     @updatedAt
   observations      SpatialMonitorObservation[]
   snapshots         SpatialReportSnapshot[]
+  anomalies         SpatialAnomaly[]
 
   @@index([targetType])
   @@index([state])
@@ -890,4 +891,29 @@ model SpatialReportSnapshot {
 
   @@index([monitorId])
   @@index([capturedAt])
+}
+
+// Anomaly decisions. New table only. The foreign key lives here, so
+// SpatialMonitor, Listing, and earlier tables are not altered.
+// explanation is optional text and is not an input to severity or confidence.
+model SpatialAnomaly {
+  id              String         @id
+  monitorId       String
+  monitor         SpatialMonitor @relation(fields: [monitorId], references: [id], onDelete: Cascade)
+  family          String
+  severity        String
+  confidence      Float
+  reason          String
+  observationIds  Json
+  rule            Json
+  provider        String?
+  triggeredAt     DateTime
+  evidence        Json
+  explanation     String?
+  provenance      Json?
+  createdAt       DateTime       @default(now())
+
+  @@index([monitorId])
+  @@index([family])
+  @@index([triggeredAt])
 }

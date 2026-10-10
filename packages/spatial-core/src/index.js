@@ -98,4 +98,9 @@ export const {
   getChangesSince,
   replaySpatialContext,
   recordReportSnapshot,
+  ANOMALY_FLAG,
+  ANOMALY_FAMILIES,
+  anomaliesEnabled,
+  evaluateAnomalies,
+  attachAnomalyExplanation,
 } = core;
