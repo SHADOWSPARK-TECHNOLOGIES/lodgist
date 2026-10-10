@@ -4,7 +4,13 @@ const { approxLocation, isEligiblePublicListing } = require("./listings");
 const { saveMonitorRun } = require("../services/spatialMonitorStore");
 const { loadStoredHistory, saveReportSnapshot } = require("../services/spatialHistoryStore");
 const { saveAnomalies } = require("../services/spatialAnomalyStore");
-const { createResilientCostLedger, createGovernedFetch } = require("../services/spatialCostGovernor");
+const {
+  createResilientCostLedger,
+  createGovernedFetch,
+  attributeServedProvider,
+  observeSafeguardCache,
+  recordCacheHits,
+} = require("../services/spatialCostGovernor");
 
 const URL_KEYS = ["url", "providerUrl", "userUrl", "endpoint", "baseUrl", "tileUrl", "interpreterUrl"];
 const MAX_BODY_CHARS = 32 * 1024;
@@ -58,6 +64,8 @@ function createSpatialRouter(options = {}) {
   // Phase 12L: every spatial provider call is metered by the persisted cost ledger
   // (Prisma SpatialCostLedger, in-memory until that table exists).
   const costLedger = options.costLedger || createResilientCostLedger(options.prisma, { log: options.log });
+  // Router-owned cache state so cache hits can be observed and metered.
+  const safeguardState = options.safeguardState || spatial.createSafeguardState();
 
   // Phase 12B: every spatial response carries DataQuality (tool results already do).
   router.use((req, res, next) => {
@@ -92,31 +100,37 @@ function createSpatialRouter(options = {}) {
             : null;
         if (listing) listings.push(listing);
       }
-      const result = await spatial.callTool(String(body.name || ""), input, {
+      const governedFetch = options.fetchImpl
+        ? createGovernedFetch(options.fetchImpl, {
+          env: options.env || {},
+          ledger: costLedger,
+          registry: options.registry,
+          production: options.production,
+          lookup: options.lookup,
+          tenant: options.costTenant,
+          agent: options.costAgent,
+          budgets: options.costBudgets,
+          paid: options.costPaid,
+          estimatedCost: options.costEstimates,
+          throttleDelayMs: options.throttleDelayMs,
+          now: options.now,
+        })
+        : undefined;
+      const observed = observeSafeguardCache(safeguardState);
+      const raw = await spatial.callTool(String(body.name || ""), input, {
         listings,
         isPublicListing: (listing) => Boolean(listing && listing.public === true),
         env: options.env || {},
-        fetchImpl: options.fetchImpl
-          ? createGovernedFetch(options.fetchImpl, {
-            env: options.env || {},
-            ledger: costLedger,
-            registry: options.registry,
-            production: options.production,
-            lookup: options.lookup,
-            tenant: options.costTenant,
-            agent: options.costAgent,
-            budgets: options.costBudgets,
-            paid: options.costPaid,
-            estimatedCost: options.costEstimates,
-            throttleDelayMs: options.throttleDelayMs,
-            now: options.now,
-          })
-          : undefined,
+        fetchImpl: governedFetch,
         lookup: options.lookup,
         registry: options.registry,
-        safeguardState: options.safeguardState,
+        safeguardState: observed.state,
         log: options.log,
       });
+      if (governedFetch && raw.ok && governedFetch.decisions.length === 0 && observed.reads.size > 0) {
+        await recordCacheHits(costLedger, observed.reads, { tenant: options.costTenant, agent: options.costAgent, now: options.now });
+      }
+      const result = governedFetch ? attributeServedProvider(raw, governedFetch.served, { registry: options.registry, now: options.now }) : raw;
       const status = result.ok ? 200 : (result.code === "malformed" || result.code === "forbidden" ? 400 : 502);
       return res.status(status).json(result);
     } catch {

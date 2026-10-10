@@ -152,6 +152,8 @@ function createGovernedFetch(fetchImpl, options = {}) {
   const env = options.env || {};
   const ledger = options.ledger;
   const decisions = [];
+  // Which provider actually answered each outbound call (requested vs served).
+  const served = [];
   const canRun = (id) => {
     const verdict = spatial.providerCanRun(id, { registry: options.registry, env, production: options.production });
     return Boolean(verdict && verdict.ok);
@@ -176,12 +178,16 @@ function createGovernedFetch(fetchImpl, options = {}) {
     if (verdict.decision === "FALLBACK") {
       const href = String(url);
       const nextUrl = href.startsWith(provider.base) ? fallbackRow.base + href.slice(provider.base.length) : fallbackRow.base;
-      return governed(nextUrl, init, fallbackRow, true);
+      return governed(nextUrl, init, fallbackRow, switched || provider.id);
     }
     if (verdict.decision === "THROTTLE" && options.throttleDelayMs > 0) {
       await new Promise((r) => setTimeout(r, options.throttleDelayMs));
     }
-    if (!switched) return fetchImpl(url, init);
+    if (!switched) {
+      served.push({ requested: provider.id, servedBy: provider.id, fallback: false });
+      return fetchImpl(url, init);
+    }
+    served.push({ requested: switched, servedBy: provider.id, fallback: true });
     // Core only allowlisted the primary host; re-apply the same SSRF guard to the fallback.
     const guarded = await fetchAllowlisted({
       url,
@@ -207,7 +213,103 @@ function createGovernedFetch(fetchImpl, options = {}) {
     return governed(url, init, provider);
   };
   wrapped.decisions = decisions;
+  wrapped.served = served;
   return wrapped;
+}
+
+function providerRow(id, registry) {
+  try {
+    return spatial.providerRegistry(registry).find((row) => row.id === id) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Rewrite a tool result so its evidence names the provider that actually
+ * served the data (not the one core asked for). On FALLBACK the primary
+ * provider can never appear as the source: provider, commercial class and
+ * attribution come from the fallback row, and a warning says so.
+ */
+function attributeServedProvider(result, served, options = {}) {
+  if (!result || typeof result !== "object" || !Array.isArray(served) || served.length === 0) return result;
+  const last = served[served.length - 1];
+  const row = providerRow(last.servedBy, options.registry);
+  const commercialUse = row && row.commercialUse ? row.commercialUse : "UNKNOWN";
+  const attribution = row && typeof row.attribution === "string" ? row.attribution : null;
+  const servedBy = {
+    provider: last.servedBy,
+    requestedProvider: last.requested,
+    fallback: last.fallback === true,
+    commercialUse,
+    attribution,
+  };
+  const out = Object.assign({}, result, { servedBy });
+  if (result.provenance && typeof result.provenance === "object") {
+    out.provenance = Object.assign({}, result.provenance, {
+      provider: last.servedBy,
+      attribution: attribution || result.provenance.attribution || null,
+      commercialUse,
+      fallbackFrom: servedBy.fallback ? last.requested : null,
+    });
+  }
+  if (result.dataQuality && typeof result.dataQuality === "object") {
+    out.dataQuality = Object.assign({}, result.dataQuality, { servedBy: last.servedBy, commercialUse, attribution });
+  }
+  if (servedBy.fallback) {
+    const warning = `Provider fallback used: ${last.requested} was not called; data served by ${last.servedBy} (${commercialUse}).`;
+    out.warnings = [...(Array.isArray(result.warnings) ? result.warnings : []), warning];
+    // Core computed dataQuality before the fallback was known; surface it there too.
+    if (out.dataQuality) {
+      const dq = out.dataQuality;
+      out.dataQuality = Object.assign({}, dq, {
+        warnings: [...(Array.isArray(dq.warnings) ? dq.warnings : []), warning],
+        ruleIds: [...(Array.isArray(dq.ruleIds) ? dq.ruleIds : []), "dq.provider.fallback"],
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Per-request view of a spatial-core safeguard state whose cache records
+ * which provider keys (cacheKey prefix) returned an entry.
+ */
+function observeSafeguardCache(state) {
+  const reads = new Set();
+  const cache = state.cache;
+  const view = Object.assign({}, state, {
+    cache: {
+      get(key) {
+        const hit = cache.get(key);
+        if (hit) reads.add(String(key).split("|")[0]);
+        return hit;
+      },
+      set: (key, value) => cache.set(key, value),
+      has: (key) => cache.has(key),
+      delete: (key) => cache.delete(key),
+      get size() { return cache.size; },
+    },
+  });
+  return { state: view, reads };
+}
+
+/**
+ * Record cache hits in the ledger: zero cost, no provider request. Only when
+ * the tool succeeded and no provider fetch was made for this call.
+ */
+async function recordCacheHits(ledger, reads, options = {}) {
+  const out = [];
+  for (const provider of reads) {
+    out.push(await spatial.governProviderCall(ledger, {
+      provider,
+      tenant: options.tenant || "lodgist",
+      agent: options.agent || "default",
+      cacheHit: true,
+      now: typeof options.now === "function" ? options.now() : undefined,
+    }));
+  }
+  return out;
 }
 
 module.exports = {
@@ -215,4 +317,7 @@ module.exports = {
   createGovernedFetch,
   providerForUrl,
   isMissingTableError,
+  attributeServedProvider,
+  observeSafeguardCache,
+  recordCacheHits,
 };

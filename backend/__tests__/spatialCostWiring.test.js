@@ -179,3 +179,108 @@ test("the router builds its own ledger from prisma and survives a missing delega
   assert.equal(missing.status, 200);
   assert.equal(missing.body.ok, true);
 });
+
+/* ---- Provenance follows the provider that actually served the data ---- */
+
+test("FALLBACK provenance names the fallback provider, its commercial class and attribution, never the primary", async () => {
+  const prisma = fakePrisma();
+  const fetchImpl = recordingFetch();
+  const { status, body } = await callNearby({ prisma, fetchImpl, costBudgets: { "overpass-selfhosted": { maxRequests: 0 } } });
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(fetchImpl.urls, [PUB]);
+  assert.equal(body.provenance.provider, "overpass-public");
+  assert.equal(body.provenance.fallbackFrom, "overpass-selfhosted");
+  assert.equal(body.provenance.commercialUse, "APPROVED_WITH_ATTRIBUTION");
+  assert.equal(body.provenance.attribution, "© OpenStreetMap contributors");
+  assert.deepEqual(body.servedBy, {
+    provider: "overpass-public",
+    requestedProvider: "overpass-selfhosted",
+    fallback: true,
+    commercialUse: "APPROVED_WITH_ATTRIBUTION",
+    attribution: "© OpenStreetMap contributors",
+  });
+  assert.ok(body.warnings.some((w) => /fallback/i.test(w) && w.includes("overpass-public")));
+  assert.ok(body.dataQuality.warnings.some((w) => /fallback/i.test(w)), "dataQuality carries the fallback warning");
+  assert.ok(body.dataQuality.ruleIds.includes("dq.provider.fallback"));
+  assert.equal(body.dataQuality.servedBy, "overpass-public");
+  assert.equal(body.dataQuality.commercialUse, "APPROVED_WITH_ATTRIBUTION");
+  assert.equal(body.dataQuality.attribution, "© OpenStreetMap contributors");
+  // The primary is never named as the source of fallback data anywhere except as fallbackFrom/requestedProvider.
+  const scrubbed = JSON.stringify(Object.assign({}, body, {
+    servedBy: Object.assign({}, body.servedBy, { requestedProvider: null }),
+    provenance: Object.assign({}, body.provenance, { fallbackFrom: null }),
+    warnings: [], dataQuality: null,
+  }));
+  assert.ok(!scrubbed.includes("overpass-selfhosted"), scrubbed);
+});
+
+test("FALLBACK uses the fallback row's own commercial class (default registry: DEVELOPMENT_ONLY)", async () => {
+  const fetchImpl = recordingFetch();
+  const reg = [cleared("overpass-selfhosted", { env: "OVERPASS_SELFHOSTED_URL" }), { id: "overpass-public", status: "cleared", env: "OVERPASS_INTERPRETER_URL" }];
+  const { body } = await callNearby({ prisma: fakePrisma(), fetchImpl, registry: reg, costBudgets: { "overpass-selfhosted": { maxRequests: 0 } } });
+  assert.equal(body.ok, true, JSON.stringify(body));
+  assert.equal(body.provenance.provider, "overpass-public");
+  assert.equal(body.provenance.commercialUse, "DEVELOPMENT_ONLY");
+  assert.equal(body.servedBy.commercialUse, "DEVELOPMENT_ONLY");
+  assert.equal(body.dataQuality.commercialUse, "DEVELOPMENT_ONLY");
+});
+
+test("a direct (non-fallback) call is attributed to the primary with no fallback warning", async () => {
+  const fetchImpl = recordingFetch();
+  const { body } = await callNearby({ prisma: fakePrisma(), fetchImpl });
+  assert.equal(body.provenance.provider, "overpass-selfhosted");
+  assert.equal(body.provenance.fallbackFrom, null);
+  assert.equal(body.servedBy.fallback, false);
+  assert.equal(body.dataQuality.servedBy, "overpass-selfhosted");
+  assert.ok(!body.dataQuality.ruleIds.includes("dq.provider.fallback"));
+  assert.ok(!(body.warnings || []).some((w) => /fallback/i.test(w)));
+});
+
+test("attributeServedProvider: any fallback served record overrides a primary-named envelope", () => {
+  const { attributeServedProvider } = require("../src/services/spatialCostGovernor");
+  const raw = { ok: true, provenance: { provider: "overpass-selfhosted", attribution: "primary", source: "OpenStreetMap" } };
+  const out = attributeServedProvider(raw, [{ requested: "overpass-selfhosted", servedBy: "overpass-public", fallback: true }], { registry });
+  assert.equal(out.provenance.provider, "overpass-public");
+  assert.notEqual(out.provenance.attribution, "primary");
+  assert.equal(out.servedBy.provider, "overpass-public");
+  assert.equal(raw.provenance.provider, "overpass-selfhosted", "input not mutated");
+});
+
+/* ---- Cache hits are metered at zero cost ---- */
+
+test("a spatial-core cache hit is recorded in the ledger with zero cost and no provider request", async () => {
+  const prisma = fakePrisma();
+  const fetchImpl = recordingFetch();
+  const safeguardState = createSafeguardState();
+  const first = await callNearby({ prisma, fetchImpl, safeguardState });
+  assert.equal(first.body.ok, true);
+  const second = await callNearby({ prisma, fetchImpl, safeguardState });
+  assert.equal(second.body.ok, true, JSON.stringify(second.body));
+  assert.equal(fetchImpl.urls.length, 1, "second call served from cache");
+  const row = ledgerRow(prisma, "overpass-selfhosted");
+  assert.equal(row.requests, 1);
+  assert.equal(row.cacheHits, 1);
+  assert.equal(Number(row.estimatedCost), 0);
+  await callNearby({ prisma, fetchImpl, safeguardState });
+  assert.equal(ledgerRow(prisma, "overpass-selfhosted").cacheHits, 2);
+  assert.equal(ledgerRow(prisma, "overpass-selfhosted").requests, 1);
+});
+
+test("cache hits do not consume request budget", async () => {
+  const prisma = fakePrisma();
+  const fetchImpl = recordingFetch();
+  const safeguardState = createSafeguardState();
+  const opts = { prisma, fetchImpl, safeguardState, env: { OVERPASS_SELFHOSTED_URL: SELF }, costBudgets: { "overpass-selfhosted": { maxRequests: 1 } }, costEstimates: { "overpass-selfhosted": 5 } };
+  assert.equal((await callNearby(opts)).body.ok, true);
+  for (let i = 0; i < 3; i += 1) assert.equal((await callNearby(opts)).body.ok, true);
+  const row = ledgerRow(prisma, "overpass-selfhosted");
+  assert.equal(row.requests, 1);
+  assert.equal(Number(row.estimatedCost), 5);
+  assert.equal(row.cacheHits, 3);
+});
+
+test("a cold call records no cache hit", async () => {
+  const prisma = fakePrisma();
+  await callNearby({ prisma, fetchImpl: recordingFetch() });
+  assert.equal(ledgerRow(prisma, "overpass-selfhosted").cacheHits, 0);
+});
