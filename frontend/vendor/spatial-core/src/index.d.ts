@@ -367,3 +367,23 @@ export function evidenceEnvelope(input?: {
   license?: string | null;
   coverage?: string | null;
 }, options?: { now?: number | null; staleAfterMs?: number }): EvidenceEnvelope;
+
+export const TARGET_TYPES: readonly Array<"location" | "listing" | "neighborhood" | "provider" | "layer" | "event">;
+export const CONDITION_OPS: readonly Array<"eq" | "neq" | "gt" | "gte" | "lt" | "lte" | "changed">;
+export const MONITORING_FLAG: "SPATIAL_MONITORING";
+export function monitoringEnabled(env?: Record<string, string | undefined> | null): boolean;
+export function minimumScheduleMs(row: { rateLimits?: { perMinuteDefault?: number; minIntervalMs?: number }; freshnessPolicy?: { minIntervalMs?: number; staleAfterMs?: number } } | null): number | null;
+export function assertSchedule(monitor: { providers?: string[]; schedule?: { intervalMs?: number } }, registry?: DataSourceRow[]): {
+  ok: boolean;
+  code: string;
+  provider?: string;
+  minimumIntervalMs?: number;
+  reason?: string;
+};
+export function evaluateConditions(baseline: { value?: unknown } | null, value: unknown, conditions?: Array<{ op?: string }>): Array<{
+  index: number;
+  op: string | null;
+  met: boolean;
+  reason: string;
+}>;
+export function beginMonitor(input: object, now: number): { ok: boolean; code?: string; monitor?: object };

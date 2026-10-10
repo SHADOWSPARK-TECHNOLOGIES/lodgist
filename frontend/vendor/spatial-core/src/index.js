@@ -80,4 +80,12 @@ export const {
   FRESHNESS,
   ENVELOPE_KEYS,
   evidenceEnvelope,
+  TARGET_TYPES,
+  CONDITION_OPS,
+  MONITORING_FLAG,
+  monitoringEnabled,
+  minimumScheduleMs,
+  assertSchedule,
+  evaluateConditions,
+  beginMonitor,
 } = core;
