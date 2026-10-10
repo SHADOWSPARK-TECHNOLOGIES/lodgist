@@ -45,7 +45,13 @@
     "overrides": {
       "next-auth>@auth/core": "0.41.3"
     },
-    "onlyBuiltDependencies": ["@prisma/engines", "prisma", "sharp", "unrs-resolver"]
+    "onlyBuiltDependencies": [
+      "@prisma/engines",
+      "prisma",
+      "sharp",
+      "unrs-resolver",
+      "@embedded-postgres/linux-x64"
+    ]
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
@@ -56,6 +62,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.1.5",
+    "embedded-postgres": "18.4.0-beta.17",
     "eslint": "^9",
     "eslint-config-next": "16.3.8",
     "patch-package": "^8.0.1",

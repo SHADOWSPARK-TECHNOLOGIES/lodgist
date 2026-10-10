@@ -1,0 +1,181 @@
+---
+description: Autonomous ShadowSpark execution loop for safe local engineering
+alwaysApply: true
+---
+
+# SHADOWSPARK AUTONOMOUS EXECUTION
+
+Operate continuously through bounded engineering tasks without stopping merely
+because one milestone completed.
+
+CORE LOOP:
+
+STATE
+→ EVIDENCE
+→ DECIDE
+→ EXECUTE
+→ VERIFY
+→ REVIEW
+→ CHECKPOINT
+→ NEXT TASK
+
+After CHECKPOINT:
+
+If another safe, local, reversible task clearly advances the active mission,
+continue automatically.
+
+Do NOT stop simply to report progress.
+
+Stop only when:
+- explicit human approval is required
+- production credentials must be changed
+- production data must be mutated
+- deployment is required
+- external billing/account action is required
+- destructive migration is required
+- requirements conflict materially
+- the next action has substantial irreversible blast radius
+
+## AUTHORITY
+
+Current repository state outranks old documentation.
+
+Order:
+
+LIVE CODE / TESTS / RUNTIME
+>
+CURRENT VERIFIED STATE
+>
+CURRENT CANONICAL DOCUMENTATION
+>
+WORKING NOTES
+>
+HISTORICAL DOCUMENTATION
+>
+OLD CHAT / MEMORY
+>
+SPECULATION
+
+## EXECUTION POLICY
+
+Before implementation:
+
+- inspect git status
+- inspect branch and HEAD
+- locate repository instructions
+- identify affected components
+- establish baseline
+- identify smallest useful change
+
+During implementation:
+
+- prefer existing services
+- preserve working architecture
+- avoid parallel systems
+- use existing dependencies where possible
+- prefer deterministic logic for business rules
+- use AI only where language/reasoning adds value
+- never fabricate successful verification
+
+After implementation:
+
+- inspect diff
+- run targeted tests
+- run relevant broader validation
+- delegate independent verification when useful
+- fix regressions caused by the current change
+- distinguish pre-existing failures from new failures
+- update execution notes
+- commit locally when the task reaches a verified checkpoint
+
+## AUTONOMOUS NEXT-TASK SELECTION
+
+After completing a task, inspect:
+
+1. failing verification relevant to the change
+2. security or correctness gaps introduced/exposed by the work
+3. missing tests for the implemented behavior
+4. integration gaps blocking the active feature
+5. documentation/checkpoint gaps
+6. next smallest prerequisite toward the stated mission
+
+Choose ONE next bounded task.
+
+Continue automatically.
+
+Do not expand into unrelated feature work.
+
+## FAILURE LOOP
+
+When a command fails:
+
+1. capture evidence
+2. form a root-cause hypothesis
+3. test that hypothesis
+4. apply the smallest fix
+5. rerun verification
+
+After two failed attempts using substantially the same approach:
+change method instead of repeating blindly.
+
+## GIT
+
+Local commits are permitted when changes are verified.
+
+Never automatically:
+
+- git push
+- force push
+- merge to main
+- create releases
+- publish packages
+- deploy
+- rewrite public history
+
+## SECRETS
+
+Never print secrets.
+
+Never cat/read credential files merely to inspect their contents.
+
+Credential filenames or secret TYPES may be reported.
+
+Tracked secret-like files should be treated as compromised until rotated.
+
+Removing a secret from Git does not constitute secret rotation.
+
+## DATABASE
+
+Local disposable test databases are allowed.
+
+Never automatically:
+
+- migrate production
+- truncate production
+- reset production
+- run prisma db push against production
+- modify production data
+
+## CLOUD
+
+Read-only inspection is allowed when credentials/configuration permit it.
+
+Cloud mutations require explicit authorization.
+
+## DEFINITION OF DONE
+
+"Implemented" is not DONE.
+
+DONE requires appropriate evidence:
+
+CODE
++
+TEST
++
+INTEGRATION
++
+SECURITY/EDGE REVIEW
++
+CHECKPOINT
+
+Do not claim PASS where verification was skipped.

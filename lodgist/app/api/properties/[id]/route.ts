@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { propertyUpdateSchema } from '@/lib/validation/property';
+import { canMutateProperty } from '@/lib/authz';
 import { auth } from '@/auth'; // NextAuth.js authentication
 import { prisma } from '@/lib/prisma';
 import * as z from 'zod';
@@ -38,14 +39,19 @@ export async function PUT(
     const body = await req.json();
     const validatedData = propertyUpdateSchema.parse(body);
 
-    // Optional: Check if the authenticated user is the owner of the property or an ADMIN
     const existingProperty = await prisma.property.findUnique({ where: { id: parseInt(id) } });
     if (!existingProperty) {
       return NextResponse.json({ message: 'Property not found.' }, { status: 404 });
     }
-    // if (existingProperty.ownerId !== session.user.id && session.user.role !== 'ADMIN') {
-    //   return NextResponse.json({ message: 'Unauthorized to update this property.' }, { status: 403 });
-    // }
+    if (
+      !canMutateProperty({
+        ownerId: existingProperty.ownerId,
+        userId: session.user.id,
+        role: session.user.role,
+      })
+    ) {
+      return NextResponse.json({ message: 'Unauthorized to update this property.' }, { status: 403 });
+    }
 
     // Remove ownerId from update data — ownership cannot be transferred via update
     const { ownerId: _, ...updateData } = validatedData;
@@ -76,14 +82,19 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    // Optional: Check if the authenticated user is the owner of the property or an ADMIN
     const existingProperty = await prisma.property.findUnique({ where: { id: parseInt(id) } });
     if (!existingProperty) {
       return NextResponse.json({ message: 'Property not found.' }, { status: 404 });
     }
-    // if (existingProperty.ownerId !== session.user.id && session.user.role !== 'ADMIN') {
-    //   return NextResponse.json({ message: 'Unauthorized to delete this property.' }, { status: 403 });
-    // }
+    if (
+      !canMutateProperty({
+        ownerId: existingProperty.ownerId,
+        userId: session.user.id,
+        role: session.user.role,
+      })
+    ) {
+      return NextResponse.json({ message: 'Unauthorized to delete this property.' }, { status: 403 });
+    }
 
     await prisma.property.delete({
       where: { id: parseInt(id) },

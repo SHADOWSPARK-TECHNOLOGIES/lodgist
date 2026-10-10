@@ -1,0 +1,181 @@
+---
+description: ShadowSpark Architect control plane and context-routing rules
+alwaysApply: true
+---
+
+# SHADOWSPARK ARCHITECT CONTROL PLANE
+
+Operate under:
+
+STATE -> EVIDENCE -> VALUE -> DECIDE -> EXECUTE -> VERIFY -> CHECKPOINT
+
+For revenue-facing work extend to:
+
+STATE -> EVIDENCE -> VALUE -> DECIDE -> EXECUTE -> VERIFY -> MONETIZE -> CHECKPOINT
+
+## AUTHORITY
+
+Evidence priority:
+
+1. LIVE_VERIFIED
+   - current Git state
+   - current files
+   - tests
+   - runtime
+   - deployment
+   - database evidence
+   - customer/payment evidence
+
+2. PERFORMANCE_AND_REVENUE
+
+3. CURRENT_CANONICAL
+
+4. CURRENT_PRIMARY_RESEARCH
+
+5. CURRENT_WORKING_CONTEXT
+
+6. HISTORICAL_ARCHIVE
+
+7. BRAINSTORM
+
+Current code and verified runtime evidence override stale Markdown,
+old prompts, screenshots, memory, and historical agent claims.
+
+## CONTEXT POLICY
+
+Do NOT load everything.
+
+HOT:
+- current task
+- current diff
+- failing command/test
+- files directly involved
+
+WARM:
+- architecture
+- project decisions
+- AGENTS.md
+- relevant SKILL.md
+- relevant manual section
+
+COLD:
+- old handoffs
+- historical prompts
+- archived plans
+- unrelated conversations
+
+Search COLD context only when necessary.
+
+## PROJECT DISCOVERY
+
+Before consequential edits inspect, when present:
+
+AGENTS.md
+CLAUDE.md
+CLAUDE.local.md
+GEMINI.md
+CURRENT_STATE.md
+HANDOFF.md
+BETA_STATUS.md
+README.md
+docs/
+.agent-context.md
+.agent-handoff/
+.agents/
+.cursor/
+.codex/
+.grok/
+
+Also inspect:
+
+~/AgentOps/manuals/
+~/AgentOps/repos/ponytail/
+~/AgentOps/repos/ECC/
+~/AgentOps/repos/skills/
+~/AgentOps/repos/archify/
+~/AgentOps/repos/context-mode/
+
+If /memory exists, it is retrieval context only.
+It never outranks live repository evidence.
+
+## PONYTAIL
+
+Use Ponytail's minimum-change discipline.
+
+Before adding code ask:
+
+1. Does this need to exist?
+2. Does stdlib already solve it?
+3. Does the native platform solve it?
+4. Does an installed dependency solve it?
+5. Can it be one small change?
+6. Only then implement the minimum correct solution.
+
+Minimum implementation does NOT mean minimum verification.
+
+Never reduce:
+- security
+- trust-boundary validation
+- tenant isolation
+- auth controls
+- payment safety
+- error handling required for correctness
+- accessibility
+- rollback/recovery
+- tests necessary to prove the change
+
+## SKILLS
+
+Discover skills dynamically.
+
+Search:
+
+~/.cursor/skills/
+~/.agents/skills/
+.agents/skills/
+.cursor/skills/
+~/AgentOps/repos/ponytail/skills/
+~/AgentOps/repos/ECC/skills/
+
+Read only task-relevant SKILL.md files.
+
+Do not preload the entire ECC catalog.
+
+## WRITING AUTHORITY
+
+One lead writer per active domain.
+
+Parallelize:
+- research
+- inspection
+- testing
+- independent review
+
+Serialize overlapping source-code writes unless separate worktrees and
+interfaces make concurrency safe.
+
+## EXECUTION
+
+Before editing:
+
+1. establish repo root
+2. inspect git status
+3. identify active branch
+4. inspect local instructions
+5. identify source-of-truth files
+6. establish baseline
+7. state smallest useful change
+
+After editing:
+
+1. inspect diff
+2. run targeted tests
+3. run broader validation appropriate to blast radius
+4. report commands and actual results
+5. record unresolved blockers
+6. checkpoint
+
+Never claim PASS without evidence.
+
+Never deploy, push, migrate production data, rotate secrets, or perform
+irreversible cloud actions unless explicitly authorized for that operation.

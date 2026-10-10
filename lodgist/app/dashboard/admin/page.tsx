@@ -28,6 +28,7 @@ interface BookingWithListing {
   startDate: string;
   endDate: string;
   status: string;
+  sourceChannel?: string | null;
   createdAt: string;
   listing: {
     id: string;
@@ -283,6 +284,7 @@ const AdminDashboard = () => {
                         <th className="pb-2 pr-4 font-medium">Property</th>
                         <th className="pb-2 pr-4 font-medium">Tenant</th>
                         <th className="pb-2 pr-4 font-medium">Status</th>
+                        <th className="pb-2 pr-4 font-medium">Channel</th>
                         <th className="pb-2 font-medium">Date</th>
                       </tr>
                     </thead>
@@ -303,6 +305,9 @@ const AdminDashboard = () => {
                           </td>
                           <td className="py-2 pr-4">
                             <StatusBadge status={booking.status} />
+                          </td>
+                          <td className="py-2 pr-4 text-muted-foreground">
+                            {booking.sourceChannel ?? "direct"}
                           </td>
                           <td className="py-2 text-muted-foreground">
                             {new Date(booking.createdAt).toLocaleDateString("en-NG", {

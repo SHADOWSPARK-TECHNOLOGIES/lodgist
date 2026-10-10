@@ -1,0 +1,25 @@
+{
+  "name": "Lodgist monorepo",
+  "user": "ubuntu",
+  "install": "bash .cursor/setup/install.sh",
+  "start": "bash .cursor/setup/start.sh",
+  "terminals": [
+    {
+      "name": "lodgist-app (3000)",
+      "command": "cd lodgist && corepack pnpm dev"
+    },
+    {
+      "name": "backend-api (4000)",
+      "command": "cd backend && npm start"
+    },
+    {
+      "name": "ai-core (4001)",
+      "command": "cd packages/ai-core && npm start"
+    },
+    {
+      "name": "frontend (3001)",
+      "command": "cd frontend && corepack pnpm exec next dev -p 3001"
+    }
+  ],
+  "ports": [3000, 3001, 4000, 4001]
+}
