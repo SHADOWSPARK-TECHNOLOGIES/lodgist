@@ -622,3 +622,6 @@ export const STEP_KINDS: any;
 export const validateScene: any;
 export const createPropertyTour: any;
 export const createNeighborhoodTour: any;
+export const evidenceIndex: any;
+export const firewallClaims: any;
+export const approvedStaticRefs: any;

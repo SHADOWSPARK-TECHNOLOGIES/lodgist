@@ -16,4 +16,5 @@ module.exports = Object.assign(
   require("./events.cjs"),
   require("./shareState.cjs"),
   require("./scene.cjs"),
+  require("./firewall.cjs"),
 );
