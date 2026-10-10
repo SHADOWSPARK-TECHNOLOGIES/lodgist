@@ -9,4 +9,6 @@ module.exports = Object.assign(
   require("./notifyPolicy.cjs"),
   require("./history.cjs"),
   require("./anomaly.cjs"),
+  require("./registry.cjs"),
+  require("./providerHealth.cjs"),
 );

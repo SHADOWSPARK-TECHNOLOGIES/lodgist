@@ -110,8 +110,19 @@ async function withProviderSafeguards(options, run) {
       if (used >= limit) return { outcome: "budget" };
       box.budget.set(key, used + 1);
     }
+    const began = clock();
     const result = await run();
     const statusCode = result && typeof result.statusCode === "number" ? result.statusCode : 0;
+    if (options.healthState && options.healthState.records instanceof Map) {
+      const { recordProviderOutcome } = require("./providerHealth.cjs");
+      recordProviderOutcome(options.healthState, providerId, {
+        ok: statusCode === 0 || (statusCode >= 200 && statusCode < 400),
+        at: clock(),
+        latencyMs: clock() - began,
+        statusCode,
+        backoffUntil: BACKOFF_STATUSES.has(statusCode) ? clock() + PROVIDER_BACKOFF_MS : null,
+      });
+    }
     const permitted = cachePermitted(providerId, options.cachePolicy);
     if (BACKOFF_STATUSES.has(statusCode)) {
       box.backoffUntil.set(providerId, clock() + PROVIDER_BACKOFF_MS);

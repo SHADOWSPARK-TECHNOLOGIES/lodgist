@@ -166,6 +166,27 @@ const PROVIDER_METADATA = {
     termsCheckedAt: TERMS_CHECKED_AT,
     fallbackPriority: 40,
   }),
+  "google-photorealistic-3d": meta({
+    category: "maps",
+    capabilities: ["3d-tiles"],
+    commercialUse: "UNKNOWN",
+    cachePolicy: "never",
+    authentication: { required: true, env: "GOOGLE_MAPS_3D_KEY" },
+    termsUrl: "https://cloud.google.com/maps-platform/terms",
+    termsCheckedAt: TERMS_CHECKED_AT,
+    fallbackPriority: 90,
+  }),
+  mapillary: meta({
+    category: "street_level",
+    capabilities: ["street-imagery"],
+    commercialUse: "UNKNOWN",
+    license: "CC-BY-SA-4.0",
+    cachePolicy: "never",
+    authentication: { required: true, env: "MAPILLARY_TOKEN" },
+    termsUrl: "https://www.mapillary.com/terms",
+    termsCheckedAt: TERMS_CHECKED_AT,
+    fallbackPriority: 90,
+  }),
   osrm: meta({
     category: "routing",
     capabilities: ["route"],
@@ -206,6 +227,12 @@ function providerRegistry(override) {
   if (!rows.some((row) => row.id === "osrm")) {
     rows.push(decorateProvider({ id: "osrm", status: "absent", env: "OSRM_BASE_URL" }));
   }
+  if (!rows.some((row) => row.id === "google-photorealistic-3d")) {
+    rows.push(decorateProvider({ id: "google-photorealistic-3d", status: "disabled" }));
+  }
+  if (!rows.some((row) => row.id === "mapillary")) {
+    rows.push(decorateProvider({ id: "mapillary", status: "deferred" }));
+  }
   return rows;
 }
 
@@ -226,6 +253,7 @@ function providerCanRun(id, options = {}) {
   if (isProductionRuntime(options.env, options.production) && BLOCKED_IN_PRODUCTION.has(row.commercialUse)) {
     return { ok: false, code: "commercial_class_blocked", row };
   }
+  if (policyBlocks(id, options)) return { ok: false, code: "policy_blocked", row };
   const auth = row.authentication || {};
   if (auth.required) {
     const source = options.env || process.env;
@@ -233,6 +261,65 @@ function providerCanRun(id, options = {}) {
     if (typeof secret !== "string" || !secret.trim()) return { ok: false, code: "missing_api_key", row };
   }
   return { ok: true, code: "ok", row };
+}
+
+/**
+ * Phase 12N provider policy. A provider is enabled only when it is
+ * configured AND commercially approved AND its feature flag is on.
+ * Policy overrides can only remove access, never grant it.
+ */
+const PROVIDER_POLICY = Object.freeze({
+  "overpass-public": { policy: "DEVELOPMENT_ONLY", reason: "Public Overpass is development-only; never production." },
+  osrm: { policy: "NOT_PRODUCTION_APPROVED", reason: "Public OSRM demo is not approved for production." },
+  "google-photorealistic-3d": { policy: "DISABLED", reason: "Google 3D tiles are disabled (licence, key exposure, caching ban)." },
+  mapillary: { policy: "DEFERRED", reason: "Mapillary street-level imagery is deferred (CC BY-SA, NDPA privacy)." },
+});
+const APPROVED_CLASSES = new Set(["APPROVED_COMMERCIAL", "APPROVED_WITH_ATTRIBUTION"]);
+
+function featureFlagName(id) {
+  return `SPATIAL_PROVIDER_${String(id || "").toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_ENABLED`;
+}
+
+function flagOn(source, name) {
+  const raw = source && typeof source[name] === "string" ? source[name].trim().toLowerCase() : "";
+  return ["1", "true", "on", "yes"].includes(raw);
+}
+
+function providerPolicy(id, options = {}) {
+  const source = options.env || process.env;
+  const production = isProductionRuntime(options.env, options.production);
+  const row = providerRegistry(options.registry).find((item) => item.id === id) || null;
+  const policy = PROVIDER_POLICY[id] || { policy: "STANDARD", reason: null };
+  const envName = row && row.env;
+  const envSet = !envName || (typeof source[envName] === "string" && source[envName].trim() !== "");
+  const configured = Boolean(row && row.status === "cleared" && envSet);
+  let commerciallyApproved = Boolean(row && APPROVED_CLASSES.has(row.commercialUse));
+  if (policy.policy === "DISABLED" || policy.policy === "DEFERRED") commerciallyApproved = false;
+  if (production && (policy.policy === "DEVELOPMENT_ONLY" || policy.policy === "NOT_PRODUCTION_APPROVED")) {
+    commerciallyApproved = false;
+  }
+  if (!production && policy.policy === "DEVELOPMENT_ONLY" && row) commerciallyApproved = true;
+  const featureEnabled = policy.policy === "DISABLED" || policy.policy === "DEFERRED"
+    ? false
+    : flagOn(source, featureFlagName(id));
+  return {
+    id,
+    policy: policy.policy,
+    reason: policy.reason,
+    configured,
+    commerciallyApproved,
+    featureEnabled,
+    flag: featureFlagName(id),
+    enabled: configured && commerciallyApproved && featureEnabled,
+  };
+}
+
+function policyBlocks(id, options) {
+  const policy = PROVIDER_POLICY[id];
+  if (!policy) return false;
+  if (policy.policy === "DISABLED" || policy.policy === "DEFERRED") return true;
+  return isProductionRuntime(options.env, options.production)
+    && (policy.policy === "DEVELOPMENT_ONLY" || policy.policy === "NOT_PRODUCTION_APPROVED");
 }
 
 function providerFallback(category, options = {}) {
@@ -256,4 +343,8 @@ module.exports = {
   providerRegistry,
   providerCanRun,
   providerFallback,
+  PROVIDER_POLICY,
+  featureFlagName,
+  providerPolicy,
+  isProductionRuntime,
 };
