@@ -8,7 +8,6 @@ const {
   createResilientCostLedger,
   createGovernedFetch,
   attributeServedProvider,
-  observeSafeguardCache,
   recordCacheHits,
 } = require("../services/spatialCostGovernor");
 
@@ -116,7 +115,6 @@ function createSpatialRouter(options = {}) {
           now: options.now,
         })
         : undefined;
-      const observed = observeSafeguardCache(safeguardState);
       const raw = await spatial.callTool(String(body.name || ""), input, {
         listings,
         isPublicListing: (listing) => Boolean(listing && listing.public === true),
@@ -124,13 +122,20 @@ function createSpatialRouter(options = {}) {
         fetchImpl: governedFetch,
         lookup: options.lookup,
         registry: options.registry,
-        safeguardState: observed.state,
+        safeguardState,
         log: options.log,
       });
-      if (governedFetch && raw.ok && governedFetch.decisions.length === 0 && observed.reads.size > 0) {
-        await recordCacheHits(costLedger, observed.reads, { tenant: options.costTenant, agent: options.costAgent, now: options.now });
+      // spatial-core says explicitly when data came from its cache and which
+      // provider originally fetched it (a fallback included); no inference here.
+      const cache = raw && raw.meta && raw.meta.cache;
+      const cacheHit = Boolean(cache && cache.hit === true && cache.servedBy && cache.servedBy.provider);
+      if (governedFetch && raw.ok && cacheHit) {
+        await recordCacheHits(costLedger, [cache.servedBy.provider], { tenant: options.costTenant, agent: options.costAgent, now: options.now });
       }
-      const result = governedFetch ? attributeServedProvider(raw, governedFetch.served, { registry: options.registry, now: options.now }) : raw;
+      // A cache hit is already attributed by spatial-core to its stored serving provider.
+      const result = governedFetch && !cacheHit
+        ? attributeServedProvider(raw, governedFetch.served, { registry: options.registry, now: options.now })
+        : raw;
       const status = result.ok ? 200 : (result.code === "malformed" || result.code === "forbidden" ? 400 : 502);
       return res.status(status).json(result);
     } catch {

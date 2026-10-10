@@ -272,31 +272,8 @@ function attributeServedProvider(result, served, options = {}) {
 }
 
 /**
- * Per-request view of a spatial-core safeguard state whose cache records
- * which provider keys (cacheKey prefix) returned an entry.
- */
-function observeSafeguardCache(state) {
-  const reads = new Set();
-  const cache = state.cache;
-  const view = Object.assign({}, state, {
-    cache: {
-      get(key) {
-        const hit = cache.get(key);
-        if (hit) reads.add(String(key).split("|")[0]);
-        return hit;
-      },
-      set: (key, value) => cache.set(key, value),
-      has: (key) => cache.has(key),
-      delete: (key) => cache.delete(key),
-      get size() { return cache.size; },
-    },
-  });
-  return { state: view, reads };
-}
-
-/**
- * Record cache hits in the ledger: zero cost, no provider request. Only when
- * the tool succeeded and no provider fetch was made for this call.
+ * Record cache hits in the ledger: zero cost, no provider request, under the
+ * provider spatial-core reports in meta.cache.servedBy (the one that fetched it).
  */
 async function recordCacheHits(ledger, reads, options = {}) {
   const out = [];
@@ -318,6 +295,5 @@ module.exports = {
   providerForUrl,
   isMissingTableError,
   attributeServedProvider,
-  observeSafeguardCache,
   recordCacheHits,
 };
