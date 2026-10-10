@@ -67,3 +67,6 @@ node_modules/
 /VSCode-Perplexity-MCP
 github.authkey
 *.authkey
+
+# OSM extracts (ODbL; never commit)
+*.osm.pbf
