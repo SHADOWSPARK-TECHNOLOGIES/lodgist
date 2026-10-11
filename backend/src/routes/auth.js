@@ -5,6 +5,12 @@ const webauthnService = require("../services/webauthnService");
 const { notifySignup } = require("../utils/notifySignup");
 const { requireAuth } = require("../middleware/auth");
 
+const BCRYPT_COST = 12;
+const REGISTER_REJECTED = Object.freeze({
+  success: false,
+  error: "We couldn't create that account. If you already have one, sign in instead.",
+});
+
 module.exports = (prisma) => {
   const router = express.Router();
 
@@ -35,31 +41,37 @@ module.exports = (prisma) => {
         });
       }
 
-      // Check if user already exists
+      // Hash before any lookup so the duplicate path costs the same as a new
+      // account (no timing signal for whether an email exists).
+      const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
+
+      // A duplicate email, or a unique-constraint race (P2002), gets the same
+      // generic 400 as any other data-dependent rejection. Never reveal that
+      // an email is registered.
       const existingUser = await prisma.user.findUnique({
         where: { email },
       });
-
       if (existingUser) {
-        return res.status(409).json({
-          success: false,
-          error: "Email already registered",
-        });
+        return res.status(400).json(REGISTER_REJECTED);
       }
 
-      // Hash password
-      const passwordHash = await bcrypt.hash(password, 12);
-
-      // Create user
-      const user = await prisma.user.create({
-        data: {
-          email,
-          name,
-          passwordHash,
-          phone: phone || null,
-          role: "USER",
-        },
-      });
+      let user;
+      try {
+        user = await prisma.user.create({
+          data: {
+            email,
+            name,
+            passwordHash,
+            phone: phone || null,
+            role: "USER",
+          },
+        });
+      } catch (createError) {
+        if (createError && createError.code === "P2002") {
+          return res.status(400).json(REGISTER_REJECTED);
+        }
+        throw createError;
+      }
 
       // Generate JWT
       const token = jwt.sign(

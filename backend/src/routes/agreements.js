@@ -21,6 +21,34 @@ const {
 const agreements = new Map();
 let nextId = 1;
 
+const NOT_FOUND = { error: "Agreement not found" };
+
+function sameUser(a, b) {
+  return a != null && b != null && String(a) === String(b);
+}
+
+function isParty(agreement, user) {
+  return Boolean(user) && (
+    sameUser(agreement.tenantUserId, user.id) ||
+    sameUser(agreement.landlordUserId, user.id) ||
+    sameUser(agreement.createdByUserId, user.id)
+  );
+}
+
+/**
+ * Load an agreement the caller may read: a party to it (tenant, landlord,
+ * creator) or STUDIO_ADMIN. Anyone else gets the same 404 as a missing id,
+ * so the endpoint does not confirm that an agreement exists.
+ */
+function loadReadable(req, res) {
+  const agreement = agreements.get(parseInt(req.params.id, 10));
+  if (!agreement || !(isParty(agreement, req.user) || req.user?.role === "STUDIO_ADMIN")) {
+    res.status(404).json(NOT_FOUND);
+    return null;
+  }
+  return agreement;
+}
+
 // POST /api/agreements
 // Create a new tenancy agreement
 router.post("/", requireAuth, (req, res) => {
@@ -37,12 +65,23 @@ router.post("/", requireAuth, (req, res) => {
       endDate,
       utilitiesIncluded,
       specialClauses,
+      tenantUserId,
+      landlordUserId,
     } = req.body;
 
     if (!tenantName || !landlordName || !propertyAddress || !rentAmount || !startDate || !endDate) {
       return res.status(400).json({
         error: "Missing required fields: tenantName, landlordName, propertyAddress, rentAmount, startDate, endDate",
       });
+    }
+
+    // Bind the creator to one side; the other side is bound by user id from the body.
+    let boundTenant = tenantUserId ?? null;
+    let boundLandlord = landlordUserId ?? null;
+    if (!sameUser(boundTenant, req.user.id) && !sameUser(boundLandlord, req.user.id)) {
+      if (req.user.role === "LANDLORD" && boundLandlord == null) boundLandlord = req.user.id;
+      else if (boundTenant == null) boundTenant = req.user.id;
+      else if (boundLandlord == null) boundLandlord = req.user.id;
     }
 
     const id = nextId++;
@@ -64,6 +103,9 @@ router.post("/", requireAuth, (req, res) => {
 
     const agreement = {
       id,
+      createdByUserId: req.user.id,
+      tenantUserId: boundTenant,
+      landlordUserId: boundLandlord,
       tenantName,
       landlordName,
       propertyAddress,
@@ -101,12 +143,8 @@ router.post("/", requireAuth, (req, res) => {
 // GET /api/agreements/:id
 // Get agreement details
 router.get("/:id", requireAuth, (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const agreement = agreements.get(id);
-
-  if (!agreement) {
-    return res.status(404).json({ error: "Agreement not found" });
-  }
+  const agreement = loadReadable(req, res);
+  if (!agreement) return;
 
   res.json(agreement);
 });
@@ -118,14 +156,20 @@ router.post("/:id/sign", requireAuth, (req, res) => {
     const id = parseInt(req.params.id, 10);
     const agreement = agreements.get(id);
 
-    if (!agreement) {
-      return res.status(404).json({ error: "Agreement not found" });
+    // Only a party may sign; everyone else (admin included) cannot see it here.
+    if (!agreement || !isParty(agreement, req.user)) {
+      return res.status(404).json(NOT_FOUND);
     }
 
     const { party, ipAddress, userAgent } = req.body;
 
     if (!party || !["tenant", "landlord"].includes(party)) {
       return res.status(400).json({ error: "party must be 'tenant' or 'landlord'" });
+    }
+
+    const boundUserId = party === "tenant" ? agreement.tenantUserId : agreement.landlordUserId;
+    if (!sameUser(boundUserId, req.user.id)) {
+      return res.status(403).json({ error: `Only the ${party} on this agreement can sign as ${party}` });
     }
 
     if (party === "tenant") {
@@ -189,12 +233,8 @@ router.post("/:id/sign", requireAuth, (req, res) => {
 // GET /api/agreements/:id/certificate
 // Get the completion certificate for a signed agreement
 router.get("/:id/certificate", requireAuth, (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const agreement = agreements.get(id);
-
-  if (!agreement) {
-    return res.status(404).json({ error: "Agreement not found" });
-  }
+  const agreement = loadReadable(req, res);
+  if (!agreement) return;
 
   if (agreement.status !== "EXECUTED" || !agreement.certificate) {
     return res.status(400).json({
