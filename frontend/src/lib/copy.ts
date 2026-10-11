@@ -51,6 +51,8 @@ export const auth = {
   email: "Email",
   password: "Password",
   passwordPlaceholder: "At least 8 characters",
+  signingIn: "Signing in…",
+  creatingAccount: "Creating your account…",
   namePlaceholder: "Chioma Okonkwo",
   emailPlaceholder: "you@example.com",
   phonePlaceholder: "080...",

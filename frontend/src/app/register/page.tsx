@@ -47,27 +47,27 @@ function RegisterForm() {
 
         <form onSubmit={handleSubmit} className="card space-y-4">
           <div>
-            <label className="label">{auth.fullName}</label>
-            <input type="text" className="input" placeholder={auth.namePlaceholder}
+            <label className="label" htmlFor="register-name">{auth.fullName}</label>
+            <input id="register-name" name="name" type="text" autoComplete="name" className="input" placeholder={auth.namePlaceholder}
               value={name} onChange={e => setName(e.target.value)} required />
           </div>
           <div>
-            <label className="label">{auth.email}</label>
-            <input type="email" className="input" placeholder={auth.emailPlaceholder}
+            <label className="label" htmlFor="register-email">{auth.email}</label>
+            <input id="register-email" name="email" type="email" autoComplete="email" className="input" placeholder={auth.emailPlaceholder}
               value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div>
-            <label className="label">{auth.phoneOptional}</label>
-            <input type="tel" className="input" placeholder={auth.phonePlaceholder}
+            <label className="label" htmlFor="register-phone">{auth.phoneOptional}</label>
+            <input id="register-phone" name="phone" type="tel" autoComplete="tel" className="input" placeholder={auth.phonePlaceholder}
               value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
           <div>
-            <label className="label">{auth.password}</label>
-            <input type="password" className="input" placeholder={auth.passwordPlaceholder}
+            <label className="label" htmlFor="register-password">{auth.password}</label>
+            <input id="register-password" name="password" type="password" autoComplete="new-password" className="input" placeholder={auth.passwordPlaceholder}
               value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
           </div>
-          <button type="submit" disabled={loading} className="btn btn-primary w-full justify-center">
-            {loading ? <span className="spinner" /> : auth.createAccount}
+          <button type="submit" disabled={loading} aria-busy={loading} className="btn btn-primary w-full justify-center">
+            {loading ? <><span className="spinner" aria-hidden="true" /><span className="sr-only">{auth.creatingAccount}</span></> : auth.createAccount}
           </button>
           <p className="text-center text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
             {auth.alreadyHaveAccount} <Link href={loginHref} className="text-orange hover:underline">{auth.signIn}</Link>

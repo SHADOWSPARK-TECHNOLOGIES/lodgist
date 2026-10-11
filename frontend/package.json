@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test src/lib/listingHonesty.test.js src/lib/returnPath.test.js src/lib/invoiceRequest.test.js src/lib/spatialParity.test.js src/lib/campusDirections.test.js src/lib/viewingStatus.test.js src/lib/health.test.js src/lib/photoUploadStates.test.js src/lib/authSession.test.js && node --test ../packages/spatial-core/test/*.cjs"
+    "test": "node --test src/lib/listingHonesty.test.js src/lib/returnPath.test.js src/lib/invoiceRequest.test.js src/lib/spatialParity.test.js src/lib/campusDirections.test.js src/lib/viewingStatus.test.js src/lib/health.test.js src/lib/photoUploadStates.test.js src/lib/authSession.test.js src/lib/authFormA11y.test.js && node --test ../packages/spatial-core/test/*.cjs"
   },
   "dependencies": {
     "@lodgist/spatial-core": "file:./vendor/spatial-core",
