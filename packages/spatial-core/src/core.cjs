@@ -350,6 +350,40 @@ function routeMetrics(route) {
   return { distanceM: route.distance, durationS: route.duration };
 }
 
+/** Registry row view used to stamp cache entries with the serving provider. */
+function providerDescriber(registry) {
+  return (id) => {
+    let row = null;
+    try {
+      row = providerRegistry(registry).find((item) => item.id === id) || null;
+    } catch {
+      row = null;
+    }
+    return {
+      provider: id,
+      commercialUse: row && row.commercialUse ? row.commercialUse : "UNKNOWN",
+      attribution: row && typeof row.attribution === "string" ? row.attribution : null,
+    };
+  };
+}
+
+/** A host-declared serving provider counts only when it is a registry row. */
+function servedProviderId(response, requested, registry) {
+  const id = response && typeof response.servedBy === "string" ? response.servedBy.trim() : "";
+  if (!id || id === requested) return requested;
+  try {
+    return providerRegistry(registry).some((item) => item.id === id) ? id : requested;
+  } catch {
+    return requested;
+  }
+}
+
+function traceCache(input, providerId, guarded) {
+  if (Array.isArray(input.cacheTrace) && guarded && guarded.cache) {
+    input.cacheTrace.push(Object.assign({ requested: providerId }, guarded.cache));
+  }
+}
+
 function routePayload(focus, status, distanceM, durationS) {
   return assertNoPrivateLocationKeys({
     status,
@@ -377,6 +411,7 @@ async function loadRouteGuarded(input, focus, origin, envUrl, campus, fetchImpl,
     budgetLimit: input.budgetLimit,
     cachePolicy: decision.row && decision.row.cachePolicy,
     envSource: source,
+    describeProvider: providerDescriber(input.registry),
   }, async () => {
     try {
       const response = await fetchAllowlisted({
@@ -398,12 +433,14 @@ async function loadRouteGuarded(input, focus, origin, envUrl, campus, fetchImpl,
       return {
         statusCode,
         cacheable: true,
+        servedBy: servedProviderId(response, "osrm", input.registry),
         value: routePayload(focus, "ok", metrics.distanceM, metrics.durationS),
       };
     } catch {
       return { statusCode: 0, cacheable: false, value: empty("failed") };
     }
   });
+  traceCache(input, "osrm", guarded);
   if (guarded.outcome === "unconfigured" || guarded.outcome === "budget") return empty("unconfigured");
   return guarded.value || empty("failed");
 }
@@ -532,6 +569,7 @@ async function loadAmenitiesGuarded(input, focus, origin, providerId, envUrl, fe
     budgetLimit: input.budgetLimit,
     cachePolicy: input.cachePolicy || (decision.row && decision.row.cachePolicy),
     envSource: source,
+    describeProvider: providerDescriber(input.registry),
   }, async () => {
     try {
       const response = await fetchAllowlisted({
@@ -554,14 +592,16 @@ async function loadAmenitiesGuarded(input, focus, origin, providerId, envUrl, fe
       }
       const parsed = parseOverpass(await response.json());
       if (!parsed) return { statusCode, cacheable: false, value: amenityResult("failed", [], "OpenStreetMap") };
+      const servedBy = servedProviderId(response, providerId, input.registry);
       if (parsed.length === 0) {
-        return { statusCode, cacheable: true, value: amenityResult("empty", [], "OpenStreetMap") };
+        return { statusCode, cacheable: true, servedBy, value: amenityResult("empty", [], "OpenStreetMap") };
       }
-      return { statusCode, cacheable: true, value: amenityResult("ok", parsed, "OpenStreetMap") };
+      return { statusCode, cacheable: true, servedBy, value: amenityResult("ok", parsed, "OpenStreetMap") };
     } catch {
       return { statusCode: 0, cacheable: false, value: amenityResult("failed", [], "OpenStreetMap") };
     }
   });
+  traceCache(input, providerId, guarded);
   if (guarded.outcome === "unconfigured" || guarded.outcome === "budget") return amenityResult("unconfigured", [], null);
   return guarded.value || amenityResult("failed", [], "OpenStreetMap");
 }
