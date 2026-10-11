@@ -9,7 +9,7 @@ const eslintConfig = defineConfig([
     // Native node --test suites and their shared spatial helper are CommonJS.
     // Keep require/module.exports compatible with those consumers; TS/TSX and
     // other application modules still enforce no-require-imports.
-    files: ["src/lib/*.test.js", "src/lib/spatialTiles.js", "src/lib/spatialTool.js", "src/lib/spatialPublic.js", "src/lib/campusDirections.js", "src/lib/authErrors.js", "src/lib/authSession.js", "src/lib/listingNotFoundRoute.js"],
+    files: ["src/lib/*.test.js", "src/lib/spatialTiles.js", "src/lib/spatialTool.js", "src/lib/spatialPublic.js", "src/lib/campusDirections.js", "src/lib/authErrors.js", "src/lib/authSession.js", "src/lib/listingNotFoundRoute.js", "src/lib/neighborhoodLoad.js"],
     languageOptions: { sourceType: "commonjs" },
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
