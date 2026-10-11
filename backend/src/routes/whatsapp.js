@@ -5,7 +5,37 @@ const { parseWebhookBody } = require("./whatsappParse");
 const { sitePath, listingsReply, isExactMenuCommand, deterministicReply } = require("../services/whatsapp/menu");
 const { handleRentalCheckMessage } = require("../services/whatsapp/rentalCheck");
 const { routeTurn, resolveSender, loadOrCreateSession, toHistory } = require("../services/whatsapp/engine");
-const { logWhatsApp, redactPhone } = require("../services/whatsapp/redact");
+const {
+  logWhatsApp,
+  redactPhone,
+  phoneLast4,
+  mapGraphError,
+  logWebhookEvent,
+} = require("../services/whatsapp/redact");
+
+const SEND_TIMEOUT_MS = 8000;
+const SEND_STATUS = {
+  WA_NOT_CONFIGURED: 503,
+  META_AUTH: 502,
+  META_RATE_LIMIT: 429,
+  META_RECIPIENT: 422,
+  META_BAD_REQUEST: 502,
+  META_SERVER: 502,
+  META_NETWORK: 504,
+};
+const OUTCOME_RANK = [
+  "error_internal",
+  "reply_failed",
+  "reply_skipped_unconfigured",
+  "replied",
+  "ignored_no_sender",
+  "ignored_duplicate",
+];
+
+function dbOrInternal(error) {
+  const code = error && typeof error.code === "string" ? error.code : "";
+  return /^P\d+/.test(code) ? "DB_ERROR" : "INTERNAL";
+}
 
 /**
  * Create an Express router for WhatsApp webhook and messaging endpoints.
@@ -103,28 +133,72 @@ module.exports = function (prisma, options = {}) {
     };
   }
 
+  // Never throws. Returns { ok, metaMessageId, httpStatus, metaErrorCode, errorCode, retryAfter }.
+  // Only the numeric Graph error code is read from a failed response.
   async function sendWhatsAppMessage(to, text) {
-    const url = `https://graph.facebook.com/v18.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: { body: text },
-      }),
-    });
-
-    if (!response.ok) {
-      logWhatsApp("error", "WhatsApp API error", { status: response.status });
-      throw new Error(`WhatsApp API error: ${response.status}`);
+    const token = process.env.WHATSAPP_API_TOKEN;
+    const phoneNumberId = configuredPhoneNumberId();
+    if (!token || !phoneNumberId) {
+      return { ok: false, errorCode: "WA_NOT_CONFIGURED", metaMessageId: null, httpStatus: null, metaErrorCode: null };
     }
+    const doFetch = options.fetch || fetch;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
+    let response;
+    try {
+      response = await doFetch(`https://graph.facebook.com/v18.0/${phoneNumberId}/messages`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text } }),
+        signal: controller.signal,
+      });
+    } catch {
+      clearTimeout(timer);
+      const result = { ok: false, errorCode: "META_NETWORK", metaMessageId: null, httpStatus: null, metaErrorCode: null };
+      logWhatsApp("error", "WhatsApp send failed", { errorCode: result.errorCode, to: phoneLast4(to) });
+      return result;
+    }
+    clearTimeout(timer);
+    let json = null;
+    try {
+      json = await response.json();
+    } catch {
+      json = null;
+    }
+    if (!response.ok) {
+      const rawCode = json?.error?.code;
+      const rawSub = json?.error?.error_subcode;
+      const metaErrorCode = Number.isFinite(Number(rawCode)) && rawCode !== null ? Number(rawCode) : null;
+      const metaErrorSubcode = Number.isFinite(Number(rawSub)) && rawSub !== null ? Number(rawSub) : null;
+      const result = {
+        ok: false,
+        httpStatus: response.status,
+        metaErrorCode,
+        metaErrorSubcode,
+        errorCode: mapGraphError({ httpStatus: response.status, code: metaErrorCode }),
+        metaMessageId: null,
+        retryAfter: response.headers?.get?.("retry-after") || null,
+      };
+      logWhatsApp("error", "WhatsApp send failed", {
+        errorCode: result.errorCode,
+        httpStatus: result.httpStatus,
+        metaErrorCode,
+        metaErrorSubcode,
+        to: phoneLast4(to),
+      });
+      return result;
+    }
+    const metaMessageId = typeof json?.messages?.[0]?.id === "string" ? json.messages[0].id : null;
+    logWhatsApp("info", "WhatsApp send ok", { metaMessageId, httpStatus: response.status, to: phoneLast4(to) });
+    return { ok: true, metaMessageId, httpStatus: response.status, metaErrorCode: null, errorCode: null };
+  }
 
-    return response.json();
+  function deliveryMetadata(result) {
+    return {
+      metaMessageId: result.metaMessageId || null,
+      deliveryStatus: result.ok ? "accepted" : result.errorCode === "WA_NOT_CONFIGURED" ? "not_sent" : "failed",
+      errorCode: result.errorCode || null,
+    };
   }
 
   async function trackReferral(prisma, contactId, referredUserId) {
@@ -147,6 +221,7 @@ module.exports = function (prisma, options = {}) {
       });
 
       if (referral.count >= 3 && !referral.rewardClaimed) {
+        // sendWhatsAppMessage logs its own success/failure and never throws.
         await sendWhatsAppMessage(
           contactId,
           "🎉 *Congratulations!* You've referred 3 landlords to Lodgist!\n\n" +
@@ -174,18 +249,37 @@ module.exports = function (prisma, options = {}) {
   });
 
   router.post("/webhook", async (req, res) => {
+    const startedAt = Date.now();
+    const requestId = crypto.randomUUID();
+    const perMessage = [];
+    const finish = (status, fields) => {
+      const metaMessageIds = perMessage.map((m) => m.metaMessageId).filter(Boolean);
+      const msgTypes = [...new Set(perMessage.map((m) => m.msgType).filter(Boolean))];
+      logWebhookEvent({
+        requestId,
+        ...(perMessage.length
+          ? { messageCount: perMessage.length, metaMessageIds, msgTypes, messages: perMessage }
+          : {}),
+        ...fields,
+        durationMs: Date.now() - startedAt,
+      });
+      return res.sendStatus(status);
+    };
+
     try {
       if (process.env.WHATSAPP_APP_SECRET) {
         const sig = req.headers["x-hub-signature-256"];
         if (!verifyWebhookSignature(sig, req.body)) {
-          logWhatsApp("error", "Invalid webhook signature");
-          return res.sendStatus(403);
+          return finish(403, {
+            outcome: "rejected_signature",
+            errorCode: sig ? "SIGNATURE_INVALID" : "SIGNATURE_MISSING",
+          });
         }
       }
 
       const parsed = parseWebhookBody(req.body);
       if (!parsed) {
-        return res.sendStatus(200);
+        return finish(200, { outcome: "ignored_unparseable", errorCode: "BODY_UNPARSEABLE" });
       }
 
       const entry = parsed?.entry?.[0];
@@ -195,29 +289,59 @@ module.exports = function (prisma, options = {}) {
       const metadata = value?.metadata;
 
       if (!messages || !metadata) {
-        return res.sendStatus(200);
+        if (Array.isArray(value?.statuses) && value.statuses.length) {
+          const statuses = [...new Set(value.statuses.map((st) => String(st?.status || "unknown")))];
+          const ids = value.statuses.map((st) => st?.id).filter((id) => typeof id === "string");
+          return finish(200, {
+            outcome: "ignored_status_update",
+            statusCount: value.statuses.length,
+            statuses,
+            metaMessageIds: ids,
+          });
+        }
+        return finish(200, { outcome: "ignored_no_messages", messageCount: 0 });
       }
 
       if (!inboundChangeIsForThisNumber(metadata)) {
-        return res.sendStatus(200);
+        return finish(200, {
+          outcome: "ignored_other_number",
+          phoneNumberIdMatch: false,
+          phoneNumberIdLast4: phoneLast4(metadata?.phone_number_id),
+          configuredLast4: phoneLast4(configuredPhoneNumberId()),
+          messageCount: Array.isArray(messages) ? messages.length : 0,
+        });
       }
 
       const profileName = value?.contacts?.[0]?.profile?.name || null;
 
       for (const msg of messages) {
+        const item = {
+          metaMessageId: typeof msg?.id === "string" ? msg.id : null,
+          msgType: typeof msg?.type === "string" ? msg.type : "text",
+          phoneLast4: phoneLast4(msg?.from),
+        };
+        perMessage.push(item);
         if (msg.id) {
-          if (seenMsgIds.has(msg.id)) continue;
+          if (seenMsgIds.has(msg.id)) {
+            item.outcome = "ignored_duplicate";
+            continue;
+          }
           seenMsgIds.add(msg.id);
         }
 
         const from = msg.from;
-        if (!from) continue;
+        if (!from) {
+          item.outcome = "ignored_no_sender";
+          continue;
+        }
+        item.outcome = "error_internal";
         const msgText = msg.text?.body || "";
         const msgType = msg.type || "text";
         const timestamp = new Date(parseInt(msg.timestamp, 10) * 1000);
         const sentAt = Number.isNaN(timestamp.getTime()) ? new Date() : timestamp;
 
         const { phone, user: senderUser } = await resolveSender(prisma, from);
+        item.isLead = !senderUser;
         if (!senderUser) {
           logWhatsApp("info", "Unknown WhatsApp sender entered lead flow", redactPhone(phone));
         }
@@ -269,8 +393,10 @@ module.exports = function (prisma, options = {}) {
               })
             : { handled: false };
         if (rentalTurn.handled) {
+          item.route = "rental_check";
           replyText = rentalTurn.replyText;
         } else if (isExactMenuCommand(msgText)) {
+          item.route = "menu";
           const menu = await deterministicReply(prisma, { msgText, session, user: senderUser });
           replyText = menu.replyText;
           trackRefer = menu.trackRefer;
@@ -283,21 +409,32 @@ module.exports = function (prisma, options = {}) {
             history,
             complete: options.complete,
           });
+          item.aiOutcome = routed.aiOutcome;
           if (routed.reply) {
+            item.route = "ai";
             replyText = routed.reply;
           } else {
+            item.route = "menu";
             const menu = await deterministicReply(prisma, { msgText, session, user: senderUser });
             replyText = menu.replyText;
             trackRefer = menu.trackRefer;
           }
         }
 
-        if (
-          process.env.WHATSAPP_API_TOKEN &&
-          process.env.WHATSAPP_PHONE_NUMBER_ID
-        ) {
-          await sendWhatsAppMessage(from, replyText);
-        }
+        const sent = await sendWhatsAppMessage(from, replyText);
+        const delivery = deliveryMetadata(sent);
+        item.reply = {
+          metaMessageId: sent.metaMessageId || undefined,
+          httpStatus: sent.httpStatus || undefined,
+          metaErrorCode: sent.metaErrorCode || undefined,
+          deliveryStatus: delivery.deliveryStatus,
+        };
+        item.outcome = sent.ok
+          ? "replied"
+          : sent.errorCode === "WA_NOT_CONFIGURED"
+            ? "reply_skipped_unconfigured"
+            : "reply_failed";
+        item.errorCode = sent.errorCode || null;
 
         await prisma.whatsAppMessage.create({
           data: {
@@ -307,18 +444,35 @@ module.exports = function (prisma, options = {}) {
             messageType: "TEXT",
             direction: "OUTBOUND",
             sentAt: new Date(),
+            metadata: delivery,
           },
         });
 
-        if (trackRefer && senderUser) {
+        if (trackRefer && senderUser && sent.ok) {
           await trackReferral(prisma, from, senderUser.id);
         }
       }
 
-      return res.sendStatus(200);
+      const outcome =
+        OUTCOME_RANK.find((o) => perMessage.some((m) => m.outcome === o)) || "ignored_no_messages";
+      const worst = perMessage.find((m) => m.outcome === outcome) || {};
+      return finish(200, {
+        outcome,
+        phoneLast4: worst.phoneLast4,
+        isLead: worst.isLead,
+        route: worst.route,
+        aiOutcome: worst.aiOutcome,
+        reply: worst.reply,
+        errorCode: worst.errorCode || null,
+      });
     } catch (error) {
-      logWhatsApp("error", "WhatsApp webhook error", error instanceof Error ? error.message : "");
-      return res.sendStatus(200);
+      const errorCode = dbOrInternal(error);
+      const current = perMessage[perMessage.length - 1];
+      if (current) {
+        current.outcome = "error_internal";
+        current.errorCode = errorCode;
+      }
+      return finish(200, { outcome: "error_internal", errorCode });
     }
   });
 
@@ -372,30 +526,41 @@ module.exports = function (prisma, options = {}) {
           });
       }
 
-      if (
-        process.env.WHATSAPP_API_TOKEN &&
-        process.env.WHATSAPP_PHONE_NUMBER_ID
-      ) {
-        await sendWhatsAppMessage(to, message);
+      const sent = await sendWhatsAppMessage(to, message);
+      if (sent.errorCode === "WA_NOT_CONFIGURED") {
+        return res.status(503).json({ success: false, errorCode: "WA_NOT_CONFIGURED" });
       }
 
+      let recorded = true;
       if (sessionId) {
-        await prisma.whatsAppMessage.create({
-          data: {
-            sessionId,
-            senderId: req.user.id,
-            content: message,
-            messageType: "TEXT",
-            direction: "OUTBOUND",
-            sentAt: new Date(),
-          },
-        });
+        try {
+          await prisma.whatsAppMessage.create({
+            data: {
+              sessionId,
+              senderId: req.user.id,
+              content: message,
+              messageType: "TEXT",
+              direction: "OUTBOUND",
+              sentAt: new Date(),
+              metadata: deliveryMetadata(sent),
+            },
+          });
+        } catch (dbError) {
+          recorded = false;
+          logWhatsApp("error", "WhatsApp /send record failed", { errorCode: dbOrInternal(dbError) });
+        }
       }
 
-      res.json({ success: true });
+      if (!sent.ok) {
+        if (sent.retryAfter) res.set("Retry-After", String(sent.retryAfter));
+        return res.status(SEND_STATUS[sent.errorCode] || 502).json({ success: false, errorCode: sent.errorCode });
+      }
+      const body = { success: true, metaMessageId: sent.metaMessageId };
+      if (!recorded) body.recorded = false;
+      return res.json(body);
     } catch (error) {
-      logWhatsApp("error", "Error sending WhatsApp message", error instanceof Error ? error.message : "");
-      res.status(500).json({ success: false, error: error.message });
+      logWhatsApp("error", "Error sending WhatsApp message", { errorCode: dbOrInternal(error) });
+      return res.status(500).json({ success: false, errorCode: "INTERNAL" });
     }
   });
 

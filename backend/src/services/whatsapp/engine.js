@@ -29,13 +29,13 @@ async function routeTurn({ prisma, text, session, user, history, complete }) {
       "WhatsApp AI unavailable",
       err instanceof Error ? err.message : ""
     );
-    return { source: "menu", intent: null, reply: null };
+    return { source: "menu", intent: null, reply: null, aiOutcome: "unavailable" };
   }
 
   const parsed = parseIntent(typeof raw === "string" ? raw : "");
   if (!parsed) {
     logWhatsApp("warn", "WhatsApp AI returned an invalid intent");
-    return { source: "menu", intent: null, reply: null };
+    return { source: "menu", intent: null, reply: null, aiOutcome: "invalid_intent" };
   }
 
   try {
@@ -47,10 +47,11 @@ async function routeTurn({ prisma, text, session, user, history, complete }) {
       arguments: parsed.arguments,
       toolResult,
       reply,
+      aiOutcome: "ok",
     };
   } catch (err) {
     logWhatsApp("error", "WhatsApp tool failed", err instanceof Error ? err.message : "");
-    return { source: "menu", intent: parsed.intent, reply: null };
+    return { source: "menu", intent: parsed.intent, reply: null, aiOutcome: "tool_failed" };
   }
 }
 
