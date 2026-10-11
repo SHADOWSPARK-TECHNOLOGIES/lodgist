@@ -22,10 +22,14 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ i
 
   let listing: object | null = null;
   let upstream = false;
+  let missing = false;
+  // notFound() throws; calling it inside this try would be swallowed by the
+  // catch and turn a missing listing into the upstream error state. src/proxy.ts
+  // already rewrites definite 404s to a server-rendered 404 page.
   try {
     const response = await fetch(`${apiBase()}/api/listings/${id}`, { cache: "no-store" });
-    if (response.status === 404) notFound();
-    if (!response.ok) upstream = true;
+    if (response.status === 404) missing = true;
+    else if (!response.ok) upstream = true;
     else {
       const body = (await response.json()) as { data?: object };
       listing = body.data ?? null;
@@ -33,6 +37,8 @@ export default async function NeighborhoodPage({ params }: { params: Promise<{ i
   } catch {
     upstream = true;
   }
+
+  if (missing) notFound();
 
   if (upstream) {
     return (
