@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/Toast';
 import { auth } from '@/lib/copy';
 import { safeNextPath } from '@/lib/returnPath';
+import { authErrorMessage } from '@/lib/authErrors';
 
 function RegisterForm() {
   const router = useRouter();
@@ -19,18 +20,28 @@ function RegisterForm() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<{ message: string; signInLink: boolean } | null>(null);
+  const errorRef = useRef<HTMLDivElement>(null);
+  const errorId = 'register-error';
+  const invalid = error ? true : undefined;
+  const describedBy = error ? errorId : undefined;
+
+  // Move focus to the error so keyboard and screen reader users hear it.
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
   const loginHref = nextPath ? `/login?next=${encodeURIComponent(nextPath)}` : '/login';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
     try {
       await register(email, password, name, phone || undefined);
       toast(auth.registrationSuccess, 'success');
       router.push(nextPath || '/listings');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : auth.registrationFailure;
-      toast(message || auth.registrationFailure, 'error');
+      setError(authErrorMessage(err, 'register'));
     } finally {
       setLoading(false);
     }
@@ -46,24 +57,33 @@ function RegisterForm() {
         </div>
 
         <form onSubmit={handleSubmit} className="card space-y-4">
+          {error && (
+            <div id={errorId} ref={errorRef} tabIndex={-1} role="alert"
+              className="text-sm rounded-xl px-4 py-3 border border-red-500/40 bg-red-500/10" style={{ color: '#fecaca' }}>
+              {error.message}
+              {error.signInLink && (
+                <> <Link href={loginHref} className="underline font-semibold" style={{ color: 'var(--color-orange)' }}>{auth.signIn}</Link></>
+              )}
+            </div>
+          )}
           <div>
             <label className="label" htmlFor="register-name">{auth.fullName}</label>
-            <input id="register-name" name="name" type="text" autoComplete="name" className="input" placeholder={auth.namePlaceholder}
+            <input id="register-name" name="name" type="text" aria-invalid={invalid} aria-describedby={describedBy} autoComplete="name" className="input" placeholder={auth.namePlaceholder}
               value={name} onChange={e => setName(e.target.value)} required />
           </div>
           <div>
             <label className="label" htmlFor="register-email">{auth.email}</label>
-            <input id="register-email" name="email" type="email" autoComplete="email" className="input" placeholder={auth.emailPlaceholder}
+            <input id="register-email" name="email" type="email" aria-invalid={invalid} aria-describedby={describedBy} autoComplete="email" className="input" placeholder={auth.emailPlaceholder}
               value={email} onChange={e => setEmail(e.target.value)} required />
           </div>
           <div>
             <label className="label" htmlFor="register-phone">{auth.phoneOptional}</label>
-            <input id="register-phone" name="phone" type="tel" autoComplete="tel" className="input" placeholder={auth.phonePlaceholder}
+            <input id="register-phone" name="phone" type="tel" aria-invalid={invalid} aria-describedby={describedBy} autoComplete="tel" className="input" placeholder={auth.phonePlaceholder}
               value={phone} onChange={e => setPhone(e.target.value)} />
           </div>
           <div>
             <label className="label" htmlFor="register-password">{auth.password}</label>
-            <input id="register-password" name="password" type="password" autoComplete="new-password" className="input" placeholder={auth.passwordPlaceholder}
+            <input id="register-password" name="password" type="password" aria-invalid={invalid} aria-describedby={describedBy} autoComplete="new-password" className="input" placeholder={auth.passwordPlaceholder}
               value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
           </div>
           <button type="submit" disabled={loading} aria-busy={loading} className="btn btn-primary w-full justify-center">
