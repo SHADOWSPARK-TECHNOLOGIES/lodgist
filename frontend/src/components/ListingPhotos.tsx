@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, type ChangeEvent } from "react";
-import { ApiError, listingsApi } from "@/lib/api";
+import { listingsApi } from "@/lib/api";
 import { detail } from "@/lib/copy";
-import { MAX_LISTING_PHOTOS, MAX_PHOTO_BYTES, photoAlt, storedPhotos } from "@/lib/listingPhotos";
+import { MAX_LISTING_PHOTOS, PHOTO_MESSAGES, photoAlt, photoErrorMessage, storedPhotos, validatePhotoFile } from "@/lib/listingPhotos";
 import type { ListingImage } from "@/lib/types";
 
 interface ListingPhotosProps {
@@ -18,22 +18,28 @@ export default function ListingPhotos({ listingId, title, images, canManage, onI
   const photos = storedPhotos(images);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState("");
+  const describedBy = error ? "listing-photo-hint listing-photo-error" : "listing-photo-hint";
 
   async function onFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (file.size > MAX_PHOTO_BYTES) {
-      setError("Photo is larger than 8 MB.");
+    const invalid = validatePhotoFile(file, photos.length);
+    if (invalid) {
+      setError(invalid);
+      setStatus("");
       return;
     }
     setBusy(true);
     setError(null);
+    setStatus(detail.addingPhoto);
     try {
       const res = await listingsApi.uploadPhoto(listingId, file);
       const photo = res.data;
       if (!photo) {
-        setError(detail.photoFailed);
+        setError(PHOTO_MESSAGES.failed);
+        setStatus("");
         return;
       }
       onImages([
@@ -48,9 +54,10 @@ export default function ListingPhotos({ listingId, title, images, canManage, onI
           listingId: photo.listingId,
         },
       ]);
+      setStatus(PHOTO_MESSAGES.added);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : detail.photoFailed;
-      setError(message === "storage not configured" ? `${message}. ${detail.photoNotSaved}` : message);
+      setError(photoErrorMessage(err));
+      setStatus("");
     } finally {
       setBusy(false);
     }
@@ -59,12 +66,13 @@ export default function ListingPhotos({ listingId, title, images, canManage, onI
   async function onRemove(imageId: number) {
     setBusy(true);
     setError(null);
+    setStatus("");
     try {
       await listingsApi.deletePhoto(listingId, imageId);
       onImages((images ?? []).filter((image) => image.id !== imageId));
+      setStatus(PHOTO_MESSAGES.removed);
     } catch (err) {
-      const message = err instanceof ApiError ? err.message : detail.photoFailed;
-      setError(message === "storage not configured" ? `${message}. ${detail.photoNotSaved}` : message);
+      setError(photoErrorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -107,14 +115,17 @@ export default function ListingPhotos({ listingId, title, images, canManage, onI
             id="listing-photo"
             type="file"
             accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp"
+            aria-describedby={describedBy}
             onChange={onFile}
             disabled={busy || photos.length >= MAX_LISTING_PHOTOS}
           />
-          <p className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.45)" }}>{detail.photoHint}</p>
+          <p id="listing-photo-hint" className="text-xs mt-2" style={{ color: "rgba(255,255,255,0.7)" }}>{detail.photoHint}</p>
         </div>
       )}
-      {error && <p className="text-sm mt-3" role="alert" style={{ color: "var(--color-orange)" }}>{error}</p>}
-      {busy && <p className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.55)" }}>{detail.addingPhoto}</p>}
+      {error && <p id="listing-photo-error" className="text-sm mt-3" role="alert" style={{ color: "var(--color-orange)" }}>{error}</p>}
+      {canManage && (
+        <p role="status" aria-live="polite" className="text-sm mt-2" style={{ color: "rgba(255,255,255,0.7)" }}>{status}</p>
+      )}
     </section>
   );
 }
