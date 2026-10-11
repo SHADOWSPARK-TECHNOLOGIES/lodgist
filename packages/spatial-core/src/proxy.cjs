@@ -165,6 +165,8 @@ async function fetchAllowlisted(options) {
       ok: Boolean(response && response.ok),
       status,
       code: response && response.ok ? "ok" : "provider_failed",
+      // Set by a host fetch wrapper that served this call from a fallback provider.
+      servedBy: headerValue(response && response.headers, "x-spatial-provider") || null,
       json: async () => payload,
     };
   } catch (error) {

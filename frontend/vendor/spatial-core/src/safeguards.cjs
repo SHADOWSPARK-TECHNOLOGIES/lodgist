@@ -87,20 +87,35 @@ async function withProviderSafeguards(options, run) {
   const clock = typeof options.now === "function" ? options.now : () => Date.now();
   const source = options.envSource || {};
   const ttl = resolveTtl(source, options.ttlMs);
+  // Provenance of the provider that actually fetched the data (fallbacks included).
+  const describe = (id) => {
+    const fallback = { provider: id, commercialUse: null, attribution: null };
+    if (typeof options.describeProvider !== "function") return fallback;
+    const row = options.describeProvider(id);
+    return row && typeof row.provider === "string" ? row : fallback;
+  };
 
   const readCache = (allowStale) => {
     if (!cacheKey) return null;
     const hit = box.cache.get(cacheKey);
     if (!hit) return null;
     if (!allowStale && clock() - hit.storedAt >= ttl) return null;
-    return cloneJson(hit.value);
+    return hit;
   };
+  const fromCache = (outcome, hit) => ({
+    outcome,
+    value: cloneJson(hit.value),
+    cache: Object.assign({ hit: true }, outcome === "stale" ? { stale: true } : {}, {
+      servedBy: Object.assign({}, hit.servedBy || describe(providerId)),
+    }),
+  });
 
-  if (readCache(false)) return { outcome: "hit", value: readCache(false) };
+  const first = readCache(false);
+  if (first) return fromCache("hit", first);
 
   const exec = async () => {
     const again = readCache(false);
-    if (again) return { outcome: "hit", value: again };
+    if (again) return fromCache("hit", again);
     const t = clock();
     if ((box.backoffUntil.get(providerId) || 0) > t) return { outcome: "backoff" };
     const limit = resolveBudget(source, providerId, options.budgetLimit);
@@ -124,20 +139,21 @@ async function withProviderSafeguards(options, run) {
       });
     }
     const permitted = cachePermitted(providerId, options.cachePolicy);
+    const servedBy = describe(result && typeof result.servedBy === "string" && result.servedBy ? result.servedBy : providerId);
     if (BACKOFF_STATUSES.has(statusCode)) {
       box.backoffUntil.set(providerId, clock() + PROVIDER_BACKOFF_MS);
       const stale = readCache(true);
-      if (stale) return { outcome: "stale", value: stale };
+      if (stale) return fromCache("stale", stale);
       return { outcome: "backoff", value: result.value };
     }
     if (result && result.cacheable && cacheKey && permitted) {
-      box.cache.set(cacheKey, { storedAt: clock(), value: cloneJson(result.value) });
+      box.cache.set(cacheKey, { storedAt: clock(), value: cloneJson(result.value), servedBy: Object.assign({}, servedBy) });
     }
     if (!(result && result.cacheable)) {
       const stale = readCache(true);
-      if (stale) return { outcome: "stale", value: stale };
+      if (stale) return fromCache("stale", stale);
     }
-    return { outcome: "miss", value: result ? result.value : null };
+    return { outcome: "miss", value: result ? result.value : null, cache: { hit: false, servedBy } };
   };
 
   const prev = box.tails.get(providerId) || Promise.resolve();

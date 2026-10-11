@@ -1,10 +1,8 @@
 const { test, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
-const crypto = require("node:crypto");
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const rentalChecksRouter = require("../src/routes/rentalChecks");
-const createPaymentsRouter = require("../src/routes/payments");
 const createWhatsAppRouter = require("../src/routes/whatsapp");
 const {
   validateIntake,
@@ -15,14 +13,13 @@ const {
 } = require("../src/services/rentalCheck");
 const { handleRentalCheckMessage } = require("../src/services/whatsapp/rentalCheck");
 
-const ENV = ["JWT_SECRET", "PAYSTACK_SECRET_KEY", "WHATSAPP_PUBLIC_URL", "WHATSAPP_APP_SECRET", "FRONTEND_URL"];
+const ENV = ["JWT_SECRET", "WHATSAPP_PUBLIC_URL", "WHATSAPP_APP_SECRET", "FRONTEND_URL"];
 let saved;
 
 beforeEach(() => {
   saved = {};
   for (const key of ENV) saved[key] = process.env[key];
   process.env.JWT_SECRET = "test-secret";
-  delete process.env.PAYSTACK_SECRET_KEY;
   delete process.env.FRONTEND_URL;
   process.env.WHATSAPP_PUBLIC_URL = "https://lodgist.test";
 });
@@ -162,10 +159,10 @@ function memoryPrisma() {
   };
 }
 
-function appFor(prisma, paystack) {
+function appFor(prisma) {
   const app = express();
   app.use(express.json());
-  app.use("/api/rental-checks", rentalChecksRouter(prisma, { paystack }));
+  app.use("/api/rental-checks", rentalChecksRouter(prisma));
   return app;
 }
 
@@ -193,10 +190,6 @@ const intake = {
 
 function adminToken() {
   return jwt.sign({ id: 1, email: "reviewer@example.com", name: "Reviewer", role: "STUDIO_ADMIN" }, process.env.JWT_SECRET);
-}
-
-function signPaystack(raw, secret) {
-  return crypto.createHmac("sha512", secret).update(raw).digest("hex");
 }
 
 test("invalid intake is rejected and does not mention a verified home", () => {
@@ -300,18 +293,9 @@ test("a WhatsApp arrangement reference waits for staff and does not mark the fee
   }
 });
 
-test("create, pay, verify, review, and report follow the paid path", async () => {
+test("create, WhatsApp payment reference, staff review, and report follow the paid path", async () => {
   const prisma = memoryPrisma();
-  let verified = { status: "failed", amount: 5000, currency: "NGN", reference: "LODG-ESC-RSC-1" };
-  const paystack = {
-    initializePayment: async ({ amount, metadata }) => {
-      assert.equal(amount, 5000);
-      assert.equal(metadata.type, "rental_safety_check");
-      return { authorization_url: "https://paystack.test/pay", reference: "LODG-ESC-RSC-1", access_code: "ac" };
-    },
-    verifyPayment: async () => verified,
-  };
-  const server = await listen(appFor(prisma, paystack));
+  const server = await listen(appFor(prisma));
   try {
     const created = await json(server, "/api/rental-checks", {
       method: "POST",
@@ -345,27 +329,14 @@ test("create, pay, verify, review, and report follow the paid path", async () =>
     const wrong = await json(server, `/api/rental-checks/${ref}/report?token=nope`);
     assert.equal(wrong.status, 401);
 
-    const unpaid = await json(server, `/api/rental-checks/${ref}/pay`, { method: "POST", headers: { "Content-Type": "application/json", "x-rental-check-token": token }, body: "{}" });
-    assert.equal(unpaid.status, 503);
-    assert.equal(unpaid.body.code, "PAYSTACK_UNAVAILABLE");
-    assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
-
-    process.env.PAYSTACK_SECRET_KEY = "sk_test_not_used";
-    const stillClosed = await json(server, `/api/rental-checks/${ref}/pay`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
-      body: JSON.stringify({ status: "success" }),
-    });
-    assert.equal(stillClosed.status, 503);
-    assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
-
-    const lied = await json(server, "/api/rental-checks/pay/verify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-rental-check-token": token },
-      body: JSON.stringify({ publicReference: ref, status: "success", token }),
-    });
-    assert.equal(lied.status, 409);
-    assert.equal(lied.body.code, "MANUAL_REVIEW_REQUIRED");
+    for (const path of [`/api/rental-checks/${ref}/pay`, "/api/rental-checks/pay/verify"]) {
+      const retired = await fetch(`http://127.0.0.1:${server.address().port}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-rental-check-token": token },
+        body: JSON.stringify({ publicReference: ref, status: "success", token }),
+      });
+      assert.equal(retired.status, 404);
+    }
     assert.equal(prisma.checks[0].paymentStatus, "UNPAID");
 
     const submitted = await json(server, `/api/rental-checks/${ref}/payment-reference`, {
@@ -554,69 +525,6 @@ test("a rejected reference can be replaced, and a screenshot or another token ca
     assert.equal(replaced.status, 200);
     assert.equal(replaced.body.data.paymentStatus, "PENDING");
     assert.equal(replaced.body.data.manualPaymentRef, "TRF-NEW");
-    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
-  } finally {
-    server.close();
-  }
-});
-
-test("webhook accepts a signed rental charge once and rejects a bad signature or amount", async () => {
-  const prisma = memoryPrisma();
-  prisma.checks.push({
-    id: "rc-1",
-    publicReference: "RSC-TEST2345",
-    paymentStatus: "PENDING",
-    status: "AWAITING_PAYMENT",
-    paystackReference: "LODG-ESC-RSC-TEST2345",
-    paidAt: null,
-  });
-  const secret = "sk_test_rental";
-  process.env.PAYSTACK_SECRET_KEY = secret;
-  const app = express();
-  app.use(express.raw({ type: "application/json" }));
-  app.use("/api/payments", createPaymentsRouter(prisma));
-  const server = await listen(app);
-  try {
-    const badAmount = JSON.stringify({
-      event: "charge.success",
-      data: { id: 1, amount: 100, currency: "NGN", reference: "LODG-ESC-RSC-TEST2345", metadata: { type: "rental_safety_check" } },
-    });
-    const rejectedAmount = await fetch(`http://127.0.0.1:${server.address().port}/api/payments/webhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-paystack-signature": signPaystack(badAmount, secret) },
-      body: badAmount,
-    });
-    assert.equal(rejectedAmount.status, 200);
-    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
-
-    const raw = JSON.stringify({
-      event: "charge.success",
-      data: { id: 2, amount: 500000, currency: "NGN", reference: "LODG-ESC-RSC-TEST2345", metadata: { type: "rental_safety_check" } },
-    });
-    const unsigned = await fetch(`http://127.0.0.1:${server.address().port}/api/payments/webhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-paystack-signature": "nope" },
-      body: raw,
-    });
-    assert.equal(unsigned.status, 401);
-
-    const ok = await fetch(`http://127.0.0.1:${server.address().port}/api/payments/webhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-paystack-signature": signPaystack(raw, secret) },
-      body: raw,
-    });
-    assert.equal(ok.status, 200);
-    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
-    assert.equal(prisma.checks[0].status, "AWAITING_PAYMENT");
-    assert.equal(prisma.listingWrites, 0);
-
-    const duplicate = await fetch(`http://127.0.0.1:${server.address().port}/api/payments/webhook`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-paystack-signature": signPaystack(raw, secret) },
-      body: raw,
-    });
-    const duplicateBody = await duplicate.json();
-    assert.equal(duplicateBody.message, "Already processed");
     assert.equal(prisma.checks[0].paymentStatus, "PENDING");
   } finally {
     server.close();

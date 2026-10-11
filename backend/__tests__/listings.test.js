@@ -1195,3 +1195,73 @@ test("an owning landlord can open an unpublished listing without exact coordinat
   assert.equal(allowed.body.data.property.address, undefined);
   assert.deepEqual(allowed.body.data.approxLocation, { lat: 5.495, lng: 7.035, radius_m: 500 });
 });
+
+// ─── Enum query param validation (category / status) ─────────────────────────
+async function browseWith(query) {
+  const calls = [];
+  const prisma = {
+    listing: {
+      count: async () => 0,
+      findMany: async (args) => { calls.push(args); return []; },
+    },
+    review: { groupBy: async () => [] },
+  };
+  const server = await listen(buildApp(prisma));
+  try {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/api/listings${query}`);
+    return { res, body: await res.json(), calls };
+  } finally {
+    server.close();
+  }
+}
+
+test("GET /api/listings?category=residential (lowercase) filters by RESIDENTIAL", async () => {
+  const { res, calls } = await browseWith("?category=residential");
+  assert.equal(res.status, 200);
+  assert.equal(calls[0].where.category, "RESIDENTIAL");
+});
+
+test("GET /api/listings?category=category=short_let normalises to SHORT_LET", async () => {
+  const lower = await browseWith("?category=short_let");
+  assert.equal(lower.res.status, 200);
+  assert.equal(lower.calls[0].where.category, "SHORT_LET");
+});
+
+test("GET /api/listings?category=COMMERCIAL (uppercase) filters by COMMERCIAL", async () => {
+  const { res, calls } = await browseWith("?category=COMMERCIAL");
+  assert.equal(res.status, 200);
+  assert.equal(calls[0].where.category, "COMMERCIAL");
+});
+
+test("GET /api/listings?category=bogus returns 400 without querying Prisma", async () => {
+  const { res, body, calls } = await browseWith("?category=bogus");
+  assert.equal(res.status, 400);
+  assert.equal(body.success, false);
+  assert.match(body.error, /Invalid category/);
+  assert.match(body.error, /RESIDENTIAL/);
+  assert.equal(calls.length, 0);
+});
+
+test("GET /api/listings without category returns all categories", async () => {
+  const { res, calls } = await browseWith("");
+  assert.equal(res.status, 200);
+  assert.equal(calls[0].where.category, undefined);
+});
+
+test("GET /api/listings?status=bogus returns 400", async () => {
+  const { res, body, calls } = await browseWith("?status=bogus");
+  assert.equal(res.status, 400);
+  assert.match(body.error, /Invalid status/);
+  assert.equal(calls.length, 0);
+});
+
+test("GET /api/listings?status=verified (lowercase) is accepted", async () => {
+  const { res } = await browseWith("?status=verified");
+  assert.equal(res.status, 200);
+});
+
+test("GET /api/listings?category=a&category=b (array) returns 400", async () => {
+  const { res } = await browseWith("?category=residential&category=commercial");
+  assert.equal(res.status, 400);
+});
