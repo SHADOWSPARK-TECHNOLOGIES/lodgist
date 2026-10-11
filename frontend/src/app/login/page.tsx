@@ -1,75 +1,13 @@
-'use client';
+import type { Metadata } from "next";
+import { safeNextPath } from "@/lib/returnPath";
+import LoginForm from "./LoginForm";
 
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { useToast } from '@/components/ui/Toast';
-import { auth } from '@/lib/copy';
-import { safeNextPath } from '@/lib/returnPath';
+export const metadata: Metadata = { title: "Sign in" };
 
-function LoginForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const nextPath = safeNextPath(searchParams.get('next'));
-  const { login: loginFn } = useAuth();
-  const { toast } = useToast();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const registerHref = nextPath ? `/register?next=${encodeURIComponent(nextPath)}` : '/register';
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      await loginFn(email, password);
-      toast(auth.welcomeBack, 'success');
-      router.push(nextPath || '/listings');
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : auth.loginFailed;
-      toast(message || auth.loginFailed, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="font-poppins font-bold text-2xl text-white mb-2">{auth.loginTitle}</h1>
-          <p className="text-sm" style={{ color: 'rgba(255,255,255,0.5)' }}>{auth.loginSubtitle}</p>
-          <p className="text-xs mt-2" style={{ color: 'rgba(255,255,255,0.35)' }}>{auth.curatorLine}</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="card space-y-5">
-          <div>
-            <label className="label">{auth.email}</label>
-            <input type="email" className="input" placeholder="you@example.com"
-              value={email} onChange={e => setEmail(e.target.value)} required />
-          </div>
-          <div>
-            <label className="label">{auth.password}</label>
-            <input type="password" className="input" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022"
-              value={password} onChange={e => setPassword(e.target.value)} required />
-          </div>
-          <button type="submit" disabled={loading} className="btn btn-primary w-full justify-center">
-            {loading ? <span className="spinner" /> : auth.signIn}
-          </button>
-          <p className="text-center text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
-            {auth.noAccount} <Link href={registerHref} className="text-orange hover:underline">{auth.createOne}</Link>
-          </p>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen" />}>
-      <LoginForm />
-    </Suspense>
-  );
+// Server component: ?next is read and validated here, so the form itself is in
+// the server HTML instead of an empty client-only fallback.
+export default async function Page({ searchParams }: { searchParams: Promise<{ next?: string | string[] }> }) {
+  const { next } = await searchParams;
+  const nextPath = safeNextPath(typeof next === "string" ? next : null);
+  return <LoginForm nextPath={nextPath} />;
 }
