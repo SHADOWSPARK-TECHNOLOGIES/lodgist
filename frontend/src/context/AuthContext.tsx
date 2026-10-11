@@ -22,6 +22,7 @@ import {
   logout as doLogout,
 } from "@/lib/auth";
 import { authApi } from "@/lib/api";
+import { authSessionFromResponse, completeLogin } from "@/lib/authSession";
 import { track } from "@/lib/gtag";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -86,23 +87,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const register = useCallback(
     async (email: string, password: string, name: string, phone?: string) => {
-      const res = await authApi.register({ email, password, name, phone });
-      setToken(res.token);
-      setStoredUser(res.user);
-      setState({ isLoaded: true, user: res.user, token: res.token });
-      track("sign_up", { method: "email", ...(res.user?.role && { role: res.user.role }) });
+      const session = authSessionFromResponse(await authApi.register({ email, password, name, phone }));
+      if (!session) throw new Error("We could not create your account. Try again.");
+      setToken(session.token);
+      setStoredUser(session.user);
+      setState({ isLoaded: true, user: session.user, token: session.token });
+      track("sign_up", { method: "email", ...(session.user.role && { role: session.user.role }) });
     },
     []
   );
 
   const loginFn = useCallback(async (email: string, password: string) => {
-    const res = await authApi.login({ email, password });
-    if (!res.success || !res.data || !res.data.token) {
-      throw new Error(res.message || "We could not sign you in. Check your email and password, or create an account.");
-    }
-    setToken(res.data.token);
-    setStoredUser(res.data.user);
-    setState({ isLoaded: true, user: res.data.user, token: res.data.token });
+    await completeLogin(
+      () => authApi.login({ email, password }),
+      (session) => {
+        setToken(session.token);
+        setStoredUser(session.user);
+        setState({ isLoaded: true, user: session.user, token: session.token });
+      },
+    );
     track("login", { method: "email" });
   }, []);
 

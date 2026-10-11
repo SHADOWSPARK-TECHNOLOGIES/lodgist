@@ -159,7 +159,7 @@ export const authApi = {
 
   /** Login with email + password */
   login: (payload: LoginPayload) =>
-    request<ApiResponse<AuthResponse>>("POST", "/api/auth/login", {
+    request<AuthResponse>("POST", "/api/auth/login", {
       body: JSON.stringify(payload),
     }),
 
