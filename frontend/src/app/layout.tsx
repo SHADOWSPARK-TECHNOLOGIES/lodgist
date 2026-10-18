@@ -35,10 +35,16 @@ export const metadata: Metadata = {
   authors: [{ name: 'ShadowSpark Technologies' }],
   openGraph: {
     type: 'website', locale: 'en_NG', url: siteUrl, siteName: 'Lodgist',
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Lodgist' }],
+    images: [{ url: '/og-image.png', width: 1200, height: 630, type: 'image/png', alt: 'Lodgist — places in Nigeria you can check' }],
   },
-  twitter: { card: 'summary_large_image', creator: '@lodgist_ng' },
-  icons: { icon: '/favicon.ico', apple: '/icons/icon-192.png' },
+  twitter: {
+    card: 'summary_large_image', creator: '@lodgist_ng',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: 'Lodgist — places in Nigeria you can check' }],
+  },
+  icons: {
+    icon: '/favicon.ico',
+    apple: [{ url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
+  },
 };
 
 const gaId = process.env.NEXT_PUBLIC_GA_ID;
