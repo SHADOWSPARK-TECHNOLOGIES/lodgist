@@ -21,7 +21,7 @@ env:
 jobs:
   ci:
     name: Build & Test
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, lodgist-ci]
 
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
 
   frontend:
     name: Frontend Build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, lodgist-ci]
     defaults:
       run:
         working-directory: frontend
@@ -88,7 +88,7 @@ jobs:
 
   backend:
     name: Backend Tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, lodgist-ci]
     defaults:
       run:
         working-directory: backend
