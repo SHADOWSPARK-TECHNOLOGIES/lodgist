@@ -1,0 +1,5 @@
+self-hosted-runner:
+  # Custom labels attached to the Lodgist CI runner.
+  # See docs/CI-RUNNER.md for how the runner is registered.
+  labels:
+    - lodgist-ci
