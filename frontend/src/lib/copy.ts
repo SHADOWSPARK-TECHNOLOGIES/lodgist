@@ -13,6 +13,13 @@ export function supportWhatsAppLink(text?: string): string | null {
   return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
+/** Public support email provided by the operator; deployment env can override it. */
+export function supportEmailLink(subject: string, body: string): string | null {
+  const email = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "wonderstevie702@gmail.com";
+  if (!email || !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) return null;
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 export const brand = {
   endorsement: "A platform curated by ShadowSpark Technologies",
   tagline: "Rent with more confidence.",
@@ -140,7 +147,7 @@ export const detail = {
   loadError: "We could not load this home.",
   retry: "Try again",
   whatsApp: "Ask on WhatsApp",
-  whatsAppMissing: "WhatsApp support is not set up on this site yet.",
+  whatsAppMissing: "Lodgist payment support contacts are not configured yet.",
   report: "Report this listing",
   decisionTitle: "Before you pay",
   lastVerified: "Last verification",
@@ -196,7 +203,7 @@ export const listings = {
   emptyTitle: "No homes here yet",
   emptyBody: "We're starting with Imo. Only a Lodgist-reviewed home is shown. Review is not verification.",
   emptyCta: "Ask us on WhatsApp",
-  whatsAppMissing: "WhatsApp support is not set up on this site yet.",
+  whatsAppMissing: "Lodgist payment support contacts are not configured yet.",
   listCta: "List your property",
   elsewhere: "Looking somewhere else? Tell us the area you want.",
   searchEmptyTitle: "Nothing matches that search",
@@ -377,14 +384,15 @@ export const milestones = {
 };
 
 export const arrangePayment = {
-  rentalCta: "Arrange this fee on WhatsApp",
-  bookingCta: "Arrange this booking payment on WhatsApp",
+  rentalCta: "Contact support on WhatsApp",
+  bookingCta: "Contact support on WhatsApp about this booking",
+  emailCta: "Contact support by email",
   opening: "Opening WhatsApp",
-  rentalNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. Opening WhatsApp does not mark the fee paid.",
-  bookingNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. This does not mark the booking paid.",
+  rentalNote: "Ask Lodgist support about available approved payment methods. Staff confirm actual receipt. Contacting support does not mean you have paid.",
+  bookingNote: "Ask Lodgist support about available approved payment methods. Staff confirm actual receipt. Do not send rent before inspecting the property.",
   queued: "This fee is in the review queue. Staff have not confirmed the money.",
   needLink: "Open the case link we sent you so this fee can enter the review queue.",
-  missing: "WhatsApp support is not set up on this site yet.",
+  missing: "Lodgist payment support contacts are not configured yet.",
 };
 
 export const about = {
