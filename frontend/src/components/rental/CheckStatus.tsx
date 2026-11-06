@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import ArrangeWhatsAppPayment from "@/components/ArrangeWhatsAppPayment";
 import { ApiError, rentalChecksApi } from "@/lib/api";
-import { arrangePayment, supportWhatsAppLink } from "@/lib/copy";
+import { arrangePayment, supportEmailLink, supportWhatsAppLink } from "@/lib/copy";
 import type { RentalCheckStatusView, RentalReport } from "@/lib/types";
 import { formatNaira, lockedRecommendation } from "@/lib/rentalCheck";
 import { paymentWhatsAppText, whatsappArrangementRef } from "@/lib/whatsappPayment";
@@ -40,6 +40,15 @@ export default function CheckStatus() {
   }, [reference, token]);
 
   const headline = report ? lockedRecommendation(report.recommendation) : null;
+  const paymentMessage = status
+    ? paymentWhatsAppText({
+        what: "Rental Safety Check",
+        amountNgn: status.amountNgn,
+        reference: status.publicReference,
+        listing: status.location || undefined,
+        name: status.customerName || undefined,
+      })
+    : "";
 
   return (
     <section className="container py-10">
@@ -60,13 +69,9 @@ export default function CheckStatus() {
               <p>Staff confirmed the fee. That does not verify the home.</p>
             ) : (
               <ArrangeWhatsAppPayment
-                href={supportWhatsAppLink(paymentWhatsAppText({
-                  what: "Rental Safety Check",
-                  amountNgn: status.amountNgn,
-                  reference: status.publicReference,
-                  listing: status.location || undefined,
-                  name: status.customerName || undefined,
-                }))}
+                href={supportWhatsAppLink(paymentMessage)}
+                emailHref={supportEmailLink(`Lodgist Rental Safety Check ${status.publicReference}`, paymentMessage)}
+                emailLabel={arrangePayment.emailCta}
                 label={arrangePayment.rentalCta}
                 busyLabel={arrangePayment.opening}
                 note={arrangePayment.rentalNote}

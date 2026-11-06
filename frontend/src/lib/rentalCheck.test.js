@@ -22,17 +22,22 @@ test("the case page arranges the fee on WhatsApp and does not call Paystack", ()
   const intake = read("src/components/rental/CheckIntake.tsx");
   const review = read("src/components/rental/ReviewWorkspace.tsx");
   const api = read("src/lib/api.ts");
+  const copy = read("src/lib/copy.ts");
   // The detail page body lives in ListingDetailClient; page.tsx is the server 404 gate.
   const listing = read("src/app/listings/[id]/ListingDetailClient.tsx");
   assert.match(status, /arrangePayment\.rentalCta/);
   assert.match(status, /recordPaymentReference/);
   assert.match(status, /whatsappArrangementRef/);
   assert.match(status, /paymentWhatsAppText/);
+  assert.match(status, /supportEmailLink/);
+  assert.match(copy, /NEXT_PUBLIC_SUPPORT_EMAIL/);
+  assert.ok(copy.includes("wonderstevie702@gmail.com"));
+  assert.match(status, /emailHref=/);
   assert.equal(status.includes("rentalChecksApi.pay"), false);
   assert.equal(status.includes("paystackUrl"), false);
   assert.equal(status.includes("payment is complete"), false);
-  assert.match(intake, /arrange payment on WhatsApp/);
-  assert.match(intake, /Lodgist team confirms/);
+  assert.match(intake, /contact Lodgist Support to arrange payment/);
+  assert.match(intake, /Staff confirm the money received/);
   assert.equal(intake.includes("Continue to pay"), false);
   assert.match(review, /reviewPayment/);
   assert.match(review, /recordPaymentReference/);
@@ -45,6 +50,8 @@ test("the case page arranges the fee on WhatsApp and does not call Paystack", ()
   assert.equal(api.includes("pay/verify"), false);
   assert.match(listing, /submitManualPayment/);
   assert.match(listing, /arrangePayment\.bookingCta/);
+  assert.match(listing, /supportEmailLink/);
+  assert.match(listing, /emailHref=/);
   assert.equal(listing.includes("initiate-payment"), false);
   assert.equal(/fraud-free|100% verified|guaranteed|\bsafe\b/i.test(status + intake + review), false);
 });
