@@ -147,7 +147,7 @@ export const detail = {
   loadError: "We could not load this home.",
   retry: "Try again",
   whatsApp: "Ask on WhatsApp",
-  whatsAppMissing: "WhatsApp support is not set up on this site yet.",
+  whatsAppMissing: "Lodgist payment support contacts are not configured yet.",
   report: "Report this listing",
   decisionTitle: "Before you pay",
   lastVerified: "Last verification",
@@ -203,7 +203,7 @@ export const listings = {
   emptyTitle: "No homes here yet",
   emptyBody: "We're starting with Imo. Only a Lodgist-reviewed home is shown. Review is not verification.",
   emptyCta: "Ask us on WhatsApp",
-  whatsAppMissing: "WhatsApp support is not set up on this site yet.",
+  whatsAppMissing: "Lodgist payment support contacts are not configured yet.",
   listCta: "List your property",
   elsewhere: "Looking somewhere else? Tell us the area you want.",
   searchEmptyTitle: "Nothing matches that search",
@@ -388,11 +388,11 @@ export const arrangePayment = {
   bookingCta: "Contact support on WhatsApp about this booking",
   emailCta: "Contact support by email",
   opening: "Opening WhatsApp",
-  rentalNote: "Contact Lodgist by WhatsApp or email to ask about available approved payment methods. Staff confirm actual receipt. Contacting us does not mean you have paid.",
-  bookingNote: "Contact Lodgist by WhatsApp or email for available approved payment methods. Staff confirm actual receipt. Do not send rent before you inspect the property.",
+  rentalNote: "Ask Lodgist support about available approved payment methods. Staff confirm actual receipt. Contacting support does not mean you have paid.",
+  bookingNote: "Ask Lodgist support about available approved payment methods. Staff confirm actual receipt. Do not send rent before inspecting the property.",
   queued: "This fee is in the review queue. Staff have not confirmed the money.",
   needLink: "Open the case link we sent you so this fee can enter the review queue.",
-  missing: "WhatsApp support is not set up on this site yet.",
+  missing: "Lodgist payment support contacts are not configured yet.",
 };
 
 export const about = {
