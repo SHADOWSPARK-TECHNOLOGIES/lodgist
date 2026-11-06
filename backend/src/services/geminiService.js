@@ -33,7 +33,8 @@ function getGeminiClient() {
 
   try {
     const auth = new GoogleAuth({
-      keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS || "lodgist-deploy-key.json",
+      // ADC uses the runtime identity or GOOGLE_APPLICATION_CREDENTIALS when configured.
+      // Never fall back to a repository-local private key file.
       scopes: "https://www.googleapis.com/auth/cloud-platform",
     });
 
