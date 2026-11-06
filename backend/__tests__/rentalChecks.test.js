@@ -116,6 +116,16 @@ function memoryPrisma() {
         Object.assign(row, data);
         return row;
       },
+      updateMany: async ({ where, data }) => {
+        const matching = checks.filter((row) =>
+          row.id === where.id &&
+          row.paymentStatus === where.paymentStatus &&
+          (row.manualPaymentRef ?? null) === where.manualPaymentRef &&
+          row.status === where.status
+        );
+        matching.forEach((row) => Object.assign(row, data));
+        return { count: matching.length };
+      },
       count: async (args = {}) => {
         const where = args.where;
         if (!where) return checks.length;
@@ -637,6 +647,36 @@ test("whatsapp duplicate message id does not open two cases", async () => {
     assert.equal(first.status, 200);
     assert.equal(second.status, 200);
     assert.equal(prisma.drafts.length, 1);
+  } finally {
+    server.close();
+  }
+});
+
+test("stale payment submission cannot reverse a concurrently confirmed payment", async () => {
+  const prisma = memoryPrisma();
+  const server = await listen(appFor(prisma));
+  try {
+    const created = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(intake),
+    });
+    const reference = created.body.data.publicReference;
+    const accessToken = created.body.data.accessToken;
+    const originalUpdateMany = prisma.rentalCheck.updateMany;
+    prisma.rentalCheck.updateMany = async (args) => {
+      if (args.data.paymentStatus === "PENDING") {
+        prisma.checks[0].paymentStatus = "PAID"; // simulate another request winning first
+      }
+      return originalUpdateMany(args);
+    };
+    const result = await json(server, `/api/rental-checks/${reference}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": accessToken },
+      body: JSON.stringify({ manualPaymentRef: "TRANSFER-TEST-001" }),
+    });
+    assert.equal(result.status, 409);
+    assert.equal(prisma.checks[0].paymentStatus, "PAID");
   } finally {
     server.close();
   }
