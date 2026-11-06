@@ -681,3 +681,38 @@ test("stale payment submission cannot reverse a concurrently confirmed payment",
     server.close();
   }
 });
+
+test("staff cannot confirm a payment reference that changed concurrently", async () => {
+  const prisma = memoryPrisma();
+  const server = await listen(appFor(prisma));
+  try {
+    const created = await json(server, "/api/rental-checks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(intake),
+    });
+    const reference = created.body.data.publicReference;
+    await json(server, `/api/rental-checks/${reference}/payment-reference`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-rental-check-token": created.body.data.accessToken },
+      body: JSON.stringify({ manualPaymentRef: "FIRST-REFERENCE" }),
+    });
+    const originalUpdateMany = prisma.rentalCheck.updateMany;
+    prisma.rentalCheck.updateMany = async (args) => {
+      if (args.data.paymentStatus === "PAID") {
+        prisma.checks[0].manualPaymentRef = "NEWER-REFERENCE";
+      }
+      return originalUpdateMany(args);
+    };
+    const response = await json(server, `/api/rental-checks/${reference}/payment-review`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminToken()}` },
+      body: JSON.stringify({ action: "confirm" }),
+    });
+    assert.equal(response.status, 409);
+    assert.equal(prisma.checks[0].paymentStatus, "PENDING");
+    assert.equal(prisma.checks[0].manualPaymentRef, "NEWER-REFERENCE");
+  } finally {
+    server.close();
+  }
+});
