@@ -65,6 +65,10 @@ jobs:
         working-directory: lodgist
         run: npx next build
 
+      - name: Read-only public service health (release candidate only)
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/controlled-beta-readiness-20261106'
+        run: node scripts/readonly-production-smoke.mjs
+
   frontend:
     name: Frontend Build
     runs-on: [self-hosted, linux, x64, lodgist-ci]
