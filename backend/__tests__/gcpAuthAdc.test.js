@@ -67,3 +67,31 @@ test("all Gemini analysis paths use Gen AI SDK + ADC without a local key file", 
   assert.equal(source.includes("lodgist-deploy-key.json"), false);
   assert.equal(source.includes("@google-cloud/vertexai"), false);
 });
+
+test("billable AI endpoints reject unauthenticated and non-admin calls", async () => {
+  const express = require("express");
+  const jwt = require("jsonwebtoken");
+  const originalSecret = process.env.JWT_SECRET;
+  process.env.JWT_SECRET = "ci-test-only-authorization-secret";
+  const app = express();
+  app.use(express.json());
+  app.use("/api/ai-analysis", require("../src/routes/ai-analysis"));
+
+  const server = await new Promise((resolve) => {
+    const listening = app.listen(0, "127.0.0.1", () => resolve(listening));
+  });
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/ai-analysis`;
+    const tenant = jwt.sign({ id: 1, role: "TENANT" }, process.env.JWT_SECRET);
+    for (const path of ["/analyze-scam", "/analyze-visual", "/verify-land", "/chat-fraud", "/audit-artisan"]) {
+      const options = { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" };
+      assert.equal((await fetch(url + path, options)).status, 401, path);
+      assert.equal((await fetch(url + path, { ...options, headers: { ...options.headers, Authorization: `Bearer ${tenant}` } })).status, 403, path);
+    }
+    assert.equal((await fetch(url + "/health")).status, 200);
+  } finally {
+    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    if (originalSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = originalSecret;
+  }
+});
