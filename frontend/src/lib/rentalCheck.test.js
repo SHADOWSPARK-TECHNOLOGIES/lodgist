@@ -31,7 +31,7 @@ test("the case page arranges the fee on WhatsApp and does not call Paystack", ()
   assert.match(status, /paymentWhatsAppText/);
   assert.match(status, /supportEmailLink/);
   assert.match(copy, /NEXT_PUBLIC_SUPPORT_EMAIL/);
-  assert.match(copy, /wonderstevie702@gmail\\.com/);
+  assert.ok(copy.includes("wonderstevie702@gmail.com"));
   assert.match(status, /emailHref=/);
   assert.equal(status.includes("rentalChecksApi.pay"), false);
   assert.equal(status.includes("paystackUrl"), false);
