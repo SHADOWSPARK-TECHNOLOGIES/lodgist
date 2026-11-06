@@ -2,20 +2,18 @@
  * geminiService.js
  *
  * Google Gemini AI service for Lodgist's Trust & Safety features.
- * Uses @google/genai SDK with gemini-1.5-flash model.
+ * Uses @google/genai SDK with gemini-2.5-flash model and Vertex AI ADC.
  *
- * All functions have graceful fallbacks when the API key is not configured.
+ * All functions return honest unavailable/error results when AI is not reachable.
  *
  * @module geminiService
  */
 
-let GoogleVertexAI;
-let GoogleAuth;
+let GoogleGenAI;
 try {
-  GoogleVertexAI = require("@google-cloud/vertexai").VertexAI;
-  GoogleAuth = require("google-auth-library").GoogleAuth;
+  GoogleGenAI = require("@google/genai").GoogleGenAI;
 } catch (error) {
-  console.warn(`Failed to load @google-cloud/vertexai or google-auth-library: ${error.message}. AI services will use fallbacks.`);
+  console.warn(`Failed to load @google/genai: ${error.message}. AI services will use fallbacks.`);
 }
 
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -23,28 +21,21 @@ const PROJECT_ID = process.env.GCP_PROJECT_ID || "shadowspark-production-489115"
 const LOCATION = process.env.GCP_PROJECT_LOCATION || "us-central1"; // Assuming a default location, can be configured via env
 
 /**
- * Get a configured Vertex AI Gemini client, or null if not configured.
- * @returns {VertexAI|null}
+ * Get a Vertex AI Gemini client with Application Default Credentials.
+ * Runtime must provide ADC via workload identity or an approved credential source.
+ * @returns {GoogleGenAI|null}
  */
 function getGeminiClient() {
-  if (!GoogleVertexAI || !GoogleAuth) {
-    return null;
-  }
+  if (!GoogleGenAI) return null;
 
   try {
-    const auth = new GoogleAuth({
-      // ADC uses the runtime identity or GOOGLE_APPLICATION_CREDENTIALS when configured.
-      // Never fall back to a repository-local private key file.
-      scopes: "https://www.googleapis.com/auth/cloud-platform",
-    });
-
-    return new GoogleVertexAI({
+    return new GoogleGenAI({
+      vertexai: true,
       project: PROJECT_ID,
       location: LOCATION,
-      googleAuth: auth,
     });
   } catch (error) {
-    console.error("Failed to initialize Vertex AI client:", error.message);
+    console.error("Failed to initialize Google Gen AI client:", error.message);
     return null;
   }
 }
@@ -181,10 +172,6 @@ async function extractLandDocument(imageBase64) {
     };
   }
 
-  const generativeModel = vertex_ai.getGenerativeModel({
-    model: GEMINI_MODEL,
-  });
-
   try {
     const request = {
       contents: [
@@ -205,9 +192,12 @@ async function extractLandDocument(imageBase64) {
       ],
     };
 
-    const result = await generativeModel.generateContent(request);
-    const response = result.response;
-    const text = response.candidates[0].content.parts[0].text;
+    const response = await vertex_ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: request.contents,
+      config: { responseMimeType: "application/json", maxOutputTokens: 512 },
+    });
+    const text = response.text;
 
     if (!text) throw new Error("Empty Gemini response");
     const parsed = JSON.parse(text);
