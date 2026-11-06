@@ -54,7 +54,7 @@ No schema change in this task.
 
 - Do not activate Paystack or automated payment claims. Customers arrange a method **with Lodgist support** and staff independently verify receipt before marking `PAID`.
 - Frontend WhatsApp contact: `NEXT_PUBLIC_SUPPORT_WHATSAPP` (existing). Never hardcode an unverified number.
-- Frontend support email: `NEXT_PUBLIC_SUPPORT_EMAIL` (new, optional). Set it to the **actual verified customer-support mailbox** in Railway before advertising the email button. No verified Lodgist email is stored in this repository; do not invent an address.
+- Public support email approved by the operator: `wonderstevie702@gmail.com`. The frontend defaults to this address. `NEXT_PUBLIC_SUPPORT_EMAIL` optionally overrides it when the business support mailbox changes. The address is a contact channel, **not** proof of payment or a beneficiary account.
 - Rental Safety Check and booking payment pages show WhatsApp when configured and an email link when the support email is configured. The message includes the case/booking reference and amount. Neither channel is a payment receipt.
 - Staff can explain currently approved methods or providers in the conversation. Do not expose any bank account, third-party provider or payment link until the merchant, beneficiary and refund process are independently verified.
 - Actual payment capture/reconciliation and user-facing proof of delivery remain blocked by #129. A support handoff is not a successful transaction.
