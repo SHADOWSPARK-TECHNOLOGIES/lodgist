@@ -1265,3 +1265,28 @@ test("GET /api/listings?category=a&category=b (array) returns 400", async () => 
   const { res } = await browseWith("?category=residential&category=commercial");
   assert.equal(res.status, 400);
 });
+
+test("legacy paid scam analysis blocks anonymous and tenant access", async () => {
+  const server = await listen(buildApp({}));
+  try {
+    const url = `http://127.0.0.1:${server.address().port}/api/listings/analyze-scam`;
+    const options = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "A listing", description: "A listing description" }),
+    };
+    const anonymous = await fetch(url, options);
+    assert.equal(anonymous.status, 401);
+
+    const tenant = jwt.sign({ id: 1, role: "TENANT" }, process.env.JWT_SECRET);
+    const unauthorized = await fetch(url, {
+      ...options,
+      headers: { ...options.headers, Authorization: `Bearer ${tenant}` },
+    });
+    assert.equal(unauthorized.status, 403);
+  } finally {
+    await new Promise((resolve, reject) =>
+      server.close((err) => err ? reject(err) : resolve())
+    );
+  }
+});

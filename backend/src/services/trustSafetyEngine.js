@@ -42,7 +42,7 @@ function assertArray(value, name) {
  */
 async function analyzeVisualFraud(imageBase64) {
   const err = assertString(imageBase64, "imageBase64");
-  if (err) return { risk_score: 0, red_flags: [err], summary: "Invalid input." };
+  if (err) return { risk_score: null, red_flags: [err], summary: "Invalid input." };
   return geminiService.analyzeVisualFraud(imageBase64);
 }
 
@@ -56,7 +56,7 @@ async function analyzeScamText(title, description) {
   const err1 = assertString(title, "title");
   const err2 = assertString(description, "description");
   if (err1 && err2) {
-    return { risk_score: 0, red_flags: ["title and description are required"], summary: "Invalid input." };
+    return { risk_score: null, red_flags: ["title and description are required"], summary: "Invalid input." };
   }
   return geminiService.analyzeScamText(title || "", description || "");
 }
@@ -79,7 +79,7 @@ async function extractLandDocument(imageBase64) {
  */
 async function detectChatFraud(messages) {
   const err = assertArray(messages, "messages");
-  if (err) return { is_fraud: false, risk_score: 0, red_flags: [], explanation: err };
+  if (err) return { is_fraud: null, risk_score: null, red_flags: [], explanation: err };
   return geminiService.detectChatFraud(messages);
 }
 

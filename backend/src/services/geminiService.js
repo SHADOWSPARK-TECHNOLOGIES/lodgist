@@ -2,20 +2,18 @@
  * geminiService.js
  *
  * Google Gemini AI service for Lodgist's Trust & Safety features.
- * Uses @google/genai SDK with gemini-1.5-flash model.
+ * Uses @google/genai SDK with gemini-2.5-flash model and Vertex AI ADC.
  *
- * All functions have graceful fallbacks when the API key is not configured.
+ * All functions return honest unavailable/error results when AI is not reachable.
  *
  * @module geminiService
  */
 
-let GoogleVertexAI;
-let GoogleAuth;
+let GoogleGenAI;
 try {
-  GoogleVertexAI = require("@google-cloud/vertexai").VertexAI;
-  GoogleAuth = require("google-auth-library").GoogleAuth;
+  GoogleGenAI = require("@google/genai").GoogleGenAI;
 } catch (error) {
-  console.warn(`Failed to load @google-cloud/vertexai or google-auth-library: ${error.message}. AI services will use fallbacks.`);
+  console.warn(`Failed to load @google/genai: ${error.message}. AI services will use fallbacks.`);
 }
 
 const GEMINI_MODEL = "gemini-2.5-flash";
@@ -23,27 +21,21 @@ const PROJECT_ID = process.env.GCP_PROJECT_ID || "shadowspark-production-489115"
 const LOCATION = process.env.GCP_PROJECT_LOCATION || "us-central1"; // Assuming a default location, can be configured via env
 
 /**
- * Get a configured Vertex AI Gemini client, or null if not configured.
- * @returns {VertexAI|null}
+ * Get a Vertex AI Gemini client with Application Default Credentials.
+ * Runtime must provide ADC via workload identity or an approved credential source.
+ * @returns {GoogleGenAI|null}
  */
 function getGeminiClient() {
-  if (!GoogleVertexAI || !GoogleAuth) {
-    return null;
-  }
+  if (!GoogleGenAI) return null;
 
   try {
-    const auth = new GoogleAuth({
-      keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS || "lodgist-deploy-key.json",
-      scopes: "https://www.googleapis.com/auth/cloud-platform",
-    });
-
-    return new GoogleVertexAI({
+    return new GoogleGenAI({
+      vertexai: true,
       project: PROJECT_ID,
       location: LOCATION,
-      googleAuth: auth,
     });
   } catch (error) {
-    console.error("Failed to initialize Vertex AI client:", error.message);
+    console.error("Failed to initialize Google Gen AI client:", error.message);
     return null;
   }
 }
@@ -57,10 +49,10 @@ async function analyzeVisualFraud(imageBase64) {
   const client = getGeminiClient();
   if (!client) {
     return {
-      risk_score: 0,
+      risk_score: null,
       red_flags: [],
       summary:
-        "Visual fraud analysis is unavailable. The Gemini API key has not been configured.",
+        "Visual fraud analysis is unavailable. Cloud AI credentials or service are unavailable.",
     };
   }
 
@@ -96,7 +88,7 @@ async function analyzeVisualFraud(imageBase64) {
   } catch (err) {
     console.error("Gemini visual analysis failed:", err.message);
     return {
-      risk_score: 0,
+      risk_score: null,
       red_flags: [],
       summary: "Visual analysis encountered an error. Please try again.",
     };
@@ -113,10 +105,10 @@ async function analyzeScamText(title, description) {
   const client = getGeminiClient();
   if (!client) {
     return {
-      risk_score: 0,
+      risk_score: null,
       red_flags: [],
       summary:
-        "AI scam analysis is unavailable. The Gemini API key has not been configured.",
+        "AI scam analysis is unavailable. Cloud AI credentials or service are unavailable.",
     };
   }
 
@@ -157,7 +149,7 @@ Listing:\n\n${fullText}`,
   } catch (err) {
     console.error("Gemini scam analysis failed:", err.message);
     return {
-      risk_score: 0,
+      risk_score: null,
       red_flags: [],
       summary: "AI analysis encountered an error. Please try again.",
     };
@@ -180,10 +172,6 @@ async function extractLandDocument(imageBase64) {
     };
   }
 
-  const generativeModel = vertex_ai.getGenerativeModel({
-    model: GEMINI_MODEL,
-  });
-
   try {
     const request = {
       contents: [
@@ -204,9 +192,12 @@ async function extractLandDocument(imageBase64) {
       ],
     };
 
-    const result = await generativeModel.generateContent(request);
-    const response = result.response;
-    const text = response.candidates[0].content.parts[0].text;
+    const response = await vertex_ai.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: request.contents,
+      config: { responseMimeType: "application/json", maxOutputTokens: 512 },
+    });
+    const text = response.text;
 
     if (!text) throw new Error("Empty Gemini response");
     const parsed = JSON.parse(text);
@@ -236,8 +227,8 @@ async function detectChatFraud(messages) {
   const client = getGeminiClient();
   if (!client) {
     return {
-      is_fraud: false,
-      risk_score: 0,
+      is_fraud: null,
+      risk_score: null,
       red_flags: [],
       explanation: "Chat fraud detection is unavailable.",
     };
@@ -283,8 +274,8 @@ Chat:\n\n${chatLog}`,
   } catch (err) {
     console.error("Gemini chat fraud detection failed:", err.message);
     return {
-      is_fraud: false,
-      risk_score: 0,
+      is_fraud: null,
+      risk_score: null,
       red_flags: [],
       explanation: "Chat analysis encountered an error.",
     };

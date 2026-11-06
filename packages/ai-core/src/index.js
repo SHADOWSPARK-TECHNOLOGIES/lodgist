@@ -18,10 +18,10 @@ if (gcpKeyPath) {
       process.env.GOOGLE_APPLICATION_CREDENTIALS = gcpKeyPath;
       console.log("✓ Google Cloud credentials loaded from", gcpKeyPath);
     } else {
-      console.warn("⚠ lodgist-deploy-key.json is empty — GCP auth skipped");
+      console.warn("⚠ GOOGLE_APPLICATION_CREDENTIALS points to an empty file; GCP auth unavailable");
     }
   } catch {
-    console.warn("⚠ lodgist-deploy-key.json not found — GCP auth skipped");
+    console.warn("⚠ GOOGLE_APPLICATION_CREDENTIALS file is unavailable; GCP auth unavailable");
   }
 }
 

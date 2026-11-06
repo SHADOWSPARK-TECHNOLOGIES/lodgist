@@ -25,7 +25,7 @@ function formatPaymentAmount(amount, currency) {
  */
 function paymentWhatsAppText({ what, amountNgn, currency = "NGN", reference, listing = "", name = "" }) {
   const lines = [
-    "Hi Lodgist. I want to arrange this payment on WhatsApp.",
+    "Hi Lodgist. I want to arrange this payment with your support team.",
     "The Lodgist team confirms payment. This message is not a receipt.",
     "",
     `What: ${what}`,
