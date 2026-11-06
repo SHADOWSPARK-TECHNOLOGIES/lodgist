@@ -13,6 +13,13 @@ export function supportWhatsAppLink(text?: string): string | null {
   return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
+/** Configured public support email only. Never invent a payment destination. */
+export function supportEmailLink(subject: string, body: string): string | null {
+  const email = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim();
+  if (!email || !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) return null;
+  return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 export const brand = {
   endorsement: "A platform curated by ShadowSpark Technologies",
   tagline: "Rent with more confidence.",
@@ -377,11 +384,12 @@ export const milestones = {
 };
 
 export const arrangePayment = {
-  rentalCta: "Arrange this fee on WhatsApp",
-  bookingCta: "Arrange this booking payment on WhatsApp",
+  rentalCta: "Contact support on WhatsApp",
+  bookingCta: "Contact support on WhatsApp about this booking",
+  emailCta: "Contact support by email",
   opening: "Opening WhatsApp",
-  rentalNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. Opening WhatsApp does not mark the fee paid.",
-  bookingNote: "Payment is arranged on WhatsApp. The Lodgist team confirms it. This does not mark the booking paid.",
+  rentalNote: "Contact Lodgist by WhatsApp or email to ask about available approved payment methods. Staff confirm actual receipt. Contacting us does not mean you have paid.",
+  bookingNote: "Contact Lodgist by WhatsApp or email for available approved payment methods. Staff confirm actual receipt. Do not send rent before you inspect the property.",
   queued: "This fee is in the review queue. Staff have not confirmed the money.",
   needLink: "Open the case link we sent you so this fee can enter the review queue.",
   missing: "WhatsApp support is not set up on this site yet.",
