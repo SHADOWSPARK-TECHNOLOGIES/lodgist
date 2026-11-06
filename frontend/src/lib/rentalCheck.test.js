@@ -28,10 +28,12 @@ test("the case page arranges the fee on WhatsApp and does not call Paystack", ()
   assert.match(status, /recordPaymentReference/);
   assert.match(status, /whatsappArrangementRef/);
   assert.match(status, /paymentWhatsAppText/);
+  assert.match(status, /supportEmailLink/);
+  assert.match(status, /emailHref=/);
   assert.equal(status.includes("rentalChecksApi.pay"), false);
   assert.equal(status.includes("paystackUrl"), false);
   assert.equal(status.includes("payment is complete"), false);
-  assert.match(intake, /arrange payment on WhatsApp/);
+  assert.match(intake, /arrange payment on WhatsApp or by email/);
   assert.match(intake, /Lodgist team confirms/);
   assert.equal(intake.includes("Continue to pay"), false);
   assert.match(review, /reviewPayment/);
@@ -45,6 +47,8 @@ test("the case page arranges the fee on WhatsApp and does not call Paystack", ()
   assert.equal(api.includes("pay/verify"), false);
   assert.match(listing, /submitManualPayment/);
   assert.match(listing, /arrangePayment\.bookingCta/);
+  assert.match(listing, /supportEmailLink/);
+  assert.match(listing, /emailHref=/);
   assert.equal(listing.includes("initiate-payment"), false);
   assert.equal(/fraud-free|100% verified|guaranteed|\bsafe\b/i.test(status + intake + review), false);
 });
