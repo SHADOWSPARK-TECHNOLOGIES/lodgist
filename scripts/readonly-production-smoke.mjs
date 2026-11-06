@@ -11,6 +11,15 @@ const probes = [
   { name: "AI route reachability (not model authentication)", url: "https://lodgist-api-production.up.railway.app/api/ai-analysis/health", type: "ai" },
 ];
 
+import dns from "node:dns/promises";
+
+try {
+  const addresses = await dns.lookup("lodgist.online", { all: true });
+  console.log(`Public site DNS lookup: ${addresses.length} address(es), families ${addresses.map(x => x.family).join(",")}`);
+} catch (error) {
+  console.error(`Public site DNS lookup error: ${error.code ?? error.message}`);
+}
+
 let failures = 0;
 for (const probe of probes) {
   try {
@@ -42,7 +51,9 @@ for (const probe of probes) {
     console.log(`PASS ${probe.name}: HTTP ${response.status}`);
   } catch (error) {
     failures += 1;
-    console.error(`FAIL ${probe.name}: ${error.message}`);
+    const causeCode = error.cause?.code ?? error.code ?? "no-cause-code";
+    const causeText = error.cause?.message ?? "";
+    console.error(`FAIL ${probe.name}: ${error.message} [${causeCode}] ${causeText.slice(0, 180)}`);
   }
 }
 if (failures > 0) {
