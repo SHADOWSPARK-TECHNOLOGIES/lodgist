@@ -13,9 +13,9 @@ export function supportWhatsAppLink(text?: string): string | null {
   return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
-/** Configured public support email only. Never invent a payment destination. */
+/** Public support email provided by the operator; deployment env can override it. */
 export function supportEmailLink(subject: string, body: string): string | null {
-  const email = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim();
+  const email = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "wonderstevie702@gmail.com";
   if (!email || !/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email)) return null;
   return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
