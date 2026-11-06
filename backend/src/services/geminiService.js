@@ -49,10 +49,10 @@ async function analyzeVisualFraud(imageBase64) {
   const client = getGeminiClient();
   if (!client) {
     return {
-      risk_score: 0,
+      risk_score: null,
       red_flags: [],
       summary:
-        "Visual fraud analysis is unavailable. The Gemini API key has not been configured.",
+        "Visual fraud analysis is unavailable. Cloud AI credentials or service are unavailable.",
     };
   }
 
@@ -88,7 +88,7 @@ async function analyzeVisualFraud(imageBase64) {
   } catch (err) {
     console.error("Gemini visual analysis failed:", err.message);
     return {
-      risk_score: 0,
+      risk_score: null,
       red_flags: [],
       summary: "Visual analysis encountered an error. Please try again.",
     };
@@ -105,10 +105,10 @@ async function analyzeScamText(title, description) {
   const client = getGeminiClient();
   if (!client) {
     return {
-      risk_score: 0,
+      risk_score: null,
       red_flags: [],
       summary:
-        "AI scam analysis is unavailable. The Gemini API key has not been configured.",
+        "AI scam analysis is unavailable. Cloud AI credentials or service are unavailable.",
     };
   }
 
@@ -149,7 +149,7 @@ Listing:\n\n${fullText}`,
   } catch (err) {
     console.error("Gemini scam analysis failed:", err.message);
     return {
-      risk_score: 0,
+      risk_score: null,
       red_flags: [],
       summary: "AI analysis encountered an error. Please try again.",
     };
@@ -227,8 +227,8 @@ async function detectChatFraud(messages) {
   const client = getGeminiClient();
   if (!client) {
     return {
-      is_fraud: false,
-      risk_score: 0,
+      is_fraud: null,
+      risk_score: null,
       red_flags: [],
       explanation: "Chat fraud detection is unavailable.",
     };
@@ -274,8 +274,8 @@ Chat:\n\n${chatLog}`,
   } catch (err) {
     console.error("Gemini chat fraud detection failed:", err.message);
     return {
-      is_fraud: false,
-      risk_score: 0,
+      is_fraud: null,
+      risk_score: null,
       red_flags: [],
       explanation: "Chat analysis encountered an error.",
     };
