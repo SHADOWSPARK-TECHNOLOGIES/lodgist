@@ -95,3 +95,32 @@ test("billable AI endpoints reject unauthenticated and non-admin calls", async (
     else process.env.JWT_SECRET = originalSecret;
   }
 });
+
+test("unavailable AI cannot be mistaken for a zero-risk assessment", async () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "../src/services/geminiService.js"), "utf8"
+  );
+  class FailingGenAI {
+    constructor() {
+      this.models = { generateContent: async () => { throw new Error("simulated unavailable service"); } };
+    }
+  }
+  const context = {
+    module: { exports: {} },
+    process: { env: { GCP_PROJECT_ID: "test-project" } },
+    console: { warn() {}, error() {} },
+    require(name) {
+      if (name === "@google/genai") return { GoogleGenAI: FailingGenAI };
+      throw new Error("Unexpected import: " + name);
+    },
+  };
+  vm.runInNewContext(source, context, { filename: "geminiService.js" });
+  const ai = context.module.exports;
+  assert.equal((await ai.analyzeVisualFraud("image")).risk_score, null);
+  assert.equal((await ai.analyzeScamText("title", "description")).risk_score, null);
+  const chat = await ai.detectChatFraud([{ role: "user", content: "hello" }]);
+  assert.equal(chat.risk_score, null);
+  assert.equal(chat.is_fraud, null);
+  const engine = require("../src/services/trustSafetyEngine");
+  assert.equal((await engine.analyzeVisualFraud("")).risk_score, null);
+});
