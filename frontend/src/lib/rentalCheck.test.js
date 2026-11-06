@@ -33,8 +33,8 @@ test("the case page arranges the fee on WhatsApp and does not call Paystack", ()
   assert.equal(status.includes("rentalChecksApi.pay"), false);
   assert.equal(status.includes("paystackUrl"), false);
   assert.equal(status.includes("payment is complete"), false);
-  assert.match(intake, /arrange payment on WhatsApp or by email/);
-  assert.match(intake, /Lodgist team confirms/);
+  assert.match(intake, /contact Lodgist Support to arrange payment/);
+  assert.match(intake, /Staff confirm the money received/);
   assert.equal(intake.includes("Continue to pay"), false);
   assert.match(review, /reviewPayment/);
   assert.match(review, /recordPaymentReference/);
