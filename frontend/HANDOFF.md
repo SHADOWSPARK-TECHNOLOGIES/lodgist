@@ -49,3 +49,12 @@ Workspace for this note: branch `cursor/rental-check-handoff-e85f`, parent `orig
 
 Production relationship verified now: `lodgist.online` and `lodgist-api-production.up.railway.app` answer through Railway. Which git revision those services built was not compared to a commit. Historical notes that name a Vercel owner or an older Railway success were not re-checked.
 No schema change in this task.
+
+## Interim support-led payments (CAC/Paystack not ready)
+
+- Do not activate Paystack or automated payment claims. Customers arrange a method **with Lodgist support** and staff independently verify receipt before marking `PAID`.
+- Frontend WhatsApp contact: `NEXT_PUBLIC_SUPPORT_WHATSAPP` (existing). Never hardcode an unverified number.
+- Frontend support email: `NEXT_PUBLIC_SUPPORT_EMAIL` (new, optional). Set it to the **actual verified customer-support mailbox** in Railway before advertising the email button. No verified Lodgist email is stored in this repository; do not invent an address.
+- Rental Safety Check and booking payment pages show WhatsApp when configured and an email link when the support email is configured. The message includes the case/booking reference and amount. Neither channel is a payment receipt.
+- Staff can explain currently approved methods or providers in the conversation. Do not expose any bank account, third-party provider or payment link until the merchant, beneficiary and refund process are independently verified.
+- Actual payment capture/reconciliation and user-facing proof of delivery remain blocked by #129. A support handoff is not a successful transaction.
