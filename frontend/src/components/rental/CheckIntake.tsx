@@ -126,7 +126,7 @@ export default function CheckIntake() {
             </p>
           )}
           <p className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>
-            The check fee is {formatNaira(RENTAL_PRICE_NGN)}. Saving this case does not pay it. On the next page you arrange payment on WhatsApp or by email. Staff confirm the money received before processing your check.
+            The check fee is {formatNaira(RENTAL_PRICE_NGN)}. Saving this case does not pay it. On the next page contact Lodgist Support to arrange payment. Staff confirm the money received before processing your check.
           </p>
           <button className="btn btn-primary w-full" type="submit" disabled={sending} style={{ whiteSpace: "normal" }}>
             {sending ? "Saving" : "Save this case"}
