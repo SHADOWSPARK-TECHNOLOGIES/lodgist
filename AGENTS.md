@@ -352,3 +352,14 @@ For all agents:
 - list exact files/systems affected
 - list risks and verification
 - end with the exact next step
+
+---
+
+## Codex integration (2026-11-07)
+This repository is also operated by Codex through `docs/codex/EXECUTION_CONTRACT_2026-11-07.md` and `.agents/skills/codex-evidence-loop/SKILL.md`. Existing domain-specialist responsibilities above remain in force. Do not assume a historical source or tool report is current truth.
+
+For each Codex objective, use `docs/codex/KICKOFF.md`: prove git branch/HEAD and clean isolated worktree, inspect exact scripts, assign a bounded Builder and independent Verifier, capture evidence, then update a draft PR/issue. Respect the contract's two-no-progress stop rule and up-to-eight attempts limit.
+
+High-risk guard: production and PR #132 preview may NOT be database-isolated. No mutating preview integration tests, migrations, production promotion, real customer payments or changes to receipts/paid/verified state without action-specific authorization. See Lodgist release gate #129.
+
+Use pinned pnpm 9.15.9, not another repository's package manager. Codex must not work on Moronto Mornica, which is assigned to Hermes. No agent's completion claim substitutes for current CI and runtime evidence.
