@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { brand } from "@/lib/copy";
+import { brand, supportEmailLink } from "@/lib/copy";
 
 const product = [
   [brand.check, "/check"],
@@ -15,6 +15,7 @@ const company = [
 ] as const;
 
 export function SiteFooter() {
+  const emailHref = supportEmailLink("Lodgist support enquiry", "Hello Lodgist Support,");
   return (
     <footer className="border-t py-10" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
       <div className="container grid gap-8 md:grid-cols-[1.4fr_1fr_1fr]">
@@ -41,6 +42,9 @@ export function SiteFooter() {
                 <Link href={href} className="nav-link footer-link">{label}</Link>
               </li>
             ))}
+            {emailHref && (
+              <li><a href={emailHref} className="nav-link footer-link">Email Lodgist Support</a></li>
+            )}
           </ul>
         </div>
       </div>

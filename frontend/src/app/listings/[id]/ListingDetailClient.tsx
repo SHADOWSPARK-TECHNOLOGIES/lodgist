@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { TruthScore } from '@/components/ui/TruthScore';
 import FeeLedger from '@/components/ListingDetail/FeeLedger';
 import RequestViewing from '@/components/ListingDetail/RequestViewing';
-import { arrangePayment, detail, formatYearlyRent, supportWhatsAppLink } from '@/lib/copy';
+import { arrangePayment, detail, formatYearlyRent, supportEmailLink, supportWhatsAppLink } from '@/lib/copy';
 import ListingPhotos from '@/components/ListingPhotos';
 import { canRequestViewing, decisionFacts, hasTrustScore, isEvidenceVerified, isLodgistReviewed, isPublicListing, reviewLabel, sourceLabel, verificationLabel } from '@/lib/listingHonesty';
 import ExploreNeighborhood from '@/components/spatial/ExploreNeighborhood';
@@ -135,15 +135,19 @@ function ListingDetail({ id }: { id: number }) {
   const bookingCanPay = Boolean(
     invoiceBooking && (invoiceBooking.status === "PENDING" || invoiceBooking.status === "PENDING_VERIFICATION"),
   );
-  const bookingPayHref = bookingCanPay && invoiceBooking
-    ? supportWhatsAppLink(paymentWhatsAppText({
+  const bookingPaymentMessage = bookingCanPay && invoiceBooking
+    ? paymentWhatsAppText({
         what: "Booking",
         amountNgn: bookingAmount,
         currency: invoiceBooking.currency || "NGN",
         reference: invoiceBooking.id,
         listing: homeLabel,
         name: user?.name || undefined,
-      }))
+      })
+    : null;
+  const bookingPayHref = bookingPaymentMessage ? supportWhatsAppLink(bookingPaymentMessage) : null;
+  const bookingEmailHref = bookingPaymentMessage && invoiceBooking
+    ? supportEmailLink(`Lodgist booking ${invoiceBooking.id}`, bookingPaymentMessage)
     : null;
   const directions = campusDirections({
     place,
@@ -257,6 +261,8 @@ function ListingDetail({ id }: { id: number }) {
         <div className="mb-4">
           <ArrangeWhatsAppPayment
             href={bookingPayHref}
+            emailHref={bookingEmailHref}
+            emailLabel={arrangePayment.emailCta}
             label={arrangePayment.bookingCta}
             busyLabel={arrangePayment.opening}
             note={arrangePayment.bookingNote}

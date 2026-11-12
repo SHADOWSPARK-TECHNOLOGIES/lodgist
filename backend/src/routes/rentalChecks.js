@@ -16,7 +16,7 @@ const {
 } = require("../services/rentalCheck");
 
 const SAVED_MESSAGE =
-  "Case saved. The check fee is ₦5,000. Saving this case does not pay the fee. Arrange it on WhatsApp from the case page. The Lodgist team confirms payment. This does not verify the home.";
+  "Case saved. The check fee is ₦5,000. Saving this case does not pay the fee. Contact Lodgist support from the case page for an approved payment option. Staff confirm receipt. This does not verify the home.";
 
 function readToken(req) {
   const header = req.headers["x-rental-check-token"];
