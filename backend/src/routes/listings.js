@@ -314,7 +314,7 @@ function listingsRouter(prisma) {
 
   // ─── POST /api/listings/analyze-scam — MUST come before POST / ────────────
   // Uses OpenAI + keyword detection to flag scam listings
-  router.post("/analyze-scam", async (req, res) => {
+  router.post("/analyze-scam", requireAuth, requireRole("STUDIO_ADMIN"), async (req, res) => {
     try {
       const { title, description } = req.body;
 

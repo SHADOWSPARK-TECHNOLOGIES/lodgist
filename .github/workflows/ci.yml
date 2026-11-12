@@ -65,6 +65,10 @@ jobs:
         working-directory: lodgist
         run: npx next build
 
+      - name: Read-only public service health (release candidate only)
+        if: github.event_name == 'pull_request' && github.head_ref == 'release/controlled-beta-readiness-20261106'
+        run: node scripts/readonly-production-smoke.mjs
+
   frontend:
     name: Frontend Build
     runs-on: [self-hosted, linux, x64, lodgist-ci]
@@ -97,7 +101,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
+      # Avoid post-job npm cache upload blocking the shared self-hosted runner.
       - run: npm ci
       - run: npm test
