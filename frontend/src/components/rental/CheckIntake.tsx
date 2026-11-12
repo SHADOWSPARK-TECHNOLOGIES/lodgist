@@ -98,20 +98,29 @@ export default function CheckIntake() {
           </label>
           <label className="block text-sm text-white">
             Your WhatsApp number
-            <input className="input mt-1" required value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} inputMode="tel" placeholder="080..." />
+            <input className="input mt-1" required value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="080..." />
           </label>
           <label className="block text-sm text-white">
             Your name (optional)
-            <input className="input mt-1" value={customerName} onChange={(e) => setCustomerName(e.target.value)} />
+            <input className="input mt-1" value={customerName} onChange={(e) => setCustomerName(e.target.value)} autoComplete="name" />
           </label>
           <fieldset className="space-y-3">
             <legend className="text-sm text-white">Payment details they gave you (optional)</legend>
             <p className="text-xs" style={{ color: "rgba(255,255,255,0.55)" }}>
               Bank name and account are evidence for the review. Do not send card numbers, PINs, or OTPs.
             </p>
-            <input className="input" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Bank name" />
-            <input className="input" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="Account name" />
-            <input className="input" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="10-digit account number" inputMode="numeric" />
+            <label className="block text-sm text-white" htmlFor="rental-bank-name">
+              Bank name
+              <input id="rental-bank-name" className="input mt-1" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="Bank name" />
+            </label>
+            <label className="block text-sm text-white" htmlFor="rental-account-name">
+              Account name
+              <input id="rental-account-name" className="input mt-1" value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="Account name" />
+            </label>
+            <label className="block text-sm text-white" htmlFor="rental-account-number">
+              Account number
+              <input id="rental-account-number" className="input mt-1" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} placeholder="10-digit account number" inputMode="numeric" />
+            </label>
           </fieldset>
           <label className="block text-sm text-white">
             Notes (optional)
