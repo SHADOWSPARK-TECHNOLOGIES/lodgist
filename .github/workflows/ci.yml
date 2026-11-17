@@ -97,7 +97,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
+      # Avoid post-job npm cache upload blocking the shared self-hosted runner.
       - run: npm ci
       - run: npm test

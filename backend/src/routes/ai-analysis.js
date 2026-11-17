@@ -10,6 +10,10 @@
 const express = require("express");
 const router = express.Router();
 const engine = require("../services/trustSafetyEngine");
+const { requireAuth, requireRole } = require("../middleware/auth");
+
+// Paid AI calls are staff-only. Public health and local risk calculations remain available.
+router.use(["/analyze-scam", "/analyze-visual", "/verify-land", "/chat-fraud", "/audit-artisan"], requireAuth, requireRole("STUDIO_ADMIN"));
 
 // POST /api/ai-analysis/analyze-scam
 // Analyze listing text for scam indicators

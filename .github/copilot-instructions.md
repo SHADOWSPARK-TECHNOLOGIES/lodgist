@@ -34,7 +34,7 @@ lodgist/
 **Truth Sentinel (AI Core)** (`/packages/ai-core`)
 - Express fraud detection service
 - Core endpoint: `POST /verify-land` (plot_number, owner_name)
-- Uses Google Cloud Vision (optional GCP key at `lodgist-deploy-key.json`)
+- Google Cloud authentication should use Application Default Credentials (ADC) or workload identity; never recreate or commit the leaked JSON key.
 - Integrates Vertex AI Gemini models and OpenAI
 - Tests: Vitest with coverage (v8 provider)
 
@@ -197,7 +197,7 @@ The frontend uses Next.js 16.2.4, which has breaking changes from your training 
 4. Set environment variables in Render dashboard (secrets not in version control)
 
 ### Test Fraud Detection
-1. Ensure `GOOGLE_APPLICATION_CREDENTIALS` points to a valid GCP key
+1. Configure ADC through workload identity or an approved managed credential source; do not recreate service-account private keys
 2. Call: `POST http://localhost:4001/verify-land` with `{ plot_number: "...", owner_name: "..." }`
 3. Response includes fraud signals, truth index, and confidence scores
 
@@ -242,7 +242,7 @@ The WhatsApp router provides `sendWhatsAppMessage(to, text)` function:
 - **Location**: `us-central1` (default; override with `GCP_PROJECT_LOCATION`)
 - **Project**: `shadowspark-production-489115` (override with `GCP_PROJECT_ID`)
 - **Service Account**: `truth-sentinel-core@shadowspark-production-489115.iam.gserviceaccount.com`
-- **Key File**: `lodgist-deploy-key.json` (optional; service auto-skips if missing)
+- **Authentication**: Application Default Credentials (ADC), preferably via workload identity. The previously leaked key was revoked.
 
 ### Gemini Service (Backend)
 Located: `/backend/src/services/geminiService.js`
@@ -397,7 +397,7 @@ Audit Trail: Every update creates an `AIFraudSignal` record with metadata
 ### Google Cloud Credentials Handling
 - If `GOOGLE_APPLICATION_CREDENTIALS` file doesn't exist or is empty, services gracefully disable GCP features
 - No error is thrown; conversely, services log warnings and continue
-- `lodgist-deploy-key.json` is in `.gitignore` (never committed)
+- `lodgist-deploy-key.json` is in `.gitignore`, but it WAS committed historically; its exposed key was disabled and deleted in 2026. Ignoring the file does not erase Git history.
 
 ### Port Allocation
 | Service | Default Port | Override |
@@ -503,7 +503,7 @@ If you're starting work in this repository for the first time:
 3. Use `npm run dev` to see request/response logs
 
 **Gemini API returning empty response?**
-1. Verify `GOOGLE_APPLICATION_CREDENTIALS` points to valid key file
+1. Verify the runtime has ADC configured; prefer workload identity over downloadable service-account keys
 2. Check `GCP_PROJECT_ID` matches your project (default: `shadowspark-production-489115`)
 3. Ensure Vision API is enabled in GCP console
 
