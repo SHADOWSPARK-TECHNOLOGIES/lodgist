@@ -33,6 +33,21 @@ function isStudioAdmin(user) {
 function rentalChecksRouter(prisma) {
   const router = express.Router();
 
+  // Compare-and-set prevents a stale payment reference from undoing staff confirmation.
+  async function updatePaymentIfCurrent(check, data) {
+    const result = await prisma.rentalCheck.updateMany({
+      where: {
+        id: check.id,
+        paymentStatus: check.paymentStatus,
+        manualPaymentRef: check.manualPaymentRef ?? null,
+        status: check.status,
+      },
+      data,
+    });
+    if (result.count !== 1) return null;
+    return prisma.rentalCheck.findUnique({ where: { id: check.id } });
+  }
+
   router.post("/", optionalAuth, async (req, res) => {
     const parsed = validateIntake(req.body);
     if (!parsed.ok) {
@@ -155,8 +170,9 @@ function rentalChecksRouter(prisma) {
       const decision = submitManualPayment(check, parsed.ref);
       if (!decision.ok) return res.status(decision.status).json({ success: false, error: decision.error });
       const current = decision.data
-        ? await prisma.rentalCheck.update({ where: { id: check.id }, data: decision.data })
+        ? await updatePaymentIfCurrent(check, decision.data)
         : check;
+      if (!current) return res.status(409).json({ success: false, error: "Payment status changed. Refresh the case and try again." });
       const view = isStudioAdmin(user) ? adminView(current) : publicStatus(current);
       return res.json({
         success: true,
@@ -180,8 +196,9 @@ function rentalChecksRouter(prisma) {
       });
       if (!decision.ok) return res.status(decision.status).json({ success: false, error: decision.error });
       const current = decision.data
-        ? await prisma.rentalCheck.update({ where: { id: check.id }, data: decision.data })
+        ? await updatePaymentIfCurrent(check, decision.data)
         : check;
+      if (!current) return res.status(409).json({ success: false, error: "Payment status changed. Refresh the case and try again." });
       return res.json({ success: true, data: adminView(current), alreadyPaid: Boolean(decision.alreadyPaid) });
     } catch (error) {
       logger.error("Rental check payment review failed", { message: error.message });
